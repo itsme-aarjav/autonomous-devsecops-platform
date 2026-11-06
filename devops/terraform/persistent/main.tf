@@ -32,7 +32,7 @@ module "ecr" {
 resource "aws_secretsmanager_secret" "db_credentials" {
   name                    = "boutique/database/credentials"
   description             = "Database credentials for boutique microservices"
-  kms_key_id              = aws_kms_key.cmk.arn
+  kms_key_id              = var.legacy_secrets_kms_key_arn
   recovery_window_in_days = 7
 
   tags = {
@@ -46,7 +46,7 @@ resource "aws_secretsmanager_secret" "db_credentials" {
 resource "aws_secretsmanager_secret" "jwt_secret" {
   name                    = "boutique/auth/jwt-secret"
   description             = "Cryptographic JWT signing secret for boutique services"
-  kms_key_id              = aws_kms_key.cmk.arn
+  kms_key_id              = var.legacy_secrets_kms_key_arn
   recovery_window_in_days = 7
 
   tags = {

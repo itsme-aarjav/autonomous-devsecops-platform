@@ -45,4 +45,10 @@ variable "database_backup_daily_retention_days" {
   default     = 14
 }
 
+variable "legacy_secrets_kms_key_arn" {
+  description = "Historical KMS CMK ARN preserving encryption for restored legacy database and JWT secrets until separately authorized migration"
+  type        = string
+  default     = "arn:aws:kms:us-east-2:592668326948:key/fbae32ef-8684-4aef-83b2-722fc490f95f"
+}
+
 
