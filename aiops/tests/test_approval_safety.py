@@ -46,6 +46,13 @@ if "boto3" not in sys.modules:
         mock_cond = MagicMock()
         sys.modules["boto3.dynamodb.conditions"] = mock_cond
 
+if "langgraph" not in sys.modules:
+    try:
+        import langgraph
+    except ImportError:
+        sys.modules["langgraph"] = MagicMock()
+        sys.modules["langgraph.graph"] = MagicMock()
+
 from aiops.agent.remediation.schemas import (
     RemediationProposal,
     RemediationActionType,

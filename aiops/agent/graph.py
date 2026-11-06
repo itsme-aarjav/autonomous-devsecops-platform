@@ -4,7 +4,12 @@ Defines the 7-node diagnostic pipeline with conditional error routing.
 """
 
 from typing import Dict, Any, Optional
-from langgraph.graph import StateGraph, START, END
+try:
+    from langgraph.graph import StateGraph, START, END
+except ImportError:
+    StateGraph = None
+    START = None
+    END = None
 
 from .config import AgentConfig
 from .schemas import IncidentInput, NormalizedIncident, RootCauseAnalysis
@@ -33,6 +38,9 @@ def create_aiops_graph(
     bedrock = bedrock_client or BedrockConverseClient(cfg)
     sanitizer_inst = sanitizer or EvidenceSanitizer(max_log_lines=cfg.max_log_lines, max_log_bytes=cfg.max_log_bytes)
     persistence = persistence_adapter or InMemoryPersistenceAdapter()
+
+    if StateGraph is None:
+        raise ImportError("langgraph is required to construct the AIOps graph. Install with: pip install langgraph")
 
     workflow = StateGraph(AgentState)
 
