@@ -21,6 +21,7 @@ import io
 import os
 import sys
 import json
+import threading
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
@@ -492,6 +493,306 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
         self.assertEqual(rejected.rejected_by, "arn:aws:iam::592668326948:user/terra-admin")
         self.assertIsInstance(rejected.rejected_at, datetime)
         self.assertEqual(rejected.rejection_reason, "Insufficient confidence in traffic forecast")
+
+    # -----------------------------------------------------------------------
+    # 13. Concurrency Barrier: Simultaneous Approval Races
+    # -----------------------------------------------------------------------
+    def test_barrier_synchronized_simultaneous_approvals(self):
+        """
+        Prove that two simultaneous threads arriving at the approval claim
+        via a threading.Barrier cannot duplicate commits or corrupt state.
+        """
+        prop = _create_test_proposal("prop-barrier-01")
+        self.store.save_proposal(prop)
+
+        barrier = threading.Barrier(2)
+        results = []
+        errors = []
+
+        def worker(thread_id: int):
+            try:
+                # Synchronize both threads to start execution simultaneously
+                barrier.wait(timeout=5.0)
+                res = self.engine.apply_approved_remediation(
+                    proposal_id="prop-barrier-01",
+                    approval_token="token-secret-1234567890abcdef",
+                    commit_to_main=True,
+                )
+                results.append((thread_id, res))
+            except Exception as e:
+                errors.append((thread_id, e))
+
+        t1 = threading.Thread(target=worker, args=(1,))
+        t2 = threading.Thread(target=worker, args=(2,))
+        t1.start()
+        t2.start()
+        t1.join(timeout=10.0)
+        t2.join(timeout=10.0)
+
+        # Either one succeeds and one reconciles/fails, or both receive the reconciled proposal
+        total_attempts = len(results) + len(errors)
+        self.assertEqual(total_attempts, 2)
+
+        # In all cases, EXACTLY ONE commit must have landed on GitHub
+        matching_commits = [sha for sha, c in self.github.commits.items() if "prop-barrier-01" in c["message"]]
+        self.assertEqual(len(matching_commits), 1, "Exactly one commit must land regardless of thread race")
+
+        # The proposal in store must be APPLIED_TO_MAIN
+        final_prop = self.store.get_proposal("prop-barrier-01")
+        self.assertEqual(final_prop.status, RemediationStatus.APPLIED_TO_MAIN)
+        self.assertEqual(final_prop.applied_commit_sha, matching_commits[0])
+
+    # -----------------------------------------------------------------------
+    # 14. In-Progress Proposal Cannot Be Reclaimed
+    # -----------------------------------------------------------------------
+    def test_in_progress_proposal_cannot_be_reclaimed_without_commit(self):
+        """
+        An already APPLICATION_IN_PROGRESS proposal must not be acquired
+        again by another process if no commit exists on GitHub.
+        """
+        prop = _create_test_proposal("prop-in-prog-01", status=RemediationStatus.APPLICATION_IN_PROGRESS)
+        prop.approved_by = "arn:aws:iam::592668326948:user/worker-1"
+        self.store.save_proposal(prop)
+
+        with self.assertRaises(PermissionError) as ctx:
+            self.engine.apply_approved_remediation(
+                proposal_id="prop-in-prog-01",
+                approval_token="token-secret-1234567890abcdef",
+                commit_to_main=True,
+            )
+        self.assertIn("currently in progress", str(ctx.exception))
+        self.assertIn("APPLICATION_IN_PROGRESS", str(ctx.exception))
+
+    # -----------------------------------------------------------------------
+    # 15. Atomic Finalize Conflict Never Overwrites with Save
+    # -----------------------------------------------------------------------
+    def test_atomic_finalize_conflict_never_overwrites_with_save(self):
+        """
+        If the atomic transition to APPLIED_TO_MAIN fails, the engine raises
+        RuntimeError and does NOT unconditionally call save_proposal.
+        """
+        prop = _create_test_proposal("prop-finalize-fail-01")
+        self.store.save_proposal(prop)
+
+        # Hook atomic_transition_status to fail ONLY when transitioning to APPLIED_TO_MAIN
+        orig_transition = self.store.atomic_transition_status
+
+        def fail_finalize(proposal_id, expected_statuses, new_status, updated_proposal):
+            if new_status == RemediationStatus.APPLIED_TO_MAIN.value:
+                return False
+            return orig_transition(proposal_id, expected_statuses, new_status, updated_proposal)
+
+        self.store.atomic_transition_status = fail_finalize
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.engine.apply_approved_remediation(
+                proposal_id="prop-finalize-fail-01",
+                approval_token="token-secret-1234567890abcdef",
+                commit_to_main=True,
+            )
+        self.assertIn("CRITICAL: Commit", str(ctx.exception))
+        self.assertIn("Unconditional overwrite denied", str(ctx.exception))
+
+    # -----------------------------------------------------------------------
+    # 16. Ambiguous GitHub Commit Outcome Fails Closed
+    # -----------------------------------------------------------------------
+    def test_ambiguous_github_commit_outcome_fails_closed(self):
+        """
+        If commit_to_main fails with an exception AND authoritative verification
+        also fails with an exception, the engine fails closed, leaves proposal
+        in APPLICATION_IN_PROGRESS, and raises RuntimeError.
+        """
+        prop = _create_test_proposal("prop-ambig-01")
+        self.store.save_proposal(prop)
+
+        self.github.commit_to_main = MagicMock(side_effect=RuntimeError("GitHub 500 Internal Error"))
+        # First call (pre-claim check) returns None; second call (post-failure check) raises Network Down
+        self.github.find_commit_for_proposal = MagicMock(side_effect=[None, RuntimeError("GitHub API Network Down")])
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.engine.apply_approved_remediation(
+                proposal_id="prop-ambig-01",
+                approval_token="token-secret-1234567890abcdef",
+                commit_to_main=True,
+            )
+        self.assertIn("Ambiguous GitHub API outcome", str(ctx.exception))
+
+        # Status MUST remain APPLICATION_IN_PROGRESS (claim retained to prevent double application)
+        fresh = self.store.get_proposal("prop-ambig-01")
+        self.assertEqual(fresh.status, RemediationStatus.APPLICATION_IN_PROGRESS)
+
+    # -----------------------------------------------------------------------
+    # 17. Reconciliation Preserves Original Authenticated Identity
+    # -----------------------------------------------------------------------
+    def test_reconciliation_preserves_original_authenticated_identity(self):
+        """
+        When reconciling an in-progress proposal that already committed to GitHub,
+        original approved_by and approved_at provenance must be preserved.
+        """
+        orig_time = datetime(2026, 11, 5, 12, 0, 0, tzinfo=timezone.utc)
+        prop = _create_test_proposal("prop-reconcile-orig-01", status=RemediationStatus.APPLICATION_IN_PROGRESS)
+        prop.approved_by = "arn:aws:iam::592668326948:user/alice-operator"
+        prop.approved_at = orig_time
+        prop.is_approved_by_human = True
+        self.store.save_proposal(prop)
+
+        # Inject simulated commit on GitHub
+        fake_sha = "f00baa1234567890abcdef1234567890abcdef12"
+        self.github.commits[fake_sha] = {
+            "message": "fix(gitops): apply\n\nProposal-ID: prop-reconcile-orig-01",
+            "files": {},
+            "parent": "parent-sha",
+            "branch": "main",
+        }
+
+        # Another operator (terra-admin) reconciles
+        reconciled = self.engine.apply_approved_remediation(
+            proposal_id="prop-reconcile-orig-01",
+            approval_token="token-secret-1234567890abcdef",
+            commit_to_main=True,
+        )
+        self.assertEqual(reconciled.status, RemediationStatus.APPLIED_TO_MAIN)
+        self.assertEqual(reconciled.applied_commit_sha, fake_sha)
+        # Provenance must be ALICE, not terra-admin!
+        self.assertEqual(reconciled.approved_by, "arn:aws:iam::592668326948:user/alice-operator")
+        self.assertEqual(reconciled.approved_at, orig_time)
+
+    # -----------------------------------------------------------------------
+    # 18. IAM Authenticator: Root, Wildcards, Worker Denials & Allowed Principals
+    # -----------------------------------------------------------------------
+    def test_iam_authenticator_denies_root_wildcards_and_worker(self):
+        """Strict verification that root, arbitrary wildcards, and worker identity are denied."""
+        auth = AwsIamApprovalAuthenticator()
+        prop = _create_test_proposal("prop-iam-test-01")
+
+        # 1. Root must be denied
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.return_value = {
+            "Account": "592668326948",
+            "Arn": "arn:aws:iam::592668326948:root",
+        }
+        auth._sts_client = mock_sts
+        ok, msg = auth.authenticate(proposal=prop, approval_token=None)
+        self.assertFalse(ok)
+        self.assertIn("root principal", msg)
+
+        # 2. Arbitrary Admin role must be denied
+        mock_sts.get_caller_identity.return_value = {
+            "Account": "592668326948",
+            "Arn": "arn:aws:iam::592668326948:role/RandomAdminRole",
+        }
+        ok, msg = auth.authenticate(proposal=prop, approval_token=None)
+        self.assertFalse(ok)
+        self.assertIn("does not match allowed", msg)
+
+        # 3. Arbitrary CloudShell role must be denied
+        mock_sts.get_caller_identity.return_value = {
+            "Account": "592668326948",
+            "Arn": "arn:aws:sts::592668326948:assumed-role/AWSCloudShellFullAccess/user",
+        }
+        ok, msg = auth.authenticate(proposal=prop, approval_token=None)
+        self.assertFalse(ok)
+        self.assertIn("does not match allowed", msg)
+
+        # 4. AIOps worker identity must be denied
+        mock_sts.get_caller_identity.return_value = {
+            "Account": "592668326948",
+            "Arn": "arn:aws:iam::592668326948:role/boutique-aiops-worker",
+        }
+        ok, msg = auth.authenticate(proposal=prop, approval_token=None)
+        self.assertFalse(ok)
+        self.assertIn("AIOps worker identity", msg)
+
+        # 5. Explicit terra-admin must be allowed
+        mock_sts.get_caller_identity.return_value = {
+            "Account": "592668326948",
+            "Arn": "arn:aws:iam::592668326948:user/terra-admin",
+        }
+        ok, res = auth.authenticate(proposal=prop, approval_token=None)
+        self.assertTrue(ok)
+        self.assertEqual(res, "arn:aws:iam::592668326948:user/terra-admin")
+
+        # 6. Explicit boutique-cloud-operator role must be allowed
+        mock_sts.get_caller_identity.return_value = {
+            "Account": "592668326948",
+            "Arn": "arn:aws:sts::592668326948:assumed-role/boutique-cloud-operator/session-1",
+        }
+        ok, res = auth.authenticate(proposal=prop, approval_token=None)
+        self.assertTrue(ok)
+        self.assertEqual(res, "arn:aws:sts::592668326948:assumed-role/boutique-cloud-operator/session-1")
+
+    # -----------------------------------------------------------------------
+    # 19. Production CLI --yes Flag Rejection
+    # -----------------------------------------------------------------------
+    def test_production_cli_yes_flag_rejected(self):
+        """In production mode (not simulation), --yes flag must be rejected with exit code 1."""
+        store = InMemoryRemediationStore()
+        prop = _create_test_proposal("prop-cli-guard-01")
+        store.save_proposal(prop)
+
+        # Test approve with --yes in production mode
+        args_approve = MagicMock()
+        args_approve.proposal_id = "prop-cli-guard-01"
+        args_approve.yes = True
+        args_approve.simulate = False
+        args_approve.commit = True
+
+        err_out = io.StringIO()
+        with patch("sys.stderr", err_out), self.assertRaises(SystemExit) as ctx:
+            operator_cli.cmd_approve(args_approve, store)
+        self.assertEqual(ctx.exception.code, 1)
+        self.assertIn("--yes' flag is forbidden in production mode", err_out.getvalue())
+
+        # Test reject with --yes in production mode
+        args_reject = MagicMock()
+        args_reject.proposal_id = "prop-cli-guard-01"
+        args_reject.yes = True
+        args_reject.simulate = False
+        args_reject.reason = "Test rejection"
+
+        err_out2 = io.StringIO()
+        with patch("sys.stderr", err_out2), self.assertRaises(SystemExit) as ctx2:
+            operator_cli.cmd_reject(args_reject, store)
+        self.assertEqual(ctx2.exception.code, 1)
+        self.assertIn("--yes' flag is forbidden in production mode", err_out2.getvalue())
+
+        # Test recover with --yes in production mode
+        in_prog_prop = _create_test_proposal("prop-cli-recover-01", status=RemediationStatus.APPLICATION_IN_PROGRESS)
+        store.save_proposal(in_prog_prop)
+        args_recover = MagicMock()
+        args_recover.proposal_id = "prop-cli-recover-01"
+        args_recover.yes = True
+        args_recover.simulate = False
+
+        err_out3 = io.StringIO()
+        with patch("sys.stderr", err_out3), self.assertRaises(SystemExit) as ctx3:
+            operator_cli.cmd_recover(args_recover, store)
+        self.assertEqual(ctx3.exception.code, 1)
+        self.assertIn("--yes' flag is forbidden in production mode", err_out3.getvalue())
+
+    # -----------------------------------------------------------------------
+    # 20. Safe Operator Recovery of Stale Claims
+    # -----------------------------------------------------------------------
+    def test_safe_operator_recovery_workflow(self):
+        """Stale in-progress claims can be authoritatively recovered back to pending."""
+        prop = _create_test_proposal("prop-stale-01", status=RemediationStatus.APPLICATION_IN_PROGRESS)
+        prop.approved_by = "arn:aws:iam::592668326948:user/crashed-worker"
+        self.store.save_proposal(prop)
+
+        recovered = self.engine.recover_in_progress_proposal(
+            proposal_id="prop-stale-01",
+            approval_token="token-secret-1234567890abcdef",
+        )
+        self.assertEqual(recovered.status, RemediationStatus.PENDING_HUMAN_APPROVAL)
+        self.assertIn("Recovered from stale in-progress claim", recovered.policy_reason)
+
+        # Once recovered to PENDING, standard approval can proceed safely
+        applied = self.engine.apply_approved_remediation(
+            proposal_id="prop-stale-01",
+            approval_token="token-secret-1234567890abcdef",
+            commit_to_main=True,
+        )
+        self.assertEqual(applied.status, RemediationStatus.APPLIED_TO_MAIN)
 
 
 if __name__ == "__main__":

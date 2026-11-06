@@ -73,23 +73,22 @@ class AwsIamApprovalAuthenticator(BaseApprovalAuthenticator):
     """
     Production-grade human approval authenticator bound to authenticated AWS IAM/STS caller identity.
     Enforces that caller is authenticated in the target AWS Account (default: 592668326948)
-    and matches authorized operator IAM principal patterns (e.g. terra-admin, CloudShell, Operator roles).
-    Optionally validates a secondary approval token if token authenticator is provided.
+    and matches authorized operator IAM principal patterns.
+
+    Security Policies:
+    - Root account identity is strictly denied under all circumstances.
+    - Wildcard Admin/CloudShell role patterns are prohibited by default; only explicitly authorized
+      operator roles or users (e.g. terra-admin, boutique-cloud-operator) are permitted.
+    - AIOps background worker identities are strictly denied from approving/committing.
+    - Distinguishes authoritative AWS STS cryptographic caller identity from optional secondary tokens
+      (secondary pre-shared tokens are an optional secret check, NOT hardware/virtual MFA).
     """
 
     DEFAULT_ALLOWED_ACCOUNT = "592668326948"
     DEFAULT_ALLOWED_PATTERNS = [
-        "*:user/terra-admin",
-        "*:root",
-        "*:role/*Admin*",
-        "*:role/*CloudOps*",
-        "*:role/*Operator*",
-        "*:role/*CloudShell*",
-        "*:assumed-role/*Admin*/*",
-        "*:assumed-role/*CloudOps*/*",
-        "*:assumed-role/*Operator*/*",
-        "*:assumed-role/*CloudShell*/*",
-        "*:assumed-role/AWSCloudShellFullAccess/*",
+        "arn:aws:iam::592668326948:user/terra-admin",
+        "arn:aws:iam::592668326948:role/boutique-cloud-operator",
+        "arn:aws:sts::592668326948:assumed-role/boutique-cloud-operator/*",
     ]
 
     def __init__(
@@ -104,7 +103,7 @@ class AwsIamApprovalAuthenticator(BaseApprovalAuthenticator):
         if raw_patterns:
             self.allowed_patterns = [p.strip() for p in raw_patterns.split(",") if p.strip()]
         else:
-            self.allowed_patterns = allowed_patterns or self.DEFAULT_ALLOWED_PATTERNS
+            self.allowed_patterns = allowed_patterns or list(self.DEFAULT_ALLOWED_PATTERNS)
         self.token_authenticator = token_authenticator
         self._sts_client = sts_client
 
@@ -132,15 +131,24 @@ class AwsIamApprovalAuthenticator(BaseApprovalAuthenticator):
         account = identity.get("Account", "")
         arn = identity.get("Arn", "")
 
+        # Target AWS Account Verification
         if account != self.allowed_account:
             return False, f"Access Denied: AWS Account '{account}' is not authorized (expected {self.allowed_account})"
 
-        # Verify ARN matches allowed operator patterns
+        # STRICT GUARD 1: Root principal is strictly forbidden
+        if arn.endswith(":root") or ":root" in arn:
+            return False, f"Access Denied: IAM root principal '{arn}' is strictly forbidden for production remediation approval"
+
+        # STRICT GUARD 2: AIOps worker identities cannot approve or commit
+        if "worker" in arn.lower() or "aiops-agent" in arn.lower():
+            return False, f"Access Denied: AIOps worker identity '{arn}' is not permitted to approve or commit remediations"
+
+        # STRICT GUARD 3: ARN must match explicitly allowed operator principals
         matched = any(fnmatch.fnmatch(arn, pattern) for pattern in self.allowed_patterns)
         if not matched:
             return False, f"Access Denied: IAM principal '{arn}' does not match allowed operator roles/principals"
 
-        # 2. Secondary token factor verification if token authenticator is configured
+        # 2. Secondary token verification if token authenticator is configured (pre-shared secret, not MFA)
         if self.token_authenticator:
             ok, token_msg = self.token_authenticator.authenticate(
                 proposal=proposal,

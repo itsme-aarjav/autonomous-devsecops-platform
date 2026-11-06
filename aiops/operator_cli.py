@@ -366,6 +366,16 @@ def cmd_approve(args, store):
     is_simulation = getattr(args, "simulate", False)
     explicit_commit = getattr(args, "commit", False)
 
+    # Guard: --yes is strictly forbidden in production mode
+    if not is_simulation and getattr(args, "yes", False):
+        print(
+            "[ERROR] Security policy violation: '--yes' flag is forbidden in production mode. "
+            "Production approval strictly requires interactive human review and manual typing of 'APPROVE'. "
+            "'--yes' is permitted only with '--simulate'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     # Strict invariant: simulation CANNOT commit to real GitHub
     if is_simulation and explicit_commit:
         print(
@@ -393,7 +403,7 @@ def cmd_approve(args, store):
     # Show diff for operator review
     cmd_show(args, store)
 
-    # Explicit confirmation gate (skip only if --yes is passed in headless scripts)
+    # Explicit confirmation gate (skip only if --yes is passed in simulation mode)
     if not getattr(args, "yes", False):
         confirm = input("Review the diff above carefully. Type APPROVE to confirm: ").strip()
         if confirm != "APPROVE":
@@ -456,6 +466,17 @@ def cmd_reject(args, store):
     cmd_show(args, store)
 
     is_simulation = getattr(args, "simulate", False)
+
+    # Guard: --yes is strictly forbidden in production mode
+    if not is_simulation and getattr(args, "yes", False):
+        print(
+            "[ERROR] Security policy violation: '--yes' flag is forbidden in production mode. "
+            "Production rejection strictly requires interactive human review and manual typing of 'REJECT'. "
+            "'--yes' is permitted only with '--simulate'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     if is_simulation:
         operator_id = getattr(args, "operator", None) or os.getenv("AIOPS_OPERATOR_ID", "simulation-operator")
         approval_token = None
@@ -475,7 +496,7 @@ def cmd_reject(args, store):
     if not reason:
         reason = "Rejected by operator via CLI."
 
-    # Explicit confirmation gate
+    # Explicit confirmation gate (skip only if --yes is passed in simulation mode)
     if not getattr(args, "yes", False):
         confirm = input("Type REJECT to confirm rejection of this proposal: ").strip()
         if confirm != "REJECT":
@@ -494,6 +515,66 @@ def cmd_reject(args, store):
     print(f"     Reason: {result.rejection_reason}")
     if result.rejected_at:
         print(f"     Timestamp: {result.rejected_at.strftime('%Y-%m-%d %H:%M:%SZ')}")
+
+
+def cmd_recover(args, store):
+    """Safely recovers a proposal stuck in APPLICATION_IN_PROGRESS."""
+    proposal = store.get_proposal(args.proposal_id)
+    if not proposal:
+        print(f"[ERROR] Proposal '{args.proposal_id}' not found.", file=sys.stderr)
+        sys.exit(1)
+
+    from aiops.agent.remediation.schemas import RemediationStatus
+
+    if proposal.status != RemediationStatus.APPLICATION_IN_PROGRESS:
+        print(
+            f"[INFO] Proposal '{args.proposal_id}' is not in progress (current status: {proposal.status.value}). "
+            "Recovery is only applicable to APPLICATION_IN_PROGRESS proposals."
+        )
+        sys.exit(0)
+
+    is_simulation = getattr(args, "simulate", False)
+    if not is_simulation and getattr(args, "yes", False):
+        print(
+            "[ERROR] Security policy violation: '--yes' flag is forbidden in production mode. "
+            "Production recovery strictly requires interactive human review and confirmation. "
+            "'--yes' is permitted only with '--simulate'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if is_simulation:
+        operator_id = getattr(args, "operator", None) or os.getenv("AIOPS_OPERATOR_ID", "simulation-operator")
+        approval_token = None
+        authenticator = None
+        github_provider = None
+        print(f"[NOTICE] Running recovery in SIMULATION mode with operator '{operator_id}'.")
+    else:
+        operator_id = None
+        authenticator = _resolve_authenticator(is_simulation=False)
+        approval_token = _resolve_approval_token(authenticator)
+        github_provider = _resolve_github_provider(is_simulation=False)
+
+    cmd_show(args, store)
+
+    if not getattr(args, "yes", False):
+        confirm = input(f"Confirm recovery of in-progress proposal '{args.proposal_id}'? Type RECOVER to proceed: ").strip()
+        if confirm != "RECOVER":
+            print("[ABORTED] Recovery cancelled. Status remains unchanged.")
+            sys.exit(0)
+
+    engine = _build_engine(store, github_provider=github_provider, authenticator=authenticator)
+    result = engine.recover_in_progress_proposal(
+        proposal_id=args.proposal_id,
+        operator=operator_id if is_simulation else None,
+        approval_token=approval_token,
+        is_simulation=is_simulation,
+    )
+    print(f"[SUCCESS] Proposal '{args.proposal_id}' recovered successfully.")
+    print(f"          Final status : {result.status.value}")
+    if result.status == RemediationStatus.APPLIED_TO_MAIN:
+        print(f"          Committed SHA: {result.applied_commit_sha}")
+        print(f"          Approved by  : {result.approved_by}")
 
 
 def cmd_status(args, store):
@@ -554,6 +635,12 @@ Environment variables (required, never CLI args):
     p_status.add_argument("proposal_id", help="Proposal ID")
     p_status.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
 
+    p_recover = sub.add_parser("recover", help="Recover a proposal stuck in APPLICATION_IN_PROGRESS")
+    p_recover.add_argument("proposal_id", help="Proposal ID")
+    p_recover.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")
+    p_recover.add_argument("--operator", default=None, help="Operator identifier for simulation mode")
+    p_recover.add_argument("--yes", "-y", action="store_true", default=False, help="Skip interactive confirmation prompt")
+
     args = parser.parse_args()
 
     is_simulation = getattr(args, "simulate", False) or os.getenv("AIOPS_SIMULATION_MODE", "").strip().lower() in ("1", "true")
@@ -569,6 +656,8 @@ Environment variables (required, never CLI args):
         cmd_reject(args, store)
     elif args.command == "status":
         cmd_status(args, store)
+    elif args.command == "recover":
+        cmd_recover(args, store)
 
 
 if __name__ == "__main__":

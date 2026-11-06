@@ -11,7 +11,7 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Dict, Optional, List
-from .schemas import RemediationProposal
+from .schemas import RemediationProposal, RemediationStatus
 
 logger = logging.getLogger("aiops.remediation.store")
 
@@ -64,6 +64,12 @@ class InMemoryRemediationStore(BaseRemediationStore):
 
     def save_proposal(self, proposal: RemediationProposal) -> str:
         with self._lock:
+            current = self._storage.get(proposal.proposal_id)
+            if current and current.status in (RemediationStatus.OPERATOR_REJECTED, RemediationStatus.APPLIED_TO_MAIN):
+                if proposal.status != current.status:
+                    raise PermissionError(
+                        f"Cannot overwrite terminal proposal '{proposal.proposal_id}' (status: {current.status.value}) with status '{proposal.status.value}'."
+                    )
             self._storage[proposal.proposal_id] = proposal.model_copy(deep=True)
             self._incident_index[proposal.incident_id] = proposal.proposal_id
             return proposal.proposal_id
@@ -115,6 +121,12 @@ class LocalFileRemediationStore(BaseRemediationStore):
         filepath = os.path.join(self.base_dir, filename)
         tmp_filepath = os.path.join(self.base_dir, f".{filename}.tmp.{uuid.uuid4().hex}")
         with self._lock:
+            existing = self.get_proposal(proposal.proposal_id)
+            if existing and existing.status in (RemediationStatus.OPERATOR_REJECTED, RemediationStatus.APPLIED_TO_MAIN):
+                if proposal.status != existing.status:
+                    raise PermissionError(
+                        f"Cannot overwrite terminal proposal '{proposal.proposal_id}' (status: {existing.status.value}) with status '{proposal.status.value}'."
+                    )
             with open(tmp_filepath, "w", encoding="utf-8") as f:
                 json.dump(proposal.model_dump(mode="json"), f, indent=2)
             os.replace(tmp_filepath, filepath)
@@ -215,6 +227,14 @@ class DynamoDBRemediationStore(BaseRemediationStore):
 
     def save_proposal(self, proposal: RemediationProposal) -> str:
         """Persists or updates a remediation proposal in DynamoDB."""
+        # Defense-in-depth: Never overwrite terminal status
+        existing = self.get_proposal(proposal.proposal_id)
+        if existing and existing.status in (RemediationStatus.OPERATOR_REJECTED, RemediationStatus.APPLIED_TO_MAIN):
+            if proposal.status != existing.status:
+                raise PermissionError(
+                    f"Cannot overwrite terminal proposal '{proposal.proposal_id}' (status: {existing.status.value}) with status '{proposal.status.value}'."
+                )
+
         now_epoch = int(time.time())
         ttl_epoch = now_epoch + 90 * 86400  # 90-day retention for audit evidence
 
@@ -256,21 +276,23 @@ class DynamoDBRemediationStore(BaseRemediationStore):
             response = self._table.scan(
                 FilterExpression=self._Attr("proposal_id").eq(proposal_id)
             )
-            items = response.get("Items", [])
+            items = response.get("Items", []) if isinstance(response, dict) else []
             if not items:
                 return None
-            raw = items[0].get("remediation_proposal")
-            return RemediationProposal.model_validate(json.loads(raw)) if raw else None
+            first = items[0] if isinstance(items, list) and items else None
+            raw = first.get("remediation_proposal") if isinstance(first, dict) else None
+            return RemediationProposal.model_validate(json.loads(raw)) if raw and isinstance(raw, str) else None
 
         response = self._table.get_item(
             Key={"proposal_id": proposal_id},
             ConsistentRead=True,
         )
-        item = response.get("Item")
-        if not item or "remediation_proposal" not in item:
+        item = response.get("Item") if isinstance(response, dict) else None
+        if not item or not isinstance(item, dict) or "remediation_proposal" not in item:
             return None
         try:
-            return RemediationProposal.model_validate(json.loads(item["remediation_proposal"]))
+            raw = item["remediation_proposal"]
+            return RemediationProposal.model_validate(json.loads(raw)) if isinstance(raw, str) else None
         except Exception:
             return None
 

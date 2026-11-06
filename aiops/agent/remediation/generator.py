@@ -236,9 +236,18 @@ class GitOpsRemediationEngine:
                     )
 
                 # Check if already committed on GitHub (idempotent reconciliation)
-                existing_commit_sha = self.github_provider.find_commit_for_proposal(
-                    proposal_id=proposal.proposal_id,
-                )
+                try:
+                    existing_commit_sha = self.github_provider.find_commit_for_proposal(
+                        proposal_id=proposal.proposal_id,
+                    )
+                except Exception as precheck_err:
+                    if proposal.status == RemediationStatus.APPLICATION_IN_PROGRESS:
+                        raise RuntimeError(
+                            f"Cannot inspect in-progress proposal '{proposal_id}': GitHub verification failed ({precheck_err}). "
+                            "Status remains APPLICATION_IN_PROGRESS to prevent races."
+                        ) from precheck_err
+                    logger.debug("Pre-claim commit check failed: %s", precheck_err)
+                    existing_commit_sha = None
                 if existing_commit_sha:
                     logger.info(
                         "Remediation proposal %s was already committed to 'main' in commit %s. Reconciling proposal state.",
@@ -246,15 +255,41 @@ class GitOpsRemediationEngine:
                         existing_commit_sha,
                     )
                     reconciled = proposal.model_copy(deep=True)
-                    reconciled.is_approved_by_human = is_authenticated
-                    reconciled.is_simulated_approval = is_simulated
-                    reconciled.approval_mode = "AUTHENTICATED"
-                    reconciled.approved_by = verified_identity
-                    reconciled.approved_at = datetime.now(timezone.utc)
+                    reconciled.is_approved_by_human = True if proposal.is_approved_by_human else is_authenticated
+                    reconciled.is_simulated_approval = proposal.is_simulated_approval if proposal.is_simulated_approval is not None else is_simulated
+                    reconciled.approval_mode = proposal.approval_mode or ("SIMULATED" if is_simulated else "AUTHENTICATED")
+                    reconciled.approved_by = proposal.approved_by or verified_identity
+                    reconciled.approved_at = proposal.approved_at or datetime.now(timezone.utc)
                     reconciled.status = RemediationStatus.APPLIED_TO_MAIN
                     reconciled.applied_commit_sha = existing_commit_sha
-                    self.store.save_proposal(reconciled)
+
+                    reconcile_statuses = [
+                        RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                        RemediationStatus.POLICY_APPROVED.value,
+                        RemediationStatus.APPLICATION_IN_PROGRESS.value,
+                    ]
+                    reconciled_ok = self.store.atomic_transition_status(
+                        proposal_id=proposal.proposal_id,
+                        expected_statuses=reconcile_statuses,
+                        new_status=RemediationStatus.APPLIED_TO_MAIN.value,
+                        updated_proposal=reconciled,
+                    )
+                    if not reconciled_ok:
+                        fresh = self.store.get_proposal(proposal.proposal_id)
+                        if fresh and fresh.status == RemediationStatus.APPLIED_TO_MAIN:
+                            return fresh
+                        logger.warning(
+                            "Reconciliation transition could not be finalized for %s (current status: %s).",
+                            proposal_id,
+                            fresh.status.value if fresh else "UNKNOWN",
+                        )
                     return reconciled
+
+                if proposal.status == RemediationStatus.APPLICATION_IN_PROGRESS:
+                    raise PermissionError(
+                        f"Cannot apply proposal '{proposal_id}': proposal is currently in progress (APPLICATION_IN_PROGRESS, claimed by '{proposal.approved_by}'). "
+                        "No GitHub commit was found. Use explicit operator recovery or wait for lease to expire."
+                    )
 
                 # ATOMIC CLAIM: Reserve proposal before live commit to prevent race with rejections/competing approvals
                 claimed_proposal = proposal.model_copy(deep=True)
@@ -268,7 +303,6 @@ class GitOpsRemediationEngine:
                 allowed_pre_claim_statuses = [
                     RemediationStatus.PENDING_HUMAN_APPROVAL.value,
                     RemediationStatus.POLICY_APPROVED.value,
-                    RemediationStatus.APPLICATION_IN_PROGRESS.value,
                 ]
                 claimed = self.store.atomic_transition_status(
                     proposal_id=proposal.proposal_id,
@@ -285,6 +319,10 @@ class GitOpsRemediationEngine:
                         )
                     if fresh and fresh.status == RemediationStatus.APPLIED_TO_MAIN:
                         return fresh
+                    if fresh and fresh.status == RemediationStatus.APPLICATION_IN_PROGRESS:
+                        raise PermissionError(
+                            f"Concurrent claim conflict: proposal '{proposal.proposal_id}' is already claimed by '{fresh.approved_by}' (APPLICATION_IN_PROGRESS)."
+                        )
                     raise PermissionError(
                         f"Concurrent state conflict: proposal '{proposal.proposal_id}' status is now '{fresh_status}'."
                     )
@@ -310,14 +348,32 @@ class GitOpsRemediationEngine:
                     )
                 except Exception as commit_err:
                     # Check if the commit landed despite an exception
+                    recheck_error = None
+                    rechecked_sha = None
                     try:
                         rechecked_sha = self.github_provider.find_commit_for_proposal(proposal_id=proposal.proposal_id)
-                    except Exception:
-                        rechecked_sha = None
+                    except Exception as chk_err:
+                        recheck_error = chk_err
 
                     if rechecked_sha:
                         new_commit_sha = rechecked_sha
+                    elif recheck_error is not None:
+                        # Ambiguous outcome: commit failed and status check also failed.
+                        # Fail closed: retain APPLICATION_IN_PROGRESS claim to prevent races/duplicate commits.
+                        logger.error(
+                            "Ambiguous GitHub API outcome for proposal %s: commit failed (%s) and authoritative verification failed (%s). "
+                            "Retaining APPLICATION_IN_PROGRESS claim.",
+                            proposal.proposal_id,
+                            commit_err,
+                            recheck_error,
+                        )
+                        raise RuntimeError(
+                            f"Ambiguous GitHub API outcome for proposal '{proposal.proposal_id}': commit failed ({commit_err}) "
+                            f"and authoritative verification failed ({recheck_error}). Claim retained in APPLICATION_IN_PROGRESS "
+                            f"to prevent duplicate execution. Manual operator investigation required."
+                        ) from commit_err
                     else:
+                        # Authoritative check confirmed commit did NOT land
                         # Revert in-progress reservation back to PENDING_HUMAN_APPROVAL so operator can retry
                         try:
                             revert_proposal = claimed_proposal.model_copy(deep=True)
@@ -344,7 +400,14 @@ class GitOpsRemediationEngine:
                     updated_proposal=final_proposal,
                 )
                 if not finalized:
-                    self.store.save_proposal(final_proposal)
+                    fresh = self.store.get_proposal(proposal.proposal_id)
+                    if fresh and fresh.status == RemediationStatus.APPLIED_TO_MAIN:
+                        return fresh
+                    raise RuntimeError(
+                        f"CRITICAL: Commit '{new_commit_sha}' was pushed to GitHub 'main', but atomic status transition "
+                        f"to APPLIED_TO_MAIN failed (current store status: {fresh.status.value if fresh else 'UNKNOWN'}). "
+                        f"Unconditional overwrite denied. Manual operator reconciliation required."
+                    )
 
                 logger.info(
                     "Remediation proposal %s for %s was approved by '%s' and applied to 'main' (commit: %s).",
@@ -480,6 +543,102 @@ class GitOpsRemediationEngine:
 
             logger.info("Remediation proposal %s was rejected by '%s': %s", proposal_id, verified_identity, reason)
             return rejected_proposal
+
+    def recover_in_progress_proposal(
+        self,
+        proposal_id: str,
+        operator: Optional[str] = None,
+        approval_token: Optional[str] = None,
+        is_simulation: bool = False,
+    ) -> RemediationProposal:
+        """
+        Safely and authoritatively recovers a proposal stuck in APPLICATION_IN_PROGRESS.
+        Verifies:
+        1. Human operator is authenticated (or simulation).
+        2. Authoritative check on GitHub: if commit landed, reconciles to APPLIED_TO_MAIN preserving provenance.
+        3. If GitHub check fails with an error: fails closed (cannot recover ambiguous state).
+        4. If GitHub confirms NO commit landed: atomically transitions status back to PENDING_HUMAN_APPROVAL.
+        """
+        with self._apply_lock:
+            proposal = self.store.get_proposal(proposal_id)
+            if not proposal:
+                raise ValueError(f"Remediation proposal '{proposal_id}' not found in store.")
+
+            if proposal.status == RemediationStatus.APPLIED_TO_MAIN:
+                logger.info("Proposal %s is already APPLIED_TO_MAIN.", proposal_id)
+                return proposal
+
+            if proposal.status == RemediationStatus.OPERATOR_REJECTED:
+                raise PermissionError(f"Cannot recover rejected proposal '{proposal_id}' (status: OPERATOR_REJECTED).")
+
+            if proposal.status != RemediationStatus.APPLICATION_IN_PROGRESS:
+                logger.info("Proposal %s is not in progress (status: %s).", proposal_id, proposal.status.value)
+                return proposal
+
+            # Authenticate operator
+            if is_simulation:
+                if not operator or not isinstance(operator, str) or not operator.strip():
+                    raise PermissionError("Simulated human operator identifier required for offline simulation.")
+                verified_identity = f"[SIMULATED] {operator.strip()}"
+            else:
+                if self.approval_authenticator is None:
+                    raise PermissionError("Unauthenticated recovery rejected: no trusted human identity mechanism configured.")
+                authenticated, result_or_err = self.approval_authenticator.authenticate(
+                    proposal=proposal,
+                    approval_token=approval_token,
+                    operator=operator,
+                )
+                if not authenticated:
+                    raise PermissionError(f"Human operator recovery authentication failed: {result_or_err}.")
+                verified_identity = result_or_err
+
+            # Authoritative check on GitHub
+            if not self.github_provider:
+                raise RuntimeError(f"Cannot verify proposal '{proposal_id}' on GitHub: no GitHub provider configured.")
+
+            try:
+                commit_sha = self.github_provider.find_commit_for_proposal(proposal_id=proposal_id)
+            except Exception as e:
+                raise RuntimeError(
+                    f"Cannot recover proposal '{proposal_id}': GitHub verification failed ({e}). State remains ambiguous."
+                ) from e
+
+            if commit_sha:
+                # Commit actually landed! Reconcile to APPLIED_TO_MAIN preserving provenance
+                reconciled = proposal.model_copy(deep=True)
+                reconciled.is_approved_by_human = True if proposal.is_approved_by_human else not is_simulation
+                reconciled.is_simulated_approval = is_simulation
+                reconciled.approval_mode = proposal.approval_mode or ("SIMULATED" if is_simulation else "AUTHENTICATED")
+                reconciled.approved_by = proposal.approved_by or verified_identity
+                reconciled.approved_at = proposal.approved_at or datetime.now(timezone.utc)
+                reconciled.status = RemediationStatus.APPLIED_TO_MAIN
+                reconciled.applied_commit_sha = commit_sha
+                self.store.atomic_transition_status(
+                    proposal_id=proposal_id,
+                    expected_statuses=[RemediationStatus.APPLICATION_IN_PROGRESS.value],
+                    new_status=RemediationStatus.APPLIED_TO_MAIN.value,
+                    updated_proposal=reconciled,
+                )
+                logger.info("Recovered proposal %s: reconciled to APPLIED_TO_MAIN (commit: %s).", proposal_id, commit_sha)
+                return reconciled
+
+            # No commit on GitHub: safe to release claim back to PENDING_HUMAN_APPROVAL
+            recovered = proposal.model_copy(deep=True)
+            recovered.status = RemediationStatus.PENDING_HUMAN_APPROVAL
+            recovered.policy_reason = (recovered.policy_reason or "") + f" | Recovered from stale in-progress claim by {verified_identity}"
+            transitioned = self.store.atomic_transition_status(
+                proposal_id=proposal_id,
+                expected_statuses=[RemediationStatus.APPLICATION_IN_PROGRESS.value],
+                new_status=RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                updated_proposal=recovered,
+            )
+            if not transitioned:
+                fresh = self.store.get_proposal(proposal_id)
+                raise PermissionError(
+                    f"Recovery transition failed: proposal '{proposal_id}' status concurrently changed to '{fresh.status.value if fresh else 'UNKNOWN'}'."
+                )
+            logger.info("Recovered proposal %s: released claim back to PENDING_HUMAN_APPROVAL by '%s'.", proposal_id, verified_identity)
+            return recovered
 
     def _extract_workload(self, rca: RootCauseAnalysis, incident: Optional[Dict[str, Any]]) -> str:
         """Determines target workload from incident context or RCA evidence."""
