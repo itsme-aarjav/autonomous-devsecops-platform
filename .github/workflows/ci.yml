@@ -83,7 +83,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install Dependencies
-        run: pip install --no-cache-dir pydantic==2.10.3 pyyaml==6.0.2
+        run: pip install --no-cache-dir pydantic==2.10.3 pyyaml==6.0.2 requests==2.32.3 boto3==1.35.71
 
       - name: Run AIOps Unit & Security Tests
         run: python3 -m unittest discover -s aiops/tests -p "test_*.py" -v

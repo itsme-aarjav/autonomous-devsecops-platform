@@ -14,7 +14,10 @@ import logging
 import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
-import requests
+try:
+    import requests
+except ImportError:
+    requests = None
 
 from ..config import AgentConfig
 from ..evidence import BaseEvidenceAdapter
@@ -48,13 +51,18 @@ class PrometheusEvidenceAdapter(BaseEvidenceAdapter):
         self,
         config: Optional[AgentConfig] = None,
         base_url: Optional[str] = None,
-        http_session: Optional[requests.Session] = None,
+        http_session: Optional[Any] = None,
     ):
         self.config = config or AgentConfig()
         self.base_url = (base_url or self.config.prometheus_base_url).rstrip("/")
         self.timeout = self.config.prometheus_timeout_seconds
         self.max_response_bytes = self.config.prometheus_max_response_bytes
-        self.session = http_session or requests.Session()
+        if http_session is not None:
+            self.session = http_session
+        else:
+            if requests is None:
+                raise ImportError("requests is required for PrometheusEvidenceAdapter. Install with: pip install requests")
+            self.session = requests.Session()
 
     def get_workload_evidence(
         self, namespace: str, workload: str, category: str
