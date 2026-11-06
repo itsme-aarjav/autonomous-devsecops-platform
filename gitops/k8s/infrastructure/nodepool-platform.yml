@@ -1,0 +1,59 @@
+apiVersion: eks.amazonaws.com/v1
+kind: NodeClass
+metadata:
+  name: platform-nodeclass
+spec:
+  role: boutique-dev-eks-node-role
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: boutique-dev-eks
+        topology.kubernetes.io/zone: us-east-2a
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: boutique-dev-eks
+  ephemeralStorage:
+    size: 50Gi
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: platform-on-demand
+spec:
+  template:
+    metadata:
+      labels:
+        workload-class: platform
+        node-lifecycle: on-demand
+        role: core-platform
+    spec:
+      nodeClassRef:
+        group: eks.amazonaws.com
+        kind: NodeClass
+        name: platform-nodeclass
+      # Taint ensures application pods can NEVER accidentally land on platform nodes
+      taints:
+        - key: role
+          value: core-platform
+          effect: NoSchedule
+      requirements:
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: eks.amazonaws.com/instance-family
+          operator: In
+          values: ["m7i-flex", "m7i", "m6i", "c7i", "c6i"]
+        - key: eks.amazonaws.com/instance-size
+          operator: In
+          values: ["large", "xlarge"]
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["us-east-2a"]
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+  limits:
+    cpu: "8"
+    memory: 32Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m

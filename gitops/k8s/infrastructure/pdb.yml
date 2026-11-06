@@ -1,0 +1,33 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-postgres
+  namespace: boutique
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: postgres
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-gateway
+  namespace: boutique
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-frontend
+  namespace: boutique
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: frontend
+

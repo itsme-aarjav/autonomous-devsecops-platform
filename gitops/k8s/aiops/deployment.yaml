@@ -1,0 +1,135 @@
+---
+# Autonomous AIOps Agent Controlled Deployment
+# Location: gitops/k8s/aiops/deployment.yaml
+#
+# OPERATIONAL DIRECTIVES:
+# - Exactly 1 replica in controlled standby mode.
+# - Scheduled on platform On-Demand node pool (workload-class: platform, role: core-platform).
+# - Hardened non-root, read-only root filesystem security context.
+# - Strictly read-only cluster observation; no automated incident execution.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-assistant
+  namespace: boutique
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+    app.kubernetes.io/component: reasoning-engine
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aiops-assistant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aiops-assistant
+        app.kubernetes.io/part-of: autonomous-devsecops-platform
+        app.kubernetes.io/component: reasoning-engine
+    spec:
+      serviceAccountName: aiops-assistant
+      automountServiceAccountToken: true
+      # Platform Scheduling: Targets core platform On-Demand node pool
+      nodeSelector:
+        workload-class: platform
+        node-lifecycle: on-demand
+      tolerations:
+        - key: role
+          value: core-platform
+          operator: Equal
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: aiops-agent
+          # Gated: Pending initial GitHub Actions CI build & ECR digest promotion
+          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant:pending-ecr-build
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http-health
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: AWS_REGION
+              value: "us-east-2"
+            - name: AIOPS_BEDROCK_MODEL_ID
+              value: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+            - name: PROMETHEUS_BASE_URL
+              value: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+            - name: AIOPS_HEALTH_PORT
+              value: "8080"
+            - name: AIOPS_QUEUE_BACKEND
+              value: "sqs"
+            - name: AIOPS_PERSISTENCE_BACKEND
+              value: "dynamodb"
+            - name: AIOPS_SQS_QUEUE_NAME
+              value: "boutique-aiops-alert-queue.fifo"
+            - name: AIOPS_SQS_DLQ_NAME
+              value: "boutique-aiops-alert-dlq.fifo"
+            - name: AIOPS_DYNAMODB_EPISODES_TABLE
+              value: "boutique-aiops-episodes"
+            - name: AIOPS_DYNAMODB_RCA_TABLE
+              value: "boutique-aiops-rca-reports"
+            - name: AIOPS_SQS_VISIBILITY_TIMEOUT
+              value: "300"
+            - name: AIOPS_WEBHOOK_ENABLED
+              value: "false"
+            - name: AIOPS_BEDROCK_ENABLED
+              value: "false"
+            - name: AIOPS_WEBHOOK_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-webhook-secret
+                  key: token
+                  optional: true
+            - name: AIOPS_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-github-secret
+                  key: token
+                  optional: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
+      volumes:
+        - name: tmp-dir
+          emptyDir:
+            sizeLimit: 100Mi

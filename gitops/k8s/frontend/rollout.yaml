@@ -1,0 +1,108 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: frontend
+  namespace: boutique
+  labels:
+    app: frontend
+    tier: ui
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: frontend
+  strategy:
+    canary:
+      canaryService: frontend-preview
+      stableService: frontend-active
+      trafficRouting:
+        alb:
+          ingress: frontend-ingress
+          servicePort: 3000
+      steps:
+        - setWeight: 20
+        - pause: { duration: 30s }
+        - setWeight: 50
+        - pause: { duration: 30s }
+        - setWeight: 100
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: ui
+    spec:
+      tolerations:
+        - key: "spot-instance"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: In
+                    values:
+                      - stateless-apps
+                  - key: node-lifecycle
+                    operator: In
+                    values:
+                      - spot
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: frontend
+          image: boutique-frontend:latest
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          ports:
+            - containerPort: 3000
+          env:
+            - name: REACT_APP_API_URL
+              value: http://gateway:3001/api
+
+---
+# Active production service managed by Argo Rollouts Canary
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-active
+  namespace: boutique
+  labels:
+    app: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
+
+---
+# Canary preview service managed by Argo Rollouts
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-preview
+  namespace: boutique
+  labels:
+    app: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP

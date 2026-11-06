@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: in-cluster-git-pvc
+  namespace: argocd
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ebs-gp3-auto
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: in-cluster-git
+  namespace: argocd
+  labels:
+    app: in-cluster-git
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: in-cluster-git
+  template:
+    metadata:
+      labels:
+        app: in-cluster-git
+    spec:
+      nodeSelector:
+        role: core-platform
+      tolerations:
+        - key: "role"
+          operator: "Equal"
+          value: "core-platform"
+          effect: "NoSchedule"
+      containers:
+        - name: git
+          image: alpine/git
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9418
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: git-storage
+              mountPath: /git
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              apk add --no-cache git-daemon
+              if [ ! -d "/git/boutique.git/refs" ]; then
+                echo "ERROR: /git/boutique.git is missing on persistent volume!"
+                exit 1
+              fi
+              git -C /git/boutique.git config daemon.receivepack false
+              git -C /git/boutique.git config daemon.uploadpack true
+              echo "Starting hardened read-only git daemon on persistent storage..."
+              exec git daemon --verbose --export-all --base-path=/git \
+                --enable=upload-pack --disable=receive-pack --forbid-override=receive-pack \
+                --listen=0.0.0.0 --port=9418
+      volumes:
+        - name: git-storage
+          persistentVolumeClaim:
+            claimName: in-cluster-git-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: in-cluster-git
+  namespace: argocd
+  labels:
+    app: in-cluster-git
+spec:
+  type: ClusterIP
+  selector:
+    app: in-cluster-git
+  ports:
+    - name: git
+      port: 9418
+      targetPort: 9418
+      protocol: TCP
+

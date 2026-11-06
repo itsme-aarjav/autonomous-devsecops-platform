@@ -1,0 +1,252 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  validate-terraform:
+    name: Terraform Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.10.0
+
+      - name: Validate Terraform Formatting
+        run: terraform fmt -recursive -check infrastructure
+
+  validate-ansible:
+    name: Ansible Syntax Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible Core
+        run: pip install --no-cache-dir ansible-core==2.17.5
+
+      - name: Syntax Check Playbooks
+        run: ansible-playbook -i ansible/inventory.ini ansible/playbooks/*.yml --syntax-check
+
+  validate-kustomize:
+    name: Kustomize Manifest Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build and Validate GitOps Manifests
+        run: kubectl kustomize gitops/ > /dev/null
+
+  validate-shell:
+    name: Shell Script Syntax Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate Shell Script Syntax
+        run: |
+          find . -name "*.sh" -not -path "*/node_modules/*" -exec bash -n {} +
+
+  scan-trivy-fs:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Run Trivy Vulnerability Scanner (FS)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+  validate-boutique-containers:
+    name: Validate Boutique Containers (${{ matrix.service }})
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: boutique-auth
+            build_dir: application/backend/services/auth
+          - service: boutique-gateway
+            build_dir: application/backend/services/gateway
+          - service: boutique-frontend
+            build_dir: application/frontend
+          - service: boutique-aiops-assistant
+            build_dir: aiops
+            dockerfile: aiops/Dockerfile.agent
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build Container Image
+        run: |
+          if [ -n "${{ matrix.dockerfile }}" ]; then
+            docker build -f "${{ matrix.dockerfile }}" -t "${{ matrix.service }}:${{ github.sha }}" "${{ matrix.build_dir }}"
+          else
+            docker build -t "${{ matrix.service }}:${{ github.sha }}" "${{ matrix.build_dir }}"
+          fi
+
+      - name: Verify Non-Root User Execution for Frontend Container
+        if: matrix.service == 'boutique-frontend'
+        run: |
+          CONTAINER_UID=$(docker run --rm "${{ matrix.service }}:${{ github.sha }}" id -u)
+          echo "Boutique Frontend Container UID: ${CONTAINER_UID}"
+          if [ "${CONTAINER_UID}" != "10001" ]; then
+            echo "Error: Frontend container must run as dedicated non-root UID 10001 (found ${CONTAINER_UID})"
+            exit 1
+          fi
+
+      - name: Scan Microservice Container with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'image'
+          image-ref: '${{ matrix.service }}:${{ github.sha }}'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+      - name: Check AWS ECR Publisher Configuration
+        id: check-aws
+        run: |
+          if [ -n "${{ vars.AWS_ROLE_TO_ASSUME }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "AWS_ROLE_TO_ASSUME repository variable detected. ECR publishing will proceed."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "AWS_ROLE_TO_ASSUME repository variable is not configured. Skipping ECR publishing for ${{ matrix.service }}."
+          fi
+
+      - name: Configure AWS Credentials via GitHub OIDC
+        if: github.ref == 'refs/heads/main' && steps.check-aws.outputs.configured == 'true'
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-2
+          audience: sts.amazonaws.com
+
+      - name: Login to Amazon ECR
+        if: github.ref == 'refs/heads/main' && steps.check-aws.outputs.configured == 'true'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Publish Verified Image to ECR & Resolve Digest
+        if: github.ref == 'refs/heads/main' && steps.check-aws.outputs.configured == 'true'
+        run: |
+          REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          TAGGED_IMAGE="${REGISTRY}/${{ matrix.service }}:${{ github.sha }}"
+          docker tag "${{ matrix.service }}:${{ github.sha }}" "${TAGGED_IMAGE}"
+          echo "Pushing immutable image: ${TAGGED_IMAGE}..."
+          docker push "${TAGGED_IMAGE}"
+
+          # Query immutable SHA256 image digest from ECR
+          DIGEST=$(aws ecr describe-images \
+            --repository-name "${{ matrix.service }}" \
+            --image-ids imageTag="${{ github.sha }}" \
+            --region us-east-2 \
+            --query "imageDetails[0].imageDigest" \
+            --output text)
+
+          if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+            echo "Error: Failed to resolve ECR image digest for ${{ matrix.service }}" >&2
+            exit 1
+          fi
+
+          echo "Successfully resolved ECR digest for ${{ matrix.service }}: ${DIGEST}"
+          IMAGE_URI="${REGISTRY}/${{ matrix.service }}@${DIGEST}"
+          echo "Full immutable image URI for ${{ matrix.service }}: ${IMAGE_URI}"
+          mkdir -p digests
+          echo "${IMAGE_URI}" > "digests/${{ matrix.service }}.digest"
+
+      - name: Upload Image Digest Artifact
+        if: github.ref == 'refs/heads/main' && steps.check-aws.outputs.configured == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digest-${{ matrix.service }}
+          path: digests/${{ matrix.service }}.digest
+          retention-days: 1
+
+  promote-gitops:
+    name: GitOps Direct-Main Image Promotion
+    needs: [validate-boutique-containers, validate-shell]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment:
+      name: production-promotion
+    permissions:
+      contents: write
+    steps:
+      - name: Check AWS ECR Publisher Configuration
+        id: check-aws
+        run: |
+          if [ -n "${{ vars.AWS_ROLE_TO_ASSUME }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "AWS_ROLE_TO_ASSUME repository variable detected. Direct-main promotion will proceed upon human approval."
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "AWS_ROLE_TO_ASSUME repository variable is not configured. Skipping GitOps promotion."
+          fi
+
+      - name: Checkout Code
+        if: steps.check-aws.outputs.configured == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: main
+
+      - name: Download All Image Digest Artifacts
+        if: steps.check-aws.outputs.configured == 'true'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.1.9
+        with:
+          pattern: digest-*
+          merge-multiple: true
+          path: digests
+
+      - name: Update Kubernetes Manifests with Immutable Digests
+        if: steps.check-aws.outputs.configured == 'true'
+        run: |
+          python3 scripts/update_gitops_image.py --artifacts-dir digests --repo-root .
+
+      - name: Validate GitOps Manifests with Kustomize
+        if: steps.check-aws.outputs.configured == 'true'
+        run: kubectl kustomize gitops/ > /dev/null
+
+      - name: Commit and Push Directly to Main
+        if: steps.check-aws.outputs.configured == 'true'
+        run: |
+          if git diff --quiet gitops/; then
+            echo "All GitOps manifests are already pinned to latest immutable digests. No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add gitops/
+          git commit -m "chore(gitops): promote microservices to immutable ECR digests for ${{ github.sha }} [skip ci]"
+          git push origin main

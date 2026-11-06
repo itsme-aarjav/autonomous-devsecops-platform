@@ -1,0 +1,25 @@
+---
+# Internal ClusterIP Service for AIOps Health Probes
+# Location: gitops/k8s/aiops/service.yaml
+#
+# SECURITY DIRECTIVES:
+# - Strictly internal ClusterIP (no LoadBalancer, NodePort, or Ingress).
+# - Only exposes port 8080 for liveness and readiness monitoring.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiops-assistant
+  namespace: boutique
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: aiops-assistant
+  ports:
+    - name: http-health
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

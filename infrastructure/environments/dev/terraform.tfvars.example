@@ -1,0 +1,30 @@
+region      = "us-east-2"
+environment = "dev"
+
+vpc_name     = "boutique-dev-vpc"
+vpc_cidr     = "10.1.0.0/16"
+cluster_name = "boutique-dev-eks"
+
+# Minimum 2 AZs for ALB & EKS control plane requirements
+public_subnet_cidrs  = ["10.1.1.0/24", "10.1.2.0/24"]
+private_subnet_cidrs = ["10.1.10.0/24", "10.1.20.0/24"]
+availability_zones   = ["us-east-2a", "us-east-2b"]
+
+# Authorized administrative CIDR blocks for EKS public API endpoint.
+# DOCUMENTATION PLACEHOLDER ONLY: Replace with the operator's actual publicly routable
+# egress IP or authorized public CIDR (e.g. ["203.0.113.50/32"]) before deployment.
+# WARNING: Never use private VPC CIDRs (e.g. 10.1.0.0/16) as workstation access ranges,
+# as this will block external internet access to the EKS public API endpoint.
+admin_cidr_blocks = ["203.0.113.50/32"]
+
+# Node Group Configurations (Option B: Multi-Node Demo Architecture)
+on_demand_instance_types = ["m7i-flex.large"]
+on_demand_desired_size   = 2
+on_demand_min_size       = 2
+on_demand_max_size       = 3
+
+spot_instance_types = ["m7i-flex.large"]
+spot_desired_size   = 1
+spot_min_size       = 1
+spot_max_size       = 5
+
