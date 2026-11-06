@@ -1,11 +1,9 @@
 # ------------------------------------------------------------------------------
 # Dedicated Human Operator IAM Role for Remediation Approval
 # ------------------------------------------------------------------------------
-# Strictly scoped role for authorized human operators (Phase 4.5 Task C).
+# Strictly scoped role for authorized human operators (Phase 4.5 Task C / Phase 5.1).
 # Background AIOps workers run under separate worker execution roles and CANNOT
 # assume this role or perform remediation approval.
-
-data "aws_caller_identity" "current" {}
 
 resource "aws_iam_role" "cloud_operator" {
   name        = "boutique-cloud-operator"
@@ -74,7 +72,10 @@ resource "aws_iam_policy" "cloud_operator_policy" {
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret"
         ]
-        Resource = aws_secretsmanager_secret.aiops_approval_tokens.arn
+        Resource = [
+          aws_secretsmanager_secret.aiops_approval_tokens.arn,
+          aws_secretsmanager_secret.aiops_github_token.arn
+        ]
       }
     ]
   })

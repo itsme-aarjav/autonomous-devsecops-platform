@@ -102,3 +102,18 @@ output "aiops_remediations_table_arn" {
   description = "ARN of the DynamoDB table for AIOps remediation proposals"
   value       = aws_dynamodb_table.aiops_remediations.arn
 }
+
+output "cloud_operator_role_arn" {
+  description = "ARN of the dedicated IAM Role for human cloud operator remediation approval"
+  value       = aws_iam_role.cloud_operator.arn
+}
+
+output "database_backup_bucket_name" {
+  description = "Dedicated S3 bucket name for scheduled PostgreSQL database backups"
+  value       = aws_s3_bucket.database_backup.id
+}
+
+output "database_backup_bucket_arn" {
+  description = "ARN of the dedicated S3 bucket for scheduled PostgreSQL database backups"
+  value       = aws_s3_bucket.database_backup.arn
+}

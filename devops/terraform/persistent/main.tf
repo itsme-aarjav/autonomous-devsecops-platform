@@ -20,7 +20,7 @@ resource "aws_kms_alias" "cmk_alias" {
   target_key_id = aws_kms_key.cmk.key_id
 }
 
-# Amazon ECR Repositories for 6 Microservices
+# Amazon ECR Repositories for 4 Microservices (frontend, gateway, auth, aiops-assistant)
 module "ecr" {
   source = "../modules/ecr"
 
@@ -166,6 +166,133 @@ resource "aws_s3_bucket_policy" "node_diagnostics_enforce_tls" {
         Resource = [
           aws_s3_bucket.node_diagnostics.arn,
           "${aws_s3_bucket.node_diagnostics.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# ------------------------------------------------------------------------------
+# Dedicated S3 Bucket for Scheduled PostgreSQL Database Backups
+# ------------------------------------------------------------------------------
+resource "aws_s3_bucket" "database_backup" {
+  bucket        = var.database_backup_bucket_name
+  force_destroy = false
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    Name        = var.database_backup_bucket_name
+    Environment = var.environment
+    Purpose     = "Scheduled 2:00 AM IST PostgreSQL Automated Backups"
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "database_backup" {
+  bucket = aws_s3_bucket.database_backup.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "database_backup" {
+  bucket = aws_s3_bucket.database_backup.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      kms_master_key_id = aws_kms_key.cmk.arn
+      sse_algorithm     = "aws:kms"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "database_backup" {
+  bucket = aws_s3_bucket.database_backup.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "database_backup" {
+  bucket = aws_s3_bucket.database_backup.id
+
+  # Rule 1: Routine daily backups under daily/ expire current and noncurrent versions after 14 days
+  rule {
+    id     = "daily-backups-retention"
+    status = "Enabled"
+
+    filter {
+      prefix = "daily/"
+    }
+
+    expiration {
+      days = var.database_backup_daily_retention_days
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 14
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
+  # Rule 2: Clean up expired object delete markers under daily/ prefix
+  rule {
+    id     = "daily-backups-delete-marker-cleanup"
+    status = "Enabled"
+
+    filter {
+      prefix = "daily/"
+    }
+
+    expiration {
+      expired_object_delete_marker = true
+    }
+  }
+
+  # Rule 3: Abort incomplete multipart uploads in retained/ (NO object expiration rule)
+  rule {
+    id     = "retained-backups-abort-incomplete-multipart"
+    status = "Enabled"
+
+    filter {
+      prefix = "retained/"
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "database_backup_enforce_tls" {
+  bucket = aws_s3_bucket.database_backup.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "EnforceTLSRequestsOnly"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.database_backup.arn,
+          "${aws_s3_bucket.database_backup.arn}/*"
         ]
         Condition = {
           Bool = {
