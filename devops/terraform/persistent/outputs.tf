@@ -23,6 +23,16 @@ output "secrets_manager_jwt_secret_arn" {
   value       = aws_secretsmanager_secret.jwt_secret.arn
 }
 
+output "secrets_manager_aiops_webhook_token_arn" {
+  description = "ARN of the AIOps Webhook Token Secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.aiops_webhook_token.arn
+}
+
+output "secrets_manager_aiops_github_token_arn" {
+  description = "ARN of the AIOps GitHub Token Secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.aiops_github_token.arn
+}
+
 output "node_diagnostics_bucket_name" {
   description = "Dedicated S3 bucket name for EKS Auto Mode NodeDiagnostic bundles"
   value       = aws_s3_bucket.node_diagnostics.id

@@ -4,6 +4,8 @@ Secure, Idempotent In-Memory Secrets Seeding Script for AWS Secrets Manager
 Target Secrets:
   - boutique/database/credentials
   - boutique/auth/jwt-secret
+  - boutique/aiops/webhook-token
+  - boutique/aiops/github-token
 
 Security & Idempotency Rules:
   1. Inspects secret metadata first via describe_secret.
@@ -19,6 +21,7 @@ Security & Idempotency Rules:
 import argparse
 import json
 import logging
+import os
 import secrets
 import string
 import sys
@@ -38,6 +41,8 @@ except ImportError:
 DEFAULT_REGION = "us-east-2"
 DB_SECRET_NAME = "boutique/database/credentials"
 JWT_SECRET_NAME = "boutique/auth/jwt-secret"
+AIOPS_WEBHOOK_SECRET_NAME = "boutique/aiops/webhook-token"
+AIOPS_GITHUB_SECRET_NAME = "boutique/aiops/github-token"
 EXPECTED_KMS_ALIAS = "alias/boutique-aiops-key"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -66,6 +71,11 @@ def generate_jwt_signing_secret(token_bytes: int = 48) -> str:
     return secrets.token_urlsafe(token_bytes)
 
 
+def generate_webhook_token(token_bytes: int = 32) -> str:
+    """Generates a cryptographic URL-safe secret for Alertmanager to AIOps webhook authentication."""
+    return secrets.token_urlsafe(token_bytes)
+
+
 def build_db_payload(password: str) -> str:
     """Exact JSON schema expected by Boutique microservices database connections."""
     payload = {
@@ -81,6 +91,14 @@ def build_jwt_payload(secret: str) -> str:
     payload = {
         "JWT_SECRET": secret,
         "JWT_EXPIRES_IN": "24h"
+    }
+    return json.dumps(payload, separators=(',', ':'))
+
+
+def build_token_payload(token: str) -> str:
+    """Exact JSON schema expected by Kubernetes secretKeyRef key 'token'."""
+    payload = {
+        "token": token
     }
     return json.dumps(payload, separators=(',', ':'))
 
@@ -160,23 +178,26 @@ def run_seeding(
     region: str,
     rotate: bool = False,
     rotate_jwt_only: bool = False,
+    rotate_webhook_only: bool = False,
+    github_token: str = None,
     sm_client=None
 ) -> bool:
-    """Main orchestration for seeding both secrets."""
+    """Main orchestration for seeding all production platform secrets."""
     if sm_client is None:
         sm_client = boto3.client("secretsmanager", region_name=region)
 
     results = []
-    # 1. Database Credentials (completely bypassed when rotate_jwt_only is True)
-    if rotate_jwt_only:
+
+    # 1. Database Credentials (bypassed if selective rotation of JWT or webhook is requested)
+    if rotate_jwt_only or rotate_webhook_only:
         db_result = {
             "secret_name": DB_SECRET_NAME,
             "action": "SKIPPED",
-            "reason": "JWT-only rotation requested; database credentials untouched",
+            "reason": "Selective rotation requested; database credentials untouched",
             "kms_key_id": "untouched"
         }
         logger.info(
-            "Database secret '%s' skipped: JWT-only rotation requested; database credentials untouched.",
+            "Database secret '%s' skipped: selective rotation requested; database credentials untouched.",
             DB_SECRET_NAME
         )
     else:
@@ -189,16 +210,82 @@ def run_seeding(
         )
     results.append(db_result)
 
-    # 2. JWT Secret (rotated if either rotate or rotate_jwt_only is True)
-    rotate_jwt = rotate or rotate_jwt_only
-    jwt_result = seed_or_rotate_secret(
-        sm_client=sm_client,
-        secret_name=JWT_SECRET_NAME,
-        payload_builder=build_jwt_payload,
-        secret_generator=generate_jwt_signing_secret,
-        rotate=rotate_jwt
-    )
+    # 2. JWT Secret (rotated if either rotate or rotate_jwt_only is True; skipped if rotate_webhook_only)
+    if rotate_webhook_only:
+        jwt_result = {
+            "secret_name": JWT_SECRET_NAME,
+            "action": "SKIPPED",
+            "reason": "Webhook-only rotation requested; JWT secret untouched",
+            "kms_key_id": "untouched"
+        }
+        logger.info(
+            "JWT secret '%s' skipped: webhook-only rotation requested; JWT secret untouched.",
+            JWT_SECRET_NAME
+        )
+    else:
+        rotate_jwt = rotate or rotate_jwt_only
+        jwt_result = seed_or_rotate_secret(
+            sm_client=sm_client,
+            secret_name=JWT_SECRET_NAME,
+            payload_builder=build_jwt_payload,
+            secret_generator=generate_jwt_signing_secret,
+            rotate=rotate_jwt
+        )
     results.append(jwt_result)
+
+    # 3. AIOps Webhook Bearer Token (rotated if rotate or rotate_webhook_only; skipped if rotate_jwt_only)
+    if rotate_jwt_only:
+        webhook_result = {
+            "secret_name": AIOPS_WEBHOOK_SECRET_NAME,
+            "action": "SKIPPED",
+            "reason": "JWT-only rotation requested; webhook token untouched",
+            "kms_key_id": "untouched"
+        }
+        logger.info(
+            "AIOps webhook token '%s' skipped: JWT-only rotation requested; webhook token untouched.",
+            AIOPS_WEBHOOK_SECRET_NAME
+        )
+    else:
+        rotate_webhook = rotate or rotate_webhook_only
+        webhook_result = seed_or_rotate_secret(
+            sm_client=sm_client,
+            secret_name=AIOPS_WEBHOOK_SECRET_NAME,
+            payload_builder=build_token_payload,
+            secret_generator=generate_webhook_token,
+            rotate=rotate_webhook
+        )
+    results.append(webhook_result)
+
+    # 4. AIOps GitHub Token (Optional operator-supplied token for GitOps autonomous commits/PRs)
+    if github_token and github_token.strip():
+        clean_token = github_token.strip()
+        github_result = seed_or_rotate_secret(
+            sm_client=sm_client,
+            secret_name=AIOPS_GITHUB_SECRET_NAME,
+            payload_builder=build_token_payload,
+            secret_generator=lambda: clean_token,
+            rotate=True
+        )
+        results.append(github_result)
+    else:
+        # Check existing state without modifying
+        try:
+            has_github, gh_kms = check_existing_secret_state(sm_client, AIOPS_GITHUB_SECRET_NAME)
+            status_reason = "Existing GitHub token preserved" if has_github else "No token supplied (supply via --github-token when GitOps PR automation is enabled)"
+            github_result = {
+                "secret_name": AIOPS_GITHUB_SECRET_NAME,
+                "action": "PRESERVED" if has_github else "OPTIONAL_PENDING",
+                "reason": status_reason,
+                "kms_key_id": gh_kms
+            }
+        except ClientError:
+            github_result = {
+                "secret_name": AIOPS_GITHUB_SECRET_NAME,
+                "action": "CONTAINER_PENDING",
+                "reason": "Secret container not yet provisioned in AWS Secrets Manager",
+                "kms_key_id": "unknown"
+            }
+        results.append(github_result)
 
     logger.info("Summary of secrets seeding operation:")
     for res in results:
@@ -211,7 +298,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Secure, idempotent seeding for AWS Secrets Manager credentials.")
     parser.add_argument("--region", default=DEFAULT_REGION, help=f"AWS Region (default: {DEFAULT_REGION})")
     parser.add_argument("--rotate", action="store_true", help="Force credential rotation for all secrets if already existing")
-    parser.add_argument("--rotate-jwt-only", action="store_true", help="Force rotation of JWT secret only (preserves database credentials)")
+    parser.add_argument("--rotate-jwt-only", action="store_true", help="Force rotation of JWT secret only (preserves database credentials & webhook token)")
+    parser.add_argument("--rotate-webhook-only", action="store_true", help="Force rotation of AIOps webhook token only (preserves database & JWT credentials)")
+    parser.add_argument("--github-token", default=os.getenv("AIOPS_GITHUB_TOKEN", None), help="Optional GitHub Personal Access Token to seed into boutique/aiops/github-token")
     return parser.parse_args()
 
 
@@ -221,9 +310,12 @@ if __name__ == "__main__":
         success = run_seeding(
             region=args.region,
             rotate=args.rotate,
-            rotate_jwt_only=args.rotate_jwt_only
+            rotate_jwt_only=args.rotate_jwt_only,
+            rotate_webhook_only=args.rotate_webhook_only,
+            github_token=args.github_token
         )
         sys.exit(0 if success else 1)
     except Exception as exc:
         logger.error("Seeding operation aborted: %s", exc)
         sys.exit(1)
+

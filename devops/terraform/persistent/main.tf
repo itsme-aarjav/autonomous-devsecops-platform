@@ -56,6 +56,34 @@ resource "aws_secretsmanager_secret" "jwt_secret" {
   }
 }
 
+# AWS Secrets Manager: AIOps Alertmanager Webhook Authentication Token Container
+resource "aws_secretsmanager_secret" "aiops_webhook_token" {
+  name                    = "boutique/aiops/webhook-token"
+  description             = "Shared authentication bearer token for Alertmanager to AIOps webhook delivery"
+  kms_key_id              = aws_kms_key.cmk.arn
+  recovery_window_in_days = 7
+
+  tags = {
+    Name        = "boutique-aiops-webhook-token"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
+# AWS Secrets Manager: AIOps GitHub Remediation Token Container
+resource "aws_secretsmanager_secret" "aiops_github_token" {
+  name                    = "boutique/aiops/github-token"
+  description             = "GitHub Personal Access Token for AIOps autonomous GitOps PR creation and direct commits"
+  kms_key_id              = aws_kms_key.cmk.arn
+  recovery_window_in_days = 7
+
+  tags = {
+    Name        = "boutique-aiops-github-token"
+    Environment = var.environment
+    ManagedBy   = "terraform"
+  }
+}
+
 # Dedicated S3 bucket for EKS Auto Mode NodeDiagnostic bundles
 resource "aws_s3_bucket" "node_diagnostics" {
   bucket        = var.diagnostics_bucket_name
