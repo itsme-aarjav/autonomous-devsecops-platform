@@ -534,7 +534,7 @@ resource "aws_dynamodb_table" "aiops_remediations" {
   tags = {
     Name        = "boutique-aiops-remediations"
     Environment = var.environment
-    Purpose     = "Durable AIOps GitOps Remediation Proposals & Audit Trail"
+    Purpose     = "Durable AIOps GitOps Remediation Proposals and Audit Trail"
     ManagedBy   = "terraform"
   }
 }

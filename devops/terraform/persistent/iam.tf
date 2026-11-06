@@ -28,7 +28,7 @@ resource "aws_iam_role" "cloud_operator" {
   tags = {
     Name        = "boutique-cloud-operator"
     Environment = var.environment
-    Purpose     = "AIOps Human Operator Remediation Approval & Governance"
+    Purpose     = "AIOps Human Operator Remediation Approval and Governance"
     ManagedBy   = "terraform"
   }
 }
