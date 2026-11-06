@@ -84,6 +84,21 @@ resource "aws_secretsmanager_secret" "aiops_github_token" {
   }
 }
 
+# AWS Secrets Manager: AIOps Operator Approval Tokens Container
+resource "aws_secretsmanager_secret" "aiops_approval_tokens" {
+  name                    = "boutique/aiops/approval-tokens"
+  description             = "Authorized operator tokens for GitOps remediation human approval and rejection"
+  kms_key_id              = aws_kms_key.cmk.arn
+  recovery_window_in_days = 7
+
+  tags = {
+    Name        = "boutique-aiops-approval-tokens"
+    Environment = var.environment
+    Purpose     = "AIOps Human Operator Approval Authentication"
+    ManagedBy   = "terraform"
+  }
+}
+
 # Dedicated S3 bucket for EKS Auto Mode NodeDiagnostic bundles
 resource "aws_s3_bucket" "node_diagnostics" {
   bucket        = var.diagnostics_bucket_name
@@ -350,6 +365,49 @@ resource "aws_dynamodb_table" "aiops_rca_reports" {
     Name        = "boutique-aiops-rca-reports"
     Environment = var.environment
     Purpose     = "Durable AIOps Root Cause Analysis Persistence"
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_dynamodb_table" "aiops_remediations" {
+  name         = "boutique-aiops-remediations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "proposal_id"
+
+  attribute {
+    name = "proposal_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "incident_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "incident-index"
+    hash_key        = "incident_id"
+    projection_type = "ALL"
+  }
+
+  ttl {
+    attribute_name = "ttl"
+    enabled        = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.cmk.arn
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = {
+    Name        = "boutique-aiops-remediations"
+    Environment = var.environment
+    Purpose     = "Durable AIOps GitOps Remediation Proposals & Audit Trail"
     ManagedBy   = "terraform"
   }
 }

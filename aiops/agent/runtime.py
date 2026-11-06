@@ -196,12 +196,12 @@ class AIOpsAgentRuntime:
         # Remediation proposal persistence: DynamoDB when dynamodb backend is active, else in-memory.
         if self.config.persistence_backend == "dynamodb":
             from .remediation.store import DynamoDBRemediationStore
-            rca_table = (self.config.dynamodb_rca_table or "").strip() or "boutique-aiops-rca-reports"
+            remediations_table = os.getenv("AIOPS_DYNAMODB_REMEDIATIONS_TABLE", "").strip() or "boutique-aiops-remediations"
             store: BaseRemediationStore = DynamoDBRemediationStore(
                 region=self.config.aws_region,
-                table_name=rca_table,
+                table_name=remediations_table,
             )
-            logger.info("Remediation store: DynamoDBRemediationStore (table: %s)", rca_table)
+            logger.info("Remediation store: DynamoDBRemediationStore (table: %s)", remediations_table)
         else:
             store = InMemoryRemediationStore()
             logger.info("Remediation store: InMemoryRemediationStore (local/test mode)")

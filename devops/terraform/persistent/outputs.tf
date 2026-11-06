@@ -33,6 +33,11 @@ output "secrets_manager_aiops_github_token_arn" {
   value       = aws_secretsmanager_secret.aiops_github_token.arn
 }
 
+output "secrets_manager_aiops_approval_tokens_arn" {
+  description = "ARN of the AIOps Approval Tokens Secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.aiops_approval_tokens.arn
+}
+
 output "node_diagnostics_bucket_name" {
   description = "Dedicated S3 bucket name for EKS Auto Mode NodeDiagnostic bundles"
   value       = aws_s3_bucket.node_diagnostics.id
@@ -86,4 +91,14 @@ output "aiops_rca_table_name" {
 output "aiops_rca_table_arn" {
   description = "ARN of the DynamoDB table for AIOps RCA reports"
   value       = aws_dynamodb_table.aiops_rca_reports.arn
+}
+
+output "aiops_remediations_table_name" {
+  description = "Name of the DynamoDB table for AIOps remediation proposals"
+  value       = aws_dynamodb_table.aiops_remediations.name
+}
+
+output "aiops_remediations_table_arn" {
+  description = "ARN of the DynamoDB table for AIOps remediation proposals"
+  value       = aws_dynamodb_table.aiops_remediations.arn
 }

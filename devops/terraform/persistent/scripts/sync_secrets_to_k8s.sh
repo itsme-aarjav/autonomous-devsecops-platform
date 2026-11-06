@@ -123,13 +123,66 @@ if [[ "$CURRENT_CLUSTER" != *"${EXPECTED_CLUSTER}"* ]]; then
 fi
 echo "    [OK] Kubernetes context cluster verified: ${CURRENT_CLUSTER}"
 
-echo "==> Verifying EKS cluster status via AWS API..."
-EKS_CLUSTER_STATUS=$(aws eks describe-cluster --name "${EXPECTED_CLUSTER}" --region "${EXPECTED_REGION}" --query 'cluster.status' --output text 2>/dev/null || echo "")
+echo "==> Verifying EKS cluster identity via AWS API..."
+EKS_DESCRIBE=$(aws eks describe-cluster --name "${EXPECTED_CLUSTER}" --region "${EXPECTED_REGION}" --output json 2>/dev/null || echo "")
+if [[ -z "$EKS_DESCRIBE" ]]; then
+  echo "[ERROR] Failed to describe EKS cluster '${EXPECTED_CLUSTER}' via AWS API in region '${EXPECTED_REGION}'. Aborting." >&2
+  exit 1
+fi
+
+EKS_CLUSTER_STATUS=$(echo "$EKS_DESCRIBE" | jq -r '.cluster.status // empty' 2>/dev/null || echo "")
 if [[ "$EKS_CLUSTER_STATUS" != "ACTIVE" ]]; then
   echo "[ERROR] EKS cluster '${EXPECTED_CLUSTER}' is not ACTIVE in AWS (status: '${EKS_CLUSTER_STATUS}'). Aborting." >&2
   exit 1
 fi
 echo "    [OK] EKS cluster status: ACTIVE"
+
+EXPECTED_ENDPOINT=$(echo "$EKS_DESCRIBE" | jq -r '.cluster.endpoint // empty' 2>/dev/null || echo "")
+EXPECTED_CA_DATA=$(echo "$EKS_DESCRIBE" | jq -r '.cluster.certificateAuthority.data // empty' 2>/dev/null || echo "")
+
+if [[ -z "$EXPECTED_ENDPOINT" || -z "$EXPECTED_CA_DATA" ]]; then
+  echo "[ERROR] Could not extract authoritative endpoint or CA data from AWS EKS describe-cluster. Aborting." >&2
+  exit 1
+fi
+
+echo "==> Verifying Kubernetes context server endpoint and Certificate Authority..."
+CURRENT_ENDPOINT=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || echo "")
+CURRENT_CA_DATA=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' 2>/dev/null || echo "")
+
+if [[ -z "$CURRENT_ENDPOINT" ]]; then
+  echo "[ERROR] Could not retrieve server endpoint from current kubectl context. Aborting." >&2
+  exit 1
+fi
+
+EXPECTED_ENDPOINT_NORM="${EXPECTED_ENDPOINT%/}"
+CURRENT_ENDPOINT_NORM="${CURRENT_ENDPOINT%/}"
+
+if [[ "$CURRENT_ENDPOINT_NORM" != "$EXPECTED_ENDPOINT_NORM" ]]; then
+  echo "[ERROR] Kubernetes API endpoint mismatch. Expected: '${EXPECTED_ENDPOINT_NORM}', Got: '${CURRENT_ENDPOINT_NORM}'. Aborting." >&2
+  exit 1
+fi
+echo "    [OK] Kubernetes API endpoint verified: ${CURRENT_ENDPOINT_NORM}"
+
+if [[ -n "$CURRENT_CA_DATA" ]]; then
+  if [[ "$CURRENT_CA_DATA" != "$EXPECTED_CA_DATA" ]]; then
+    echo "[ERROR] Kubernetes Certificate Authority data mismatch with AWS EKS cluster authoritative CA. Aborting." >&2
+    exit 1
+  fi
+  echo "    [OK] Kubernetes Certificate Authority verified."
+else
+  CA_FILE=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.certificate-authority}' 2>/dev/null || echo "")
+  if [[ -f "$CA_FILE" ]]; then
+    LOCAL_CA_B64=$(base64 -i "$CA_FILE" 2>/dev/null | tr -d '\n' || base64 "$CA_FILE" 2>/dev/null | tr -d '\n' || echo "")
+    if [[ "$LOCAL_CA_B64" != "$EXPECTED_CA_DATA" ]]; then
+      echo "[ERROR] CA file content mismatch with AWS EKS cluster authoritative CA. Aborting." >&2
+      exit 1
+    fi
+    echo "    [OK] Kubernetes Certificate Authority (file) verified."
+  else
+    echo "[ERROR] Neither inline certificate-authority-data nor valid certificate-authority file found in current kubectl context. Aborting." >&2
+    exit 1
+  fi
+fi
 
 # ------------------------------------------------------------------------------
 # 3. Safe Temporary Workspace & Cleanup Trap Setup

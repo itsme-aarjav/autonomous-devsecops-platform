@@ -33,6 +33,9 @@ class RemediationStatus(str, Enum):
     POLICY_APPROVED = "POLICY_APPROVED"
     POLICY_REJECTED = "POLICY_REJECTED"
     PENDING_HUMAN_APPROVAL = "PENDING_HUMAN_APPROVAL"
+    HUMAN_APPROVED = "HUMAN_APPROVED"
+    SIMULATED_APPROVED = "SIMULATED_APPROVED"
+    OPERATOR_REJECTED = "OPERATOR_REJECTED"
     APPLIED_TO_MAIN = "APPLIED_TO_MAIN"
     PR_CREATED = "PR_CREATED"
     PR_EXISTS = "PR_EXISTS"
@@ -109,4 +112,6 @@ class RemediationProposal(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Creation timestamp")
     approved_at: Optional[datetime] = Field(None, description="Timestamp when proposal was approved")
     rejected_at: Optional[datetime] = Field(None, description="Timestamp when proposal was rejected")
+    rejected_by: Optional[str] = Field(None, description="Identifier of operator who rejected")
+    rejection_reason: Optional[str] = Field(None, description="Operator reason for proposal rejection")
 

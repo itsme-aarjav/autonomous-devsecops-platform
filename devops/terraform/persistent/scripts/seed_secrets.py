@@ -44,6 +44,7 @@ DB_SECRET_NAME = "boutique/database/credentials"
 JWT_SECRET_NAME = "boutique/auth/jwt-secret"
 AIOPS_WEBHOOK_SECRET_NAME = "boutique/aiops/webhook-token"
 AIOPS_GITHUB_SECRET_NAME = "boutique/aiops/github-token"
+AIOPS_APPROVAL_TOKENS_SECRET_NAME = "boutique/aiops/approval-tokens"
 EXPECTED_KMS_ALIAS = "alias/boutique-aiops-key"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -102,6 +103,21 @@ def build_token_payload(token: str) -> str:
         "token": token
     }
     return json.dumps(payload, separators=(',', ':'))
+
+
+def build_approval_tokens_payload(tokens_dict: Dict[str, str]) -> str:
+    """Exact JSON schema expected for AIOps operator approval tokens mapping."""
+    return json.dumps(tokens_dict, separators=(',', ':'))
+
+
+def generate_default_approval_tokens() -> Dict[str, str]:
+    """Generates default high-entropy cryptographic operator tokens for sre-lead and secops-admin."""
+    token1 = secrets.token_urlsafe(32)
+    token2 = secrets.token_urlsafe(32)
+    return {
+        token1: "sre-lead",
+        token2: "secops-admin",
+    }
 
 
 def check_existing_secret_state(sm_client, secret_name: str) -> Tuple[bool, str]:
@@ -287,6 +303,16 @@ def run_seeding(
                 "kms_key_id": "unknown"
             }
         results.append(github_result)
+
+    # 5. AIOps Operator Approval Tokens (sre-lead and secops-admin tokens)
+    approval_result = seed_or_rotate_secret(
+        sm_client=sm_client,
+        secret_name=AIOPS_APPROVAL_TOKENS_SECRET_NAME,
+        payload_builder=build_approval_tokens_payload,
+        secret_generator=generate_default_approval_tokens,
+        rotate=rotate
+    )
+    results.append(approval_result)
 
     logger.info("Summary of secrets seeding operation:")
     for res in results:

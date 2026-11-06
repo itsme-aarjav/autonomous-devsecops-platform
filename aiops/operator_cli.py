@@ -38,7 +38,7 @@ def _resolve_store():
     if backend == "dynamodb":
         from aiops.agent.remediation.store import DynamoDBRemediationStore
         region = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "us-east-2"))
-        table = os.getenv("AIOPS_DYNAMODB_RCA_TABLE", "boutique-aiops-rca-reports")
+        table = os.getenv("AIOPS_DYNAMODB_REMEDIATIONS_TABLE", "boutique-aiops-remediations")
         return DynamoDBRemediationStore(region=region, table_name=table)
     elif backend == "local":
         from aiops.agent.remediation.store import LocalFileRemediationStore
@@ -50,8 +50,9 @@ def _resolve_store():
 
 def _resolve_authenticator():
     """
-    Builds a TrustedTokenApprovalAuthenticator from AIOPS_APPROVAL_TOKENS env var.
-    Format: "token1:operator_id1,token2:operator_id2"
+    Builds a TrustedTokenApprovalAuthenticator:
+    1. Checks AIOPS_APPROVAL_TOKENS env var (format: 'token1:operator1,token2:operator2').
+    2. If unset, retrieves boutique/aiops/approval-tokens from AWS Secrets Manager using boto3.
     """
     from aiops.agent.remediation.authenticator import TrustedTokenApprovalAuthenticator
     raw = os.getenv("AIOPS_APPROVAL_TOKENS", "").strip()
@@ -61,12 +62,28 @@ def _resolve_authenticator():
             parts = entry.strip().split(":", 1)
             if len(parts) == 2 and parts[0].strip() and parts[1].strip():
                 authorized_operators[parts[0].strip()] = parts[1].strip()
+
+    if not authorized_operators:
+        try:
+            import boto3
+            region = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "us-east-2"))
+            sm = boto3.client("secretsmanager", region_name=region)
+            secret_value = sm.get_secret_value(SecretId="boutique/aiops/approval-tokens")
+            secret_str = secret_value.get("SecretString", "")
+            if secret_str:
+                data = json.loads(secret_str)
+                token_map = data.get("tokens", data)
+                if isinstance(token_map, dict):
+                    authorized_operators = {k.strip(): v.strip() for k, v in token_map.items() if k.strip() and v.strip()}
+        except Exception as e:
+            logger.debug("Could not fetch approval tokens from Secrets Manager: %s", e)
+
     if not authorized_operators:
         print(
-            "[ERROR] AIOPS_APPROVAL_TOKENS is not set or contains no valid token:operator entries.\n"
-            "        Set it in your environment before running this CLI:\n"
-            "          export AIOPS_APPROVAL_TOKENS='<token>:<your-operator-id>'\n"
-            "        Tokens must correspond to values provisioned in AWS Secrets Manager.",
+            "[ERROR] AIOPS_APPROVAL_TOKENS is not set and could not be retrieved from\n"
+            "        AWS Secrets Manager ('boutique/aiops/approval-tokens').\n"
+            "        Set it in your environment or ensure AWS Secrets Manager credentials exist:\n"
+            "          export AIOPS_APPROVAL_TOKENS='<token>:<your-operator-id>'",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -93,17 +110,28 @@ def _resolve_approval_token() -> str:
 
 
 def _resolve_github_provider():
-    """Builds GitHubApiProvider from AIOPS_GITHUB_TOKEN and AIOPS_GITHUB_REPOSITORY env vars."""
+    """Builds GitHubApiProvider from AIOPS_GITHUB_TOKEN or AWS Secrets Manager."""
     from aiops.agent.remediation.github_provider import GitHubApiProvider
     token = os.getenv("AIOPS_GITHUB_TOKEN", "").strip()
     repo = os.getenv("AIOPS_GITHUB_REPOSITORY", "itsme-aarjav/autonomous-devsecops-platform").strip()
     if not token:
+        try:
+            import boto3
+            region = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "us-east-2"))
+            sm = boto3.client("secretsmanager", region_name=region)
+            secret_value = sm.get_secret_value(SecretId="boutique/aiops/github-token")
+            secret_str = secret_value.get("SecretString", "")
+            if secret_str:
+                data = json.loads(secret_str)
+                token = data.get("token", "").strip()
+        except Exception as e:
+            logger.debug("Could not fetch GitHub token from Secrets Manager: %s", e)
+
+    if not token:
         print(
-            "[ERROR] AIOPS_GITHUB_TOKEN is not set.\n"
-            "        Retrieve it from AWS Secrets Manager and export it in your session:\n"
-            "          export AIOPS_GITHUB_TOKEN=$(aws secretsmanager get-secret-value \\\n"
-            "            --secret-id boutique/aiops/github-token --query 'SecretString' \\\n"
-            "            --output text | python3 -c \"import sys,json; print(json.load(sys.stdin)['token'])\")",
+            "[ERROR] AIOPS_GITHUB_TOKEN is not set and could not be retrieved from\n"
+            "        AWS Secrets Manager ('boutique/aiops/github-token').\n"
+            "        Ensure AWS credentials or AIOPS_GITHUB_TOKEN are present.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -196,21 +224,43 @@ def cmd_approve(args, store):
             print(f"       Commit SHA: {proposal.applied_commit_sha}")
         sys.exit(0)
 
-    # Show diff for review
-    cmd_show(args, store)
+    # Disallow approving rejected proposals
+    if proposal.status in (RemediationStatus.POLICY_REJECTED, RemediationStatus.OPERATOR_REJECTED):
+        print(
+            f"[ERROR] Cannot approve rejected proposal '{args.proposal_id}' (status: {proposal.status.value}).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     is_simulation = getattr(args, "simulate", False)
-    should_commit = getattr(args, "commit", False)
+    explicit_commit = getattr(args, "commit", False)
+
+    # Strict invariant: simulation CANNOT commit to real GitHub
+    if is_simulation and explicit_commit:
+        print(
+            "[ERROR] Security violation: cannot combine --simulate with --commit. "
+            "Simulation mode is strictly offline/mock-only and cannot mutate remote repositories.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if is_simulation:
+        should_commit = False
         operator_id = getattr(args, "operator", None) or os.getenv("AIOPS_OPERATOR_ID", "simulation-operator")
         approval_token = None
         authenticator = None
+        github_provider = None
         print(f"[NOTICE] Running in SIMULATION mode with operator '{operator_id}'.")
     else:
-        # Secure token resolution
+        # In real mode, approval always commits to main via CAS
+        should_commit = True
+        operator_id = None
         approval_token = _resolve_approval_token()
         authenticator = _resolve_authenticator()
+        github_provider = _resolve_github_provider()
+
+    # Show diff for operator review
+    cmd_show(args, store)
 
     # Explicit confirmation gate (skip only if --yes is passed in headless scripts)
     if not getattr(args, "yes", False):
@@ -219,7 +269,6 @@ def cmd_approve(args, store):
             print("[ABORTED] Approval cancelled. No changes applied.")
             sys.exit(0)
 
-    github_provider = _resolve_github_provider() if should_commit else None
     engine = _build_engine(store, github_provider=github_provider, authenticator=authenticator)
 
     print(f"\n==> Applying proposal '{args.proposal_id}' (mode={'SIMULATION' if is_simulation else 'AUTHENTICATED'})...")
@@ -229,44 +278,91 @@ def cmd_approve(args, store):
         approval_token=approval_token,
         is_simulation=is_simulation,
         commit_to_main=should_commit,
-        write_to_working_tree=(not should_commit),
+        write_to_working_tree=False,
     )
     if result.status == RemediationStatus.APPLIED_TO_MAIN:
-        print(f"[SUCCESS] Proposal applied.")
+        print(f"[SUCCESS] Proposal applied directly to main.")
         print(f"          Approved by : {result.approved_by}")
         print(f"          Mode        : {result.approval_mode}")
         if result.approved_at:
             print(f"          Timestamp   : {result.approved_at.strftime('%Y-%m-%d %H:%M:%SZ')}")
         if result.applied_commit_sha:
             print(f"          Commit SHA  : {result.applied_commit_sha}")
+    elif result.status == RemediationStatus.SIMULATED_APPROVED:
+        print(f"[SUCCESS] Proposal approved in offline SIMULATION mode.")
+        print(f"          Simulated by: {result.approved_by}")
+        if result.approved_at:
+            print(f"          Timestamp   : {result.approved_at.strftime('%Y-%m-%d %H:%M:%SZ')}")
+    elif result.status == RemediationStatus.HUMAN_APPROVED:
+        print(f"[SUCCESS] Proposal human approved (commit pending).")
+        print(f"          Approved by : {result.approved_by}")
     else:
-        print(f"[ERROR] Apply did not reach APPLIED_TO_MAIN. Final status: {result.status.value}", file=sys.stderr)
+        print(f"[ERROR] Apply did not reach successful state. Final status: {result.status.value}", file=sys.stderr)
         sys.exit(1)
 
 
 def cmd_reject(args, store):
-    """Records rejection of a proposal."""
+    """Records authenticated rejection of a proposal."""
     proposal = store.get_proposal(args.proposal_id)
     if not proposal:
         print(f"[ERROR] Proposal '{args.proposal_id}' not found.", file=sys.stderr)
         sys.exit(1)
 
     from aiops.agent.remediation.schemas import RemediationStatus
-    from datetime import datetime, timezone
 
     if proposal.status == RemediationStatus.APPLIED_TO_MAIN:
         print(
-            f"[ERROR] Proposal '{args.proposal_id}' is already APPLIED_TO_MAIN and cannot be rejected.",
+            f"[ERROR] Proposal '{args.proposal_id}' is already APPLIED_TO_MAIN (commit: {proposal.applied_commit_sha}) and cannot be rejected.",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    reason = args.reason or "Rejected by operator via CLI."
-    proposal.status = RemediationStatus.POLICY_REJECTED
-    proposal.policy_reason = (proposal.policy_reason or "") + f" | Operator rejection: {reason}"
-    proposal.rejected_at = datetime.now(timezone.utc)
-    store.save_proposal(proposal)
-    print(f"[OK] Proposal '{args.proposal_id}' rejected. Reason: {reason}")
+    if proposal.status == RemediationStatus.OPERATOR_REJECTED:
+        print(f"[INFO] Proposal '{args.proposal_id}' is already rejected. Rejection is idempotent.")
+        sys.exit(0)
+
+    # Show proposal details before confirmation
+    cmd_show(args, store)
+
+    is_simulation = getattr(args, "simulate", False)
+    if is_simulation:
+        operator_id = getattr(args, "operator", None) or os.getenv("AIOPS_OPERATOR_ID", "simulation-operator")
+        approval_token = None
+        authenticator = None
+        print(f"[NOTICE] Running rejection in SIMULATION mode with operator '{operator_id}'.")
+    else:
+        operator_id = None
+        approval_token = _resolve_approval_token()
+        authenticator = _resolve_authenticator()
+
+    reason = getattr(args, "reason", None)
+    if not reason:
+        try:
+            reason = input("Enter rejection reason: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            reason = "Rejected by operator via CLI."
+    if not reason:
+        reason = "Rejected by operator via CLI."
+
+    # Explicit confirmation gate
+    if not getattr(args, "yes", False):
+        confirm = input("Type REJECT to confirm rejection of this proposal: ").strip()
+        if confirm != "REJECT":
+            print("[ABORTED] Rejection cancelled. Proposal status unchanged.")
+            sys.exit(0)
+
+    engine = _build_engine(store, authenticator=authenticator)
+    result = engine.reject_remediation(
+        proposal_id=args.proposal_id,
+        reason=reason,
+        operator=operator_id if is_simulation else None,
+        approval_token=approval_token,
+        is_simulation=is_simulation,
+    )
+    print(f"[OK] Proposal '{args.proposal_id}' successfully rejected by {result.rejected_by}.")
+    print(f"     Reason: {result.rejection_reason}")
+    if result.rejected_at:
+        print(f"     Timestamp: {result.rejected_at.strftime('%Y-%m-%d %H:%M:%SZ')}")
 
 
 def cmd_status(args, store):
@@ -317,6 +413,9 @@ Environment variables (required, never CLI args):
     p_reject = sub.add_parser("reject", help="Reject a proposal")
     p_reject.add_argument("proposal_id", help="Proposal ID")
     p_reject.add_argument("--reason", default=None, help="Rejection reason (optional)")
+    p_reject.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")
+    p_reject.add_argument("--operator", default=None, help="Operator identifier for simulation mode")
+    p_reject.add_argument("--yes", "-y", action="store_true", default=False, help="Skip interactive confirmation prompt")
 
     p_status = sub.add_parser("status", help="Print the status of a proposal")
     p_status.add_argument("proposal_id", help="Proposal ID")

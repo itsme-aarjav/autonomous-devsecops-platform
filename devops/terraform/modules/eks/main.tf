@@ -306,14 +306,17 @@ resource "aws_iam_role_policy" "aiops_agent_policy" {
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
           "dynamodb:Query",
+          "dynamodb:Scan",
           "dynamodb:BatchGetItem"
         ]
-        Resource = [
+        Resource = compact([
           var.aiops_episodes_table_arn,
           "${var.aiops_episodes_table_arn}/index/*",
           var.aiops_rca_table_arn,
-          "${var.aiops_rca_table_arn}/index/*"
-        ]
+          "${var.aiops_rca_table_arn}/index/*",
+          var.aiops_remediations_table_arn,
+          var.aiops_remediations_table_arn != "" ? "${var.aiops_remediations_table_arn}/index/*" : ""
+        ])
       }
     ]
   })

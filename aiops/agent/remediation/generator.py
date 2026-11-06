@@ -133,7 +133,7 @@ class GitOpsRemediationEngine:
         operator: Optional[str] = None,
         approval_token: Optional[str] = None,
         is_simulation: bool = False,
-        write_to_working_tree: bool = True,
+        write_to_working_tree: bool = False,
         commit_to_main: bool = False,
     ) -> RemediationProposal:
         """
@@ -144,12 +144,24 @@ class GitOpsRemediationEngine:
           If no trusted authenticator is configured, fails closed and proposal remains pending.
         - Offline simulation (is_simulation=True): Explicitly labels the approval as simulated
           ([SIMULATED] <operator>) and sets is_simulated_approval=True, is_approved_by_human=False.
+          Simulation mode CANNOT commit to real remote GitHub repositories.
         Fails closed if the proposal is not policy-approved or was rejected.
         """
+        if is_simulation and commit_to_main:
+            raise PermissionError(
+                "Security violation: offline simulation mode cannot commit to real GitHub repository. "
+                "Production commits require authentic human operator verification."
+            )
+
         with self._apply_lock:
             proposal = self.store.get_proposal(proposal_id)
             if not proposal:
                 raise ValueError(f"Remediation proposal '{proposal_id}' not found in store.")
+
+            if proposal.status in (RemediationStatus.POLICY_REJECTED, RemediationStatus.OPERATOR_REJECTED):
+                raise PermissionError(
+                    f"Cannot apply rejected proposal '{proposal_id}' (status: {proposal.status.value})."
+                )
 
             if proposal.policy_decision != PolicyDecision.APPROVED:
                 raise PermissionError(
@@ -270,8 +282,17 @@ class GitOpsRemediationEngine:
         proposal.approval_mode = "SIMULATED" if is_simulated else "AUTHENTICATED"
         proposal.approved_by = verified_identity
         proposal.approved_at = datetime.now(timezone.utc)
-        proposal.status = RemediationStatus.APPLIED_TO_MAIN
-        proposal.applied_commit_sha = commit_sha
+
+        # Strict state transition: APPLIED_TO_MAIN ONLY when real commit SHA exists
+        if commit_sha:
+            proposal.status = RemediationStatus.APPLIED_TO_MAIN
+            proposal.applied_commit_sha = commit_sha
+        elif is_simulated:
+            proposal.status = RemediationStatus.SIMULATED_APPROVED
+            proposal.applied_commit_sha = None
+        else:
+            proposal.status = RemediationStatus.HUMAN_APPROVED
+            proposal.applied_commit_sha = None
 
         try:
             self.store.save_proposal(proposal)
@@ -296,13 +317,74 @@ class GitOpsRemediationEngine:
 
         if not is_reconcile:
             logger.info(
-                "Remediation proposal %s for %s was approved by '%s' (mode=%s) and applied directly to 'main'.",
+                "Remediation proposal %s for %s was approved by '%s' (mode=%s, status=%s).",
                 proposal.proposal_id,
                 proposal.workload,
                 verified_identity,
                 "SIMULATION" if is_simulated else "AUTHENTICATED",
+                proposal.status.value,
             )
         return proposal
+
+    def reject_remediation(
+        self,
+        proposal_id: str,
+        reason: str,
+        operator: Optional[str] = None,
+        approval_token: Optional[str] = None,
+        is_simulation: bool = False,
+    ) -> RemediationProposal:
+        """
+        Explicitly and securely rejects a remediation proposal.
+        Requires authenticated operator identity (or explicit simulation mode).
+        Fails closed if the proposal was already applied to main or if authentication fails.
+        """
+        with self._apply_lock:
+            proposal = self.store.get_proposal(proposal_id)
+            if not proposal:
+                raise ValueError(f"Remediation proposal '{proposal_id}' not found in store.")
+
+            if proposal.status == RemediationStatus.APPLIED_TO_MAIN:
+                raise PermissionError(
+                    f"Cannot reject proposal '{proposal_id}': already APPLIED_TO_MAIN (commit: {proposal.applied_commit_sha})."
+                )
+
+            # Idempotent rejection check
+            if proposal.status == RemediationStatus.OPERATOR_REJECTED:
+                logger.info("Proposal %s is already rejected. Rejection is idempotent.", proposal_id)
+                return proposal
+
+            # Authenticate operator
+            if is_simulation:
+                if not operator or not isinstance(operator, str) or not operator.strip():
+                    raise PermissionError("Simulated human operator identifier required for offline simulation.")
+                verified_identity = f"[SIMULATED] {operator.strip()}"
+            else:
+                if self.approval_authenticator is None:
+                    raise PermissionError(
+                        "Unauthenticated rejection rejected: no trusted human identity mechanism is configured. "
+                        "Caller-supplied operator strings alone cannot reject proposals."
+                    )
+                authenticated, result_or_err = self.approval_authenticator.authenticate(
+                    proposal=proposal,
+                    approval_token=approval_token,
+                    operator=operator,
+                )
+                if not authenticated:
+                    raise PermissionError(f"Human rejection authentication failed: {result_or_err}.")
+                verified_identity = result_or_err
+
+            # Transition state
+            now_utc = datetime.now(timezone.utc)
+            proposal.status = RemediationStatus.OPERATOR_REJECTED
+            proposal.rejected_by = verified_identity
+            proposal.rejected_at = now_utc
+            proposal.rejection_reason = reason
+            proposal.policy_reason = (proposal.policy_reason or "") + f" | Operator rejection by {verified_identity}: {reason}"
+
+            self.store.save_proposal(proposal)
+            logger.info("Remediation proposal %s was rejected by '%s': %s", proposal_id, verified_identity, reason)
+            return proposal
 
     def _extract_workload(self, rca: RootCauseAnalysis, incident: Optional[Dict[str, Any]]) -> str:
         """Determines target workload from incident context or RCA evidence."""

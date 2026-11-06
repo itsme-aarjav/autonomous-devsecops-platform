@@ -63,6 +63,12 @@ variable "aiops_rca_table_arn" {
   type        = string
 }
 
+variable "aiops_remediations_table_arn" {
+  description = "ARN of the DynamoDB table for AIOps remediation proposals"
+  type        = string
+  default     = ""
+}
+
 variable "disk_size" {
   description = "Root disk size in GiB for worker nodes (Legacy / Fallback)"
   type        = number
