@@ -61,19 +61,19 @@ fi
 FALLBACK_MANIFEST=""
 case "$SERVICE" in
   auth|boutique-auth)
-    MANIFEST="gitops/k8s/backend/auth.yml"
+    MANIFEST="devops/gitops/k8s/backend/auth.yml"
     REPO_NAME="boutique-auth"
     ;;
   gateway|boutique-gateway)
-    MANIFEST="gitops/k8s/backend/gateway.yml"
+    MANIFEST="devops/gitops/k8s/backend/gateway.yml"
     REPO_NAME="boutique-gateway"
     ;;
   frontend|boutique-frontend)
-    if [ -f "gitops/k8s/frontend/rollout.yaml" ]; then
-      MANIFEST="gitops/k8s/frontend/rollout.yaml"
+    if [ -f "devops/gitops/k8s/frontend/rollout.yaml" ]; then
+      MANIFEST="devops/gitops/k8s/frontend/rollout.yaml"
     else
-      MANIFEST="gitops/k8s/frontend/blue-green.yml"
-      FALLBACK_MANIFEST="gitops/k8s/frontend/deployment.yml"
+      MANIFEST="devops/gitops/k8s/frontend/blue-green.yml"
+      FALLBACK_MANIFEST="devops/gitops/k8s/frontend/deployment.yml"
     fi
     REPO_NAME="boutique-frontend"
     ;;
@@ -203,7 +203,7 @@ echo "Resolved ECR Image: $FULL_IMAGE_URI"
 
 # 2. In-memory preflight validation of all target manifests before modifying files or creating reports
 echo "Preflighting target manifest(s) for ${REPO_NAME}..."
-PREFLIGHT_OUTPUT=$(python3 scripts/update_gitops_image.py \
+PREFLIGHT_OUTPUT=$(python3 devops/scripts/update_gitops_image.py \
   --dry-run \
   --manifest "${TARGET_MANIFESTS[@]}" \
   --service "$REPO_NAME" \
@@ -266,7 +266,7 @@ fi
 
 # 6. Apply change directly to main working tree (NO branch creation)
 MANIFESTS_MODIFIED=true
-python3 scripts/update_gitops_image.py --manifest "${TARGET_MANIFESTS[@]}" --service "$REPO_NAME" --image-uri "$FULL_IMAGE_URI"
+python3 devops/scripts/update_gitops_image.py --manifest "${TARGET_MANIFESTS[@]}" --service "$REPO_NAME" --image-uri "$FULL_IMAGE_URI"
 
 # Verify at least one target manifest actually changed
 if git diff --quiet "${TARGET_MANIFESTS[@]}"; then
@@ -275,7 +275,7 @@ if git diff --quiet "${TARGET_MANIFESTS[@]}"; then
 fi
 
 # 7. Validate with Kustomize
-kubectl kustomize gitops/ > /dev/null
+kubectl kustomize devops/gitops/ > /dev/null
 
 # 8. Commit directly to local main branch (NO silent push, NO PR creation)
 git add -- "${TARGET_MANIFESTS[@]}"

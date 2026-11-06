@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
-==============================================================================
 Autonomous AIOps Platform — Local End-to-End Demonstration
-==============================================================================
 Reproducible, local walkthrough of the 8-node LangGraph operational agent:
   1. Incident Input Validation (Pydantic schema validation)
   2. Normalization & Deduplication (hash calculation)
@@ -15,7 +13,6 @@ Reproducible, local walkthrough of the 8-node LangGraph operational agent:
 
 NOTE: Simulated offline demonstration with mock adapters and fake GitHub provider.
 Does NOT require AWS credentials, calls no live Bedrock, and incurs ZERO cloud costs.
-==============================================================================
 """
 
 import sys
@@ -78,7 +75,7 @@ class DeterministicFakeBedrockClient:
                 "Prometheus metric: container_memory_working_set_bytes reached memory limit ceiling",
             ],
             "recommended_actions": [
-                "Increase container memory limit in gitops/k8s/backend/auth.yml from 256Mi to 512Mi (requests to 256Mi).",
+                "Increase container memory limit in devops/gitops/k8s/backend/auth.yml from 256Mi to 512Mi (requests to 256Mi).",
                 "Trigger immediate Tier-1 memory remediation runbook to drop host OS page cache and clear zombie processes.",
                 "Generate automated Tier-2 GitOps Pull Request to persist adjusted memory limits via Argo CD.",
             ],

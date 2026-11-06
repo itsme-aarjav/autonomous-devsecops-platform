@@ -74,9 +74,9 @@ The LLM does **not** generate arbitrary shell commands or unvetted YAML patches.
 - **Manifest File Allowlist**:
   | Workload | Permitted Target Manifest | Kind |
   | :--- | :--- | :--- |
-  | `auth` | `gitops/k8s/backend/auth.yml` | Deployment |
-  | `gateway` | `gitops/k8s/backend/gateway.yml` | Deployment |
-  | `frontend` | `gitops/k8s/frontend/rollout.yaml` | Rollout |
+  | `auth` | `devops/gitops/k8s/backend/auth.yml` | Deployment |
+  | `gateway` | `devops/gitops/k8s/backend/gateway.yml` | Deployment |
+  | `frontend` | `devops/gitops/k8s/frontend/rollout.yaml` | Rollout |
   *(Rejects path traversal `../`, absolute paths, database manifests, RBAC, service accounts, or infrastructure files).*
 - **Action-to-Category Mapping**:
   - `Pod OOMKilled` $\rightarrow$ `SET_MEMORY_RESOURCES` only.

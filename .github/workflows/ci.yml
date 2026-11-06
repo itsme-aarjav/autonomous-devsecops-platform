@@ -29,7 +29,7 @@ jobs:
           terraform_version: 1.10.0
 
       - name: Validate Terraform Formatting
-        run: terraform fmt -recursive -check infrastructure
+        run: terraform fmt -recursive -check devops/terraform
 
   validate-ansible:
     name: Ansible Syntax Validation
@@ -47,7 +47,7 @@ jobs:
         run: pip install --no-cache-dir ansible-core==2.17.5
 
       - name: Syntax Check Playbooks
-        run: ansible-playbook -i ansible/inventory.ini ansible/playbooks/*.yml --syntax-check
+        run: ansible-playbook -i devops/ansible/inventory.ini devops/ansible/playbooks/*.yml --syntax-check
 
   validate-kustomize:
     name: Kustomize Manifest Validation
@@ -57,7 +57,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Build and Validate GitOps Manifests
-        run: kubectl kustomize gitops/ > /dev/null
+        run: kubectl kustomize devops/gitops/ > /dev/null
 
   validate-shell:
     name: Shell Script Syntax Validation
@@ -232,21 +232,21 @@ jobs:
       - name: Update Kubernetes Manifests with Immutable Digests
         if: steps.check-aws.outputs.configured == 'true'
         run: |
-          python3 scripts/update_gitops_image.py --artifacts-dir digests --repo-root .
+          python3 devops/scripts/update_gitops_image.py --artifacts-dir digests --repo-root .
 
       - name: Validate GitOps Manifests with Kustomize
         if: steps.check-aws.outputs.configured == 'true'
-        run: kubectl kustomize gitops/ > /dev/null
+        run: kubectl kustomize devops/gitops/ > /dev/null
 
       - name: Commit and Push Directly to Main
         if: steps.check-aws.outputs.configured == 'true'
         run: |
-          if git diff --quiet gitops/; then
+          if git diff --quiet devops/gitops/; then
             echo "All GitOps manifests are already pinned to latest immutable digests. No changes to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add gitops/
+          git add devops/gitops/
           git commit -m "chore(gitops): promote microservices to immutable ECR digests for ${{ github.sha }} [skip ci]"
           git push origin main

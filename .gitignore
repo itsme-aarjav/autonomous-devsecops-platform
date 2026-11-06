@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-ansible/collections/
+devops/ansible/collections/
 .pnp
 .pnp.js
 
@@ -56,7 +56,7 @@ ehthumbs.db
 *.tfplan
 .terraform/
 *.auto.tfvars
-infrastructure/bootstrap/backend.tf
+devops/terraform/bootstrap/backend.tf
 
 # Kubernetes & Local Configurations
 *.kubeconfig
@@ -78,8 +78,8 @@ reports/
 # Local Development Test Suites (Retained locally, excluded from public release)
 tests/
 aiops/tests/
-infrastructure/persistent/tests/
+devops/terraform/persistent/tests/
 application/backend/tests/
 application/frontend/src/App.test.tsx
 application/frontend/src/setupTests.ts
-scripts/test-restore-local-db.sh
+devops/scripts/test-restore-local-db.sh

@@ -26,7 +26,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -46,7 +46,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning
       - grafana_data:/var/lib/grafana
     networks:
       - boutique-network
@@ -57,7 +57,7 @@ services:
   # API Gateway
   gateway:
     build:
-      context: ./backend/services/gateway
+      context: ../../application/backend/services/gateway
       dockerfile: Dockerfile
     container_name: boutique-gateway
     ports:
@@ -80,7 +80,7 @@ services:
   # Auth Service
   auth:
     build:
-      context: ./backend/services/auth
+      context: ../../application/backend/services/auth
       dockerfile: Dockerfile
     container_name: boutique-auth
     ports:
@@ -101,7 +101,7 @@ services:
   # Frontend
   frontend:
     build:
-      context: ./frontend
+      context: ../../application/frontend
       dockerfile: Dockerfile
       args:
         - VITE_API_URL=http://localhost:3001/api

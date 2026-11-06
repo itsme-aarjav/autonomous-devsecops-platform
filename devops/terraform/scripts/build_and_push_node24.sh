@@ -27,7 +27,7 @@ fi
 
 TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo "latest")}"
 CREATED=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 echo "=== Target ECR Registry: ${REGISTRY} (Account: ${ACCOUNT_ID}, Region: ${REGION}) ==="
 echo "=== Logging into ECR ==="
@@ -50,9 +50,7 @@ for entry in "${SERVICES[@]}"; do
   IMAGE_TAGGED="${REGISTRY}/${REPO}:${TAG}"
   IMAGE_LATEST="${REGISTRY}/${REPO}:latest"
 
-  echo "=========================================="
-  echo "Building ${REPO} from ${REL_PATH}..."
-  echo "=========================================="
+  echo "[BUILD] Building ${REPO} from ${REL_PATH}..."
 
   docker build --platform linux/amd64 \
     --label "org.opencontainers.image.title=${REPO}" \

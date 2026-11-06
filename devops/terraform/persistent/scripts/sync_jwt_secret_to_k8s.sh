@@ -1,30 +1,14 @@
 #!/usr/bin/env bash
-# ==============================================================================
 # Script: sync_jwt_secret_to_k8s.sh
-# Purpose: Securely bootstrap or synchronize JWT_SECRET from AWS Secrets Manager
-#          into the Kubernetes Secret 'boutique-jwt' for Boutique microservices.
-#
-# Source of Truth:
-#   AWS Secrets Manager: boutique/auth/jwt-secret
-# Target:
-#   Kubernetes Secret:   boutique-jwt (key: JWT_SECRET)
-#
-# Operational Prerequisites:
-#   - AWS CLI installed and configured with permissions:
-#       secretsmanager:GetSecretValue on boutique/auth/jwt-secret
-#       kms:Decrypt on the CMK (alias/boutique-aiops-key)
-#   - jq installed
-#   - kubectl installed and authenticated to target Kubernetes cluster
-#   - Target namespace existing or permission to create it
+# Purpose: Synchronize JWT_SECRET from AWS Secrets Manager into Kubernetes Secret 'boutique-jwt'
+# Source of Truth: AWS Secrets Manager (boutique/auth/jwt-secret)
+# Target: Kubernetes Secret boutique-jwt (key: JWT_SECRET)
 #
 # Security Invariants:
-#   - Never prints secret values to stdout, stderr, logs, or command line arguments.
-#   - Avoids --from-literal to prevent secret leakage in system process tables (/proc).
-#   - Uses restrictive temporary files (chmod 600 in chmod 700 dir) safely cleaned up via trap.
-#   - Rejects weak, empty, or < 32-character secrets.
-#   - Manual synchronization model: operator must re-run upon AWS secret rotation
-#     and restart dependent workloads (auth, gateway).
-# ==============================================================================
+# - Never prints secret values to stdout, stderr, logs, or command line arguments.
+# - Avoids --from-literal to prevent secret leakage in system process tables (/proc).
+# - Uses restrictive temporary files (chmod 600 in chmod 700 dir) safely cleaned up via trap.
+# - Rejects weak, empty, or < 32-character secrets.
 
 set -euo pipefail
 

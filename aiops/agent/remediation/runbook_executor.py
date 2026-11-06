@@ -35,9 +35,9 @@ class AnsibleRunbookExecutor:
         inventory_file: Optional[str] = None,
         dry_run: bool = False,
     ):
-        base_dir = Path(__file__).resolve().parents[4]  # repo root
-        self.playbooks_dir = Path(playbooks_dir).resolve() if playbooks_dir else (base_dir / "ansible" / "playbooks")
-        self.inventory_file = Path(inventory_file).resolve() if inventory_file else (base_dir / "ansible" / "inventory.ini")
+        base_dir = Path(__file__).resolve().parents[3]  # repo root
+        self.playbooks_dir = Path(playbooks_dir).resolve() if playbooks_dir else (base_dir / "devops" / "ansible" / "playbooks")
+        self.inventory_file = Path(inventory_file).resolve() if inventory_file else (base_dir / "devops" / "ansible" / "inventory.ini")
         self.dry_run = dry_run or os.getenv("ANSIBLE_DRY_RUN", "false").lower() in ("true", "1", "yes")
 
     def execute_runbook(

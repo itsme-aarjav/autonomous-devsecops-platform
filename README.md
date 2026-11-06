@@ -58,7 +58,7 @@ flowchart TD
     end
 
     subgraph VersionControl["GitOps Repository (GitHub)"]
-        GitRepo["Git Repository\n(gitops/k8s/ manifests on main)"]
+        GitRepo["Git Repository\n(devops/gitops/k8s/ manifests on main)"]
         ApprovalGate["Operator Bearer Token Gate\n(Constant-Time hmac.compare_digest)"]
         ArgoCD["Argo CD Controller\n(Automated Sync)"]
     end
@@ -158,52 +158,59 @@ Deterministic Policy Engine Gate (Allowlist + Bounded Limits)
 > - **Amazon Bedrock Inference**: Cross-region inference profile (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) is verified active in AWS account `592668326948`; live paid inference calls will take place during the live EKS incident demonstration.
 
 ### Tier 1: Operational Stabilization Runbooks (Ansible)
-Located in `ansible/playbooks/`:
-- [`remediate_memory.yml`](ansible/playbooks/remediate_memory.yml): Playbook to increase pod cgroup memory limits to mitigate crash loops under memory pressure.
-- [`restart_unhealthy.yml`](ansible/playbooks/restart_unhealthy.yml): Playbook to execute clean rolling restarts on degraded deployments.
-- [`clear_disk_cache.yml`](ansible/playbooks/clear_disk_cache.yml): Playbook to purge transient container cache and relieve ephemeral storage pressure.
+Located in `devops/ansible/playbooks/`:
+- [`remediate_memory.yml`](devops/ansible/playbooks/remediate_memory.yml): Playbook to increase pod cgroup memory limits to mitigate crash loops under memory pressure.
+- [`restart_unhealthy.yml`](devops/ansible/playbooks/restart_unhealthy.yml): Playbook to execute clean rolling restarts on degraded deployments.
+- [`clear_disk_cache.yml`](devops/ansible/playbooks/clear_disk_cache.yml): Playbook to purge transient container cache and relieve ephemeral storage pressure.
 
 ### Tier 2: Permanent Declarative GitOps Remediation
-- The agent renders clean, surgical YAML diffs against the GitOps manifests in `gitops/k8s/`.
+- The agent renders clean, surgical YAML diffs against the GitOps manifests in `devops/gitops/k8s/`.
 - Enforces **Constant-Time Human Approval Token Authentication** (`TrustedTokenApprovalAuthenticator`) using `hmac.compare_digest` against authorized operator credentials before applying remediation proposals.
 - Supports deterministic proposal generation with full audit provenance (Incident ID, Episode ID, root cause diagnosis, policy verification badge, and human review checklist).
 - Adheres to the platform's strict **Single-Main Branch Policy** for operational safety.
 
 ---
 
-## 4. Repository Structure
+## 4. Role-Based Repository Structure
 
 ```
 autonomous-devsecops-platform/
-├── .github/                    # GitHub Actions CI/CD workflows
-├── aiops/                      # Autonomous AIOps Agent (LangGraph + Amazon Bedrock)
-│   ├── agent/                  # 8-node LangGraph DAG, schemas, runtime & remediation engine
-│   ├── Dockerfile.agent        # Hardened non-root container image definition
-│   └── requirements-agent.txt  # Pinned agent dependencies
-├── ansible/                    # Tier-1 Ansible self-healing runbooks
-│   ├── inventory.ini           # Inventory configuration
-│   └── playbooks/              # Operational stabilization playbooks
-│       ├── clear_disk_cache.yml
-│       ├── remediate_memory.yml
-│       └── restart_unhealthy.yml
-├── application/                # 3-Tier Boutique Microservices
+├── .github/workflows/          # CI/CD pipelines (GitHub Actions)
+├── application/                # Application Development (Frontend & Backend)
 │   ├── backend/services/       # Node.js API Gateway & Auth microservices
-│   ├── frontend/               # Modern React 19 single page application
-│   └── docker-compose.yml      # Local stack orchestration
-├── gitops/                     # Declarative Kubernetes manifests (Kustomize)
-│   ├── kustomization.yml       # Master Kustomize root
-│   └── k8s/                    # Workload, monitoring & AIOps deployment manifests
-│       ├── aiops/              # AIOps deployment, service, RBAC & PrometheusRule
-│       ├── backend/            # Auth, Gateway, and Postgres manifests
-│       └── frontend/           # Argo Rollouts Canary manifest (rollout.yaml)
-├── infrastructure/             # Terraform infrastructure as code (AWS us-east-2)
-│   ├── bootstrap/              # Stage 1: S3 remote state storage
-│   ├── persistent/             # Stage 2: KMS CMK, ECR, SQS FIFO, DynamoDB
-│   ├── environments/dev/       # Stage 3: VPC & EKS Auto Mode cluster
-│   └── modules/                # Reusable Terraform modules (vpc, eks, ecr, argocd)
-└── scripts/                    # Platform release and image promotion utilities
-    ├── promote-images.sh       # ECR image promotion & GitOps updater
-    └── update_gitops_image.py  # Deterministic SHA256 digest manifest updater
+│   └── frontend/               # Modern React 19 single page application
+├── aiops/                      # Autonomous AIOps Agent (LangGraph + Amazon Bedrock)
+│   ├── agent/                  # 8-node LangGraph DAG, schemas, runtime & remediation
+│   ├── Dockerfile.agent        # Hardened non-root container image definition
+│   ├── requirements-agent.txt  # Pinned agent dependencies
+│   └── README.md               # AIOps architecture documentation
+├── devops/                     # DevOps & Cloud Platform Operations
+│   ├── ansible/                # Tier-1 Ansible self-healing runbooks & configuration
+│   │   ├── playbooks/          # Operational stabilization playbooks
+│   │   ├── inventory.ini       # Local execution inventory
+│   │   └── ansible.cfg         # Execution configuration
+│   ├── gitops/                 # Declarative Kubernetes manifests (Kustomize & Argo CD)
+│   │   ├── argo-cd.yml         # Argo CD root Application manifest
+│   │   ├── kustomization.yml   # Master Kustomize root
+│   │   └── k8s/                # Workload, monitoring & AIOps deployment manifests
+│   ├── local/                  # Local developer stack orchestration
+│   │   └── docker-compose.yml  # Self-contained local docker compose
+│   ├── observability/          # Monitoring & metrics telemetry configs
+│   │   ├── grafana/            # Grafana provisioning & dashboards
+│   │   └── prometheus/         # Prometheus scrape configuration
+│   ├── scripts/                # Platform release & image promotion utilities
+│   │   ├── promote-images.sh   # ECR image promotion & GitOps updater
+│   │   ├── restore-local-db.sh # Safe idempotent PostgreSQL restore
+│   │   └── update_gitops_image.py # Deterministic SHA256 digest manifest updater
+│   └── terraform/              # Infrastructure as code (AWS us-east-2)
+│       ├── bootstrap/          # Stage 1: S3 remote state storage
+│       ├── persistent/         # Stage 2: KMS CMK, ECR, SQS FIFO, DynamoDB
+│       ├── environments/dev/   # Stage 3: VPC & EKS Auto Mode cluster
+│       ├── modules/            # Reusable Terraform modules (vpc, eks, ecr, argocd)
+│       └── scripts/            # In-memory secret seeder & JWT synchronizer
+├── README.md                   # Platform documentation
+├── .gitignore                  # Git path exclusions
+└── .trivyignore                # Security vulnerability scanner exclusions
 ```
 
 ---
@@ -225,15 +232,20 @@ The platform enforces a clear separation between **local development validation*
 
 ### 1. Verify Kubernetes Manifests
 ```bash
-kubectl kustomize gitops/
+kubectl kustomize devops/gitops/
 ```
 
 ### 2. Syntax-Check Ansible Self-Healing Playbooks
 ```bash
-ansible-playbook --syntax-check ansible/playbooks/*.yml
+ansible-playbook -i devops/ansible/inventory.ini devops/ansible/playbooks/*.yml --syntax-check
 ```
 
-### 3. Build Microservices
+### 3. Validate Terraform Formatting
+```bash
+terraform fmt -recursive -check devops/terraform
+```
+
+### 4. Build Microservices
 ```bash
 # Build React 19 Frontend
 cd application/frontend && npm run build

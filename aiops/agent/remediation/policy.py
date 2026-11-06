@@ -21,9 +21,9 @@ ALLOWLISTED_WORKLOADS: Set[str] = {
 
 # Explicit mapping of allowed workloads to their canonical GitOps manifests
 WORKLOAD_MANIFEST_MAP: Dict[str, List[str]] = {
-    "auth": ["gitops/k8s/backend/auth.yml"],
-    "gateway": ["gitops/k8s/backend/gateway.yml"],
-    "frontend": ["gitops/k8s/frontend/rollout.yaml"],
+    "auth": ["devops/gitops/k8s/backend/auth.yml"],
+    "gateway": ["devops/gitops/k8s/backend/gateway.yml"],
+    "frontend": ["devops/gitops/k8s/frontend/rollout.yaml"],
 }
 
 # Category to permitted actions mapping

@@ -6,7 +6,7 @@ This directory contains the Terraform configurations for the platform deployed t
 To isolate failure domains, protect persistent state, and allow clean teardown of temporary environments, the infrastructure is split into four decoupled root modules:
 
 ```
-infrastructure/
+devops/terraform/
 ├── bootstrap/                        # Stage 1: State storage bootstrap
 │   ├── main.tf                       # S3 Remote State Bucket (AES256, versioning, TLS policy)
 │   ├── variables.tf
@@ -52,7 +52,7 @@ infrastructure/
 2. Stage 2 (Persistent) — Persistent Foundation Layer:
    - Path: `persistent/`
    - Provisions resources that outlive temporary clusters: KMS CMK (`alias/boutique-aiops-key` with `prevent_destroy = true`), AWS Secrets Manager containers (`boutique/database/credentials` and `boutique/auth/jwt-secret`), 4 ECR image repositories (boutique-frontend, boutique-gateway, boutique-auth, boutique-aiops-assistant) with KMS encryption, dedicated S3 node diagnostics bucket (`boutique-aiops-node-diagnostics-us-east-2`), SQS FIFO alert queue & DLQ (`boutique-aiops-alert-queue.fifo`), DynamoDB episode & RCA tables (`boutique-aiops-episodes`, `boutique-aiops-rca-reports`), and GitHub Actions OIDC publisher role.
-   - Post-Apply Seeding: High-entropy credentials are not committed to code or state; they are seeded immediately following Stage 2 apply using the in-memory script `infrastructure/persistent/scripts/seed_secrets.py` before Stage 3 workloads deploy.
+   - Post-Apply Seeding: High-entropy credentials are not committed to code or state; they are seeded immediately following Stage 2 apply using the in-memory script `devops/terraform/persistent/scripts/seed_secrets.py` before Stage 3 workloads deploy.
 3. Stage 3 (Dev Environment):
    - Path: `environments/dev/`
    - Provisions the network topology, security groups, and EKS 1.36 cluster with Auto Mode enabled.
@@ -60,12 +60,12 @@ infrastructure/
    - Path: `environments/dev/addons/`
    - Connects to the active cluster and deploys Argo CD, Argo Rollouts controller & CRDs, and kube-prometheus-stack.
 5. Stage 5 (GitOps Application Bootstrap):
-   - Path: `gitops/argo-cd.yml`
+   - Path: `devops/gitops/argo-cd.yml`
    - Once Stage 4 Helm add-ons are running and healthy, bootstrap the root Argo CD Application resource:
      ```bash
-     kubectl apply -f gitops/argo-cd.yml
+     kubectl apply -f devops/gitops/argo-cd.yml
      ```
-   - This one-time declarative bootstrap connects Argo CD to `https://github.com/itsme-aarjav/autonomous-devsecops-platform.git` on branch `main`, synchronizing all manifests located in `gitops/` into namespace `boutique` with automated `prune` and `selfHeal` enabled.
+   - This one-time declarative bootstrap connects Argo CD to `https://github.com/itsme-aarjav/autonomous-devsecops-platform.git` on branch `main`, synchronizing all manifests located in `devops/gitops/` into namespace `boutique` with automated `prune` and `selfHeal` enabled.
 
 ## Deployment Preflight Note: Scheduled KMS Key Recovery and State Alignment
 
@@ -113,7 +113,7 @@ infrastructure/
 >        - If previous persistent state exists in S3 (`persistent/terraform.tfstate`) or from backup, preserve and verify that `aws_kms_key.cmk` and `aws_kms_alias.cmk_alias` match the recovered key before planning.
 >        - If starting with a fresh, empty persistent state and electing to reuse the recovered CMK, the key and alias **must be imported** before executing `terraform apply`:
 >          ```bash
->          cd infrastructure/persistent
+>          cd devops/terraform/persistent
 >          terraform import aws_kms_key.cmk <kms-key-id>
 >          terraform import aws_kms_alias.cmk_alias alias/boutique-aiops-key
 >          ```

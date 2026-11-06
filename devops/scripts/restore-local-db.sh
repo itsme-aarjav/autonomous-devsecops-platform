@@ -60,7 +60,7 @@ echo "=== Boutique Microservices - Local Database Restore ==="
 # 1. Verify container is running and healthy
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
   echo "Error: Container '${CONTAINER_NAME}' is not running." >&2
-  echo "Start the database container first with: docker compose -f application/docker-compose.yml up -d postgres" >&2
+  echo "Start the database container first with: docker compose -f devops/local/docker-compose.yml up -d postgres" >&2
   exit 1
 fi
 
