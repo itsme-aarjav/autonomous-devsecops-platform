@@ -40,6 +40,7 @@ from .runbook_executor import (
 from .authenticator import (
     BaseApprovalAuthenticator,
     TrustedTokenApprovalAuthenticator,
+    AwsIamApprovalAuthenticator,
 )
 from .generator import GitOpsRemediationEngine
 
@@ -69,6 +70,7 @@ __all__ = [
     "AnsibleExecutionResult",
     "BaseApprovalAuthenticator",
     "TrustedTokenApprovalAuthenticator",
+    "AwsIamApprovalAuthenticator",
     "GitOpsRemediationEngine",
 ]
 

@@ -28,12 +28,24 @@ import os
 import sys
 from typing import Optional
 
+# Ensure repository root is on sys.path for direct CloudShell / CLI invocation
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 logger = logging.getLogger("aiops.operator_cli")
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
 
-def _resolve_store():
-    """Selects the remediation store backend based on AIOPS_STORE_BACKEND env var."""
+def _resolve_store(is_simulation: bool = False):
+    """
+    Selects the remediation store backend.
+    In simulation mode, UNCONDITIONALLY returns an in-memory store pre-populated
+    with realistic synthetic mock proposals. NEVER touches DynamoDB or AWS resources.
+    """
+    if is_simulation:
+        return _create_simulation_store()
+
     backend = os.getenv("AIOPS_STORE_BACKEND", "dynamodb").strip().lower()
     if backend == "dynamodb":
         from aiops.agent.remediation.store import DynamoDBRemediationStore
@@ -44,17 +56,126 @@ def _resolve_store():
         from aiops.agent.remediation.store import LocalFileRemediationStore
         base = os.getenv("AIOPS_LOCAL_STORE_DIR", "/tmp/aiops-investigations")
         return LocalFileRemediationStore(base_dir=base)
+    elif backend == "memory":
+        from aiops.agent.remediation.store import InMemoryRemediationStore
+        return InMemoryRemediationStore()
     else:
-        raise ValueError(f"Unsupported AIOPS_STORE_BACKEND: '{backend}'. Must be 'dynamodb' or 'local'.")
+        raise ValueError(f"Unsupported AIOPS_STORE_BACKEND: '{backend}'. Must be 'dynamodb', 'local', or 'memory'.")
 
 
-def _resolve_authenticator():
+def _create_simulation_store():
+    """Builds an isolated in-memory store populated with realistic synthetic proposals."""
+    from aiops.agent.remediation.store import InMemoryRemediationStore
+    from aiops.agent.remediation.schemas import (
+        RemediationProposal,
+        RemediationActionType,
+        RemediationParameters,
+        PolicyDecision,
+        RemediationStatus,
+    )
+    store = InMemoryRemediationStore()
+
+    p1 = RemediationProposal(
+        proposal_id="sim-prop-001",
+        incident_id="sim-inc-001",
+        episode_id="sim-ep-001",
+        category="Pod OOMKilled",
+        action_type=RemediationActionType.SET_MEMORY_RESOURCES,
+        workload="auth",
+        namespace="boutique",
+        target_manifest="devops/gitops/k8s/backend/auth.yml",
+        parameters=RemediationParameters(memory_request="256Mi", memory_limit="512Mi", target_container="auth"),
+        confidence_score=0.95,
+        justification="Scale container memory limits for auth to mitigate Pod OOMKilled condition.",
+        policy_decision=PolicyDecision.APPROVED,
+        policy_reason="Resource changes within deterministic policy limits",
+        status=RemediationStatus.PENDING_HUMAN_APPROVAL,
+    )
+    p2 = RemediationProposal(
+        proposal_id="sim-prop-002",
+        incident_id="sim-inc-002",
+        episode_id="sim-ep-002",
+        category="High CPU utilization",
+        action_type=RemediationActionType.SCALE_REPLICAS,
+        workload="frontend",
+        namespace="boutique",
+        target_manifest="devops/gitops/k8s/frontend/frontend.yml",
+        parameters=RemediationParameters(replicas=2),
+        confidence_score=0.88,
+        justification="Scale frontend deployment replicas to 2 to alleviate high CPU load.",
+        policy_decision=PolicyDecision.APPROVED,
+        policy_reason="Replica scaling within deterministic policy limits (1-5)",
+        status=RemediationStatus.POLICY_APPROVED,
+    )
+
+    try:
+        from aiops.agent.remediation.renderer import ManifestPatchRenderer
+        renderer = ManifestPatchRenderer(repo_root=REPO_ROOT)
+        p1.diff_summary = renderer.render_proposal_patch(p1).diff
+        p2.diff_summary = renderer.render_proposal_patch(p2).diff
+    except Exception as e:
+        logger.debug("Could not render simulation diff: %s", e)
+
+    p3 = RemediationProposal(
+        proposal_id="sim-prop-003",
+        incident_id="sim-inc-003",
+        episode_id="sim-ep-003",
+        category="Deployment replicas unavailable",
+        action_type=RemediationActionType.SCALE_REPLICAS,
+        workload="orders",
+        namespace="boutique",
+        target_manifest="devops/gitops/k8s/backend/orders.yml",
+        parameters=RemediationParameters(replicas=1),
+        confidence_score=0.91,
+        justification="Restore baseline replica count for orders.",
+        policy_decision=PolicyDecision.APPROVED,
+        policy_reason="Policy approved",
+        status=RemediationStatus.OPERATOR_REJECTED,
+        rejected_by="[SIMULATED] test-operator",
+        rejection_reason="Manual test rejection in simulation",
+    )
+    p4 = RemediationProposal(
+        proposal_id="sim-prop-004",
+        incident_id="sim-inc-004",
+        episode_id="sim-ep-004",
+        category="Pod OOMKilled",
+        action_type=RemediationActionType.SET_MEMORY_RESOURCES,
+        workload="payment",
+        namespace="boutique",
+        target_manifest="devops/gitops/k8s/backend/payment.yml",
+        parameters=RemediationParameters(memory_request="256Mi", memory_limit="512Mi", target_container="payment"),
+        confidence_score=0.94,
+        justification="Mitigated OOMKilled on payment service.",
+        policy_decision=PolicyDecision.APPROVED,
+        policy_reason="Policy approved",
+        status=RemediationStatus.APPLIED_TO_MAIN,
+        applied_commit_sha="a1b2c3d4e5f678901234567890abcdef12345678",
+        approved_by="arn:aws:iam::592668326948:user/terra-admin",
+    )
+    store.save_proposal(p1)
+    store.save_proposal(p2)
+    store.save_proposal(p3)
+    store.save_proposal(p4)
+    return store
+
+
+def _resolve_authenticator(is_simulation: bool = False):
     """
-    Builds a TrustedTokenApprovalAuthenticator:
-    1. Checks AIOPS_APPROVAL_TOKENS env var (format: 'token1:operator1,token2:operator2').
-    2. If unset, retrieves boutique/aiops/approval-tokens from AWS Secrets Manager using boto3.
+    Builds the production authenticator:
+    1. Binds authorization to authenticated AWS IAM/STS caller identity via AwsIamApprovalAuthenticator.
+       Enforces target AWS Account (592668326948) and authorized operator roles/principals.
+    2. If token credentials exist (via AIOPS_APPROVAL_TOKENS or AWS Secrets Manager),
+       adds TrustedTokenApprovalAuthenticator as a secondary 2FA factor.
     """
-    from aiops.agent.remediation.authenticator import TrustedTokenApprovalAuthenticator
+    if is_simulation:
+        return None
+
+    from aiops.agent.remediation.authenticator import (
+        AwsIamApprovalAuthenticator,
+        TrustedTokenApprovalAuthenticator,
+    )
+
+    token_authenticator = None
     raw = os.getenv("AIOPS_APPROVAL_TOKENS", "").strip()
     authorized_operators: dict = {}
     if raw:
@@ -78,23 +199,20 @@ def _resolve_authenticator():
         except Exception as e:
             logger.debug("Could not fetch approval tokens from Secrets Manager: %s", e)
 
-    if not authorized_operators:
-        print(
-            "[ERROR] AIOPS_APPROVAL_TOKENS is not set and could not be retrieved from\n"
-            "        AWS Secrets Manager ('boutique/aiops/approval-tokens').\n"
-            "        Set it in your environment or ensure AWS Secrets Manager credentials exist:\n"
-            "          export AIOPS_APPROVAL_TOKENS='<token>:<your-operator-id>'",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return TrustedTokenApprovalAuthenticator(authorized_operators)
+    if authorized_operators:
+        token_authenticator = TrustedTokenApprovalAuthenticator(authorized_operators)
+
+    return AwsIamApprovalAuthenticator(token_authenticator=token_authenticator)
 
 
-def _resolve_approval_token() -> str:
+def _resolve_approval_token(authenticator=None) -> Optional[str]:
     """
-    Resolves the operator approval token: env var first, then secure getpass prompt.
-    Never accepts it as a CLI argument.
+    Resolves the operator approval token when token authentication is configured.
+    Env var first, then secure getpass prompt.
     """
+    if authenticator and getattr(authenticator, "token_authenticator", None) is None:
+        return None
+
     token = os.getenv("AIOPS_APPROVAL_TOKEN", "").strip()
     if token:
         return token
@@ -109,8 +227,11 @@ def _resolve_approval_token() -> str:
     return token
 
 
-def _resolve_github_provider():
+def _resolve_github_provider(is_simulation: bool = False):
     """Builds GitHubApiProvider from AIOPS_GITHUB_TOKEN or AWS Secrets Manager."""
+    if is_simulation:
+        return None
+
     from aiops.agent.remediation.github_provider import GitHubApiProvider
     token = os.getenv("AIOPS_GITHUB_TOKEN", "").strip()
     repo = os.getenv("AIOPS_GITHUB_REPOSITORY", "itsme-aarjav/autonomous-devsecops-platform").strip()
@@ -167,13 +288,23 @@ def cmd_list(args, store):
         print("No remediation proposals found.")
         return
 
-    filter_status = args.status.upper() if args.status and args.status.lower() != "all" else None
+    raw_filter = (args.status or "all").strip().lower()
     shown = 0
     for p in proposals:
-        if filter_status and p.status.value != filter_status:
+        if raw_filter == "pending":
+            if p.status not in (RemediationStatus.PENDING_HUMAN_APPROVAL, RemediationStatus.POLICY_APPROVED):
+                continue
+        elif raw_filter == "applied":
+            if p.status != RemediationStatus.APPLIED_TO_MAIN:
+                continue
+        elif raw_filter == "rejected":
+            if p.status not in (RemediationStatus.POLICY_REJECTED, RemediationStatus.OPERATOR_REJECTED):
+                continue
+        elif raw_filter != "all" and p.status.value.lower() != raw_filter:
             continue
+
         print(
-            f"  {p.proposal_id[:12]}  {p.status.value:<25}  {p.workload:<20}  {p.category:<35}  "
+            f"  {p.proposal_id[:16]:<18}  {p.status.value:<26}  {p.workload:<16}  {p.category:<32}  "
             f"confidence={p.confidence_score:.0%}  {p.created_at.strftime('%Y-%m-%d %H:%M:%SZ')}"
         )
         shown += 1
@@ -255,9 +386,9 @@ def cmd_approve(args, store):
         # In real mode, approval always commits to main via CAS
         should_commit = True
         operator_id = None
-        approval_token = _resolve_approval_token()
-        authenticator = _resolve_authenticator()
-        github_provider = _resolve_github_provider()
+        authenticator = _resolve_authenticator(is_simulation=False)
+        approval_token = _resolve_approval_token(authenticator)
+        github_provider = _resolve_github_provider(is_simulation=False)
 
     # Show diff for operator review
     cmd_show(args, store)
@@ -332,8 +463,8 @@ def cmd_reject(args, store):
         print(f"[NOTICE] Running rejection in SIMULATION mode with operator '{operator_id}'.")
     else:
         operator_id = None
-        approval_token = _resolve_approval_token()
-        authenticator = _resolve_authenticator()
+        authenticator = _resolve_authenticator(is_simulation=False)
+        approval_token = _resolve_approval_token(authenticator)
 
     reason = getattr(args, "reason", None)
     if not reason:
@@ -399,9 +530,11 @@ Environment variables (required, never CLI args):
 
     p_list = sub.add_parser("list", help="List remediation proposals")
     p_list.add_argument("--status", default="all", help="Filter by status: pending, all (default: all)")
+    p_list.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
 
     p_show = sub.add_parser("show", help="Show full details of a proposal")
     p_show.add_argument("proposal_id", help="Proposal ID (or prefix)")
+    p_show.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
 
     p_approve = sub.add_parser("approve", help="Approve and apply a proposal to main")
     p_approve.add_argument("proposal_id", help="Proposal ID")
@@ -419,10 +552,12 @@ Environment variables (required, never CLI args):
 
     p_status = sub.add_parser("status", help="Print the status of a proposal")
     p_status.add_argument("proposal_id", help="Proposal ID")
+    p_status.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
 
     args = parser.parse_args()
 
-    store = _resolve_store()
+    is_simulation = getattr(args, "simulate", False) or os.getenv("AIOPS_SIMULATION_MODE", "").strip().lower() in ("1", "true")
+    store = _resolve_store(is_simulation=is_simulation)
 
     if args.command == "list":
         cmd_list(args, store)

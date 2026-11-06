@@ -76,10 +76,14 @@ reports/
 .claude/
 
 # Local Development Test Suites (Retained locally, excluded from public release)
-tests/
-aiops/tests/
+/tests/
 devops/terraform/persistent/tests/
 application/backend/tests/
 application/frontend/src/App.test.tsx
 application/frontend/src/setupTests.ts
 devops/scripts/test-restore-local-db.sh
+
+# Public regression test suites for CI verification
+!aiops/tests/
+!aiops/tests/**
+aiops/tests/__pycache__/

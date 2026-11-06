@@ -6,9 +6,14 @@ import json
 import time
 import logging
 from typing import Dict, Any, Optional
-import boto3
-from botocore.exceptions import ClientError
-from botocore.config import Config
+try:
+    import boto3
+    from botocore.exceptions import ClientError
+    from botocore.config import Config
+except ImportError:
+    boto3 = None
+    ClientError = Exception
+    Config = None
 
 from .config import AgentConfig
 
@@ -58,6 +63,11 @@ class BedrockConverseClient:
         if boto3_bedrock_client:
             self._client = boto3_bedrock_client
         else:
+            if boto3 is None:
+                raise ImportError(
+                    "boto3 and botocore are required to instantiate BedrockConverseClient. "
+                    "Install with: pip install boto3 botocore"
+                )
             botocore_cfg = Config(
                 region_name=self.config.aws_region,
                 connect_timeout=self.config.bedrock_timeout_seconds,

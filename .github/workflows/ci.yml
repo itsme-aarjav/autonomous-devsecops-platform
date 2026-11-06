@@ -70,6 +70,24 @@ jobs:
         run: |
           find . -name "*.sh" -not -path "*/node_modules/*" -exec bash -n {} +
 
+  validate-aiops:
+    name: AIOps Unit & Security Regression Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install --no-cache-dir pydantic==2.10.3 pyyaml==6.0.2
+
+      - name: Run AIOps Unit & Security Tests
+        run: python3 -m unittest discover -s aiops/tests -p "test_*.py" -v
+
   scan-trivy-fs:
     name: Trivy Filesystem Scan
     runs-on: ubuntu-24.04
@@ -196,7 +214,7 @@ jobs:
 
   promote-gitops:
     name: GitOps Direct-Main Image Promotion
-    needs: [validate-boutique-containers, validate-shell]
+    needs: [validate-boutique-containers, validate-shell, validate-aiops]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment:

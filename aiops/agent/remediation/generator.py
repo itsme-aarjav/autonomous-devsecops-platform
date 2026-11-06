@@ -228,12 +228,14 @@ class GitOpsRemediationEngine:
                     target_file.parent.mkdir(parents=True, exist_ok=True)
                     target_file.write_text(content, encoding="utf-8")
 
-            new_commit_sha = None
+            # 3. Execution & Atomic State Transitions
             if commit_to_main:
                 if not self.github_provider:
                     raise RuntimeError(
                         f"Cannot commit remediation proposal '{proposal.proposal_id}' to main: no GitHub provider or credentials configured."
                     )
+
+                # Check if already committed on GitHub (idempotent reconciliation)
                 existing_commit_sha = self.github_provider.find_commit_for_proposal(
                     proposal_id=proposal.proposal_id,
                 )
@@ -243,88 +245,152 @@ class GitOpsRemediationEngine:
                         proposal_id,
                         existing_commit_sha,
                     )
-                    return self._finalize_applied(
-                        proposal, verified_identity, is_authenticated, is_simulated, existing_commit_sha, is_reconcile=True
+                    reconciled = proposal.model_copy(deep=True)
+                    reconciled.is_approved_by_human = is_authenticated
+                    reconciled.is_simulated_approval = is_simulated
+                    reconciled.approval_mode = "AUTHENTICATED"
+                    reconciled.approved_by = verified_identity
+                    reconciled.approved_at = datetime.now(timezone.utc)
+                    reconciled.status = RemediationStatus.APPLIED_TO_MAIN
+                    reconciled.applied_commit_sha = existing_commit_sha
+                    self.store.save_proposal(reconciled)
+                    return reconciled
+
+                # ATOMIC CLAIM: Reserve proposal before live commit to prevent race with rejections/competing approvals
+                claimed_proposal = proposal.model_copy(deep=True)
+                claimed_proposal.status = RemediationStatus.APPLICATION_IN_PROGRESS
+                claimed_proposal.approved_by = verified_identity
+                claimed_proposal.is_approved_by_human = is_authenticated
+                claimed_proposal.is_simulated_approval = is_simulated
+                claimed_proposal.approval_mode = "AUTHENTICATED"
+                claimed_proposal.approved_at = datetime.now(timezone.utc)
+
+                allowed_pre_claim_statuses = [
+                    RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                    RemediationStatus.POLICY_APPROVED.value,
+                    RemediationStatus.APPLICATION_IN_PROGRESS.value,
+                ]
+                claimed = self.store.atomic_transition_status(
+                    proposal_id=proposal.proposal_id,
+                    expected_statuses=allowed_pre_claim_statuses,
+                    new_status=RemediationStatus.APPLICATION_IN_PROGRESS.value,
+                    updated_proposal=claimed_proposal,
+                )
+                if not claimed:
+                    fresh = self.store.get_proposal(proposal.proposal_id)
+                    fresh_status = fresh.status.value if fresh else "UNKNOWN"
+                    if fresh and fresh.status == RemediationStatus.OPERATOR_REJECTED:
+                        raise PermissionError(
+                            f"Cannot apply proposal '{proposal.proposal_id}': proposal was rejected by operator ({fresh.rejected_by})."
+                        )
+                    if fresh and fresh.status == RemediationStatus.APPLIED_TO_MAIN:
+                        return fresh
+                    raise PermissionError(
+                        f"Concurrent state conflict: proposal '{proposal.proposal_id}' status is now '{fresh_status}'."
                     )
 
+                # Now perform live GitHub commit with CAS
                 commit_msg = (
                     f"fix(gitops): apply approved {proposal.action_type.value} for {proposal.workload}\n\n"
                     f"Proposal-ID: {proposal.proposal_id}\n"
                     f"Incident: {proposal.incident_id}\n"
                     f"Episode: {proposal.episode_id}\n"
                     f"Approved-by: {verified_identity}\n"
-                    f"Mode: {'SIMULATION' if is_simulated else 'AUTHENTICATED'}\n"
+                    f"Mode: AUTHENTICATED\n"
                     f"Action: {rendered.summary}"
                 )
-                default_branch = self.github_provider.get_default_branch()
-                parent_sha = self.github_provider.get_branch_head_sha(default_branch)
-                new_commit_sha = self.github_provider.commit_to_main(
-                    files=rendered.modified_files,
-                    commit_message=commit_msg,
-                    expected_parent_sha=parent_sha,
+                new_commit_sha = None
+                try:
+                    default_branch = self.github_provider.get_default_branch()
+                    parent_sha = self.github_provider.get_branch_head_sha(default_branch)
+                    new_commit_sha = self.github_provider.commit_to_main(
+                        files=rendered.modified_files,
+                        commit_message=commit_msg,
+                        expected_parent_sha=parent_sha,
+                    )
+                except Exception as commit_err:
+                    # Check if the commit landed despite an exception
+                    try:
+                        rechecked_sha = self.github_provider.find_commit_for_proposal(proposal_id=proposal.proposal_id)
+                    except Exception:
+                        rechecked_sha = None
+
+                    if rechecked_sha:
+                        new_commit_sha = rechecked_sha
+                    else:
+                        # Revert in-progress reservation back to PENDING_HUMAN_APPROVAL so operator can retry
+                        try:
+                            revert_proposal = claimed_proposal.model_copy(deep=True)
+                            revert_proposal.status = RemediationStatus.PENDING_HUMAN_APPROVAL
+                            self.store.atomic_transition_status(
+                                proposal_id=proposal.proposal_id,
+                                expected_statuses=[RemediationStatus.APPLICATION_IN_PROGRESS.value],
+                                new_status=RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                                updated_proposal=revert_proposal,
+                            )
+                        except Exception as rev_err:
+                            logger.error("Failed to release in-progress reservation for %s: %s", proposal.proposal_id, rev_err)
+                        raise RuntimeError(f"GitHub commit failed for proposal '{proposal.proposal_id}': {commit_err}") from commit_err
+
+                # ATOMIC FINALIZE: Transition from APPLICATION_IN_PROGRESS -> APPLIED_TO_MAIN
+                final_proposal = claimed_proposal.model_copy(deep=True)
+                final_proposal.status = RemediationStatus.APPLIED_TO_MAIN
+                final_proposal.applied_commit_sha = new_commit_sha
+
+                finalized = self.store.atomic_transition_status(
+                    proposal_id=proposal.proposal_id,
+                    expected_statuses=[RemediationStatus.APPLICATION_IN_PROGRESS.value],
+                    new_status=RemediationStatus.APPLIED_TO_MAIN.value,
+                    updated_proposal=final_proposal,
                 )
+                if not finalized:
+                    self.store.save_proposal(final_proposal)
 
-            return self._finalize_applied(
-                proposal, verified_identity, is_authenticated, is_simulated, new_commit_sha, is_reconcile=False
-            )
-
-    def _finalize_applied(
-        self,
-        proposal: RemediationProposal,
-        verified_identity: str,
-        is_authenticated: bool,
-        is_simulated: bool,
-        commit_sha: Optional[str],
-        is_reconcile: bool = False,
-    ) -> RemediationProposal:
-        proposal.is_approved_by_human = is_authenticated
-        proposal.is_simulated_approval = is_simulated
-        proposal.approval_mode = "SIMULATED" if is_simulated else "AUTHENTICATED"
-        proposal.approved_by = verified_identity
-        proposal.approved_at = datetime.now(timezone.utc)
-
-        # Strict state transition: APPLIED_TO_MAIN ONLY when real commit SHA exists
-        if commit_sha:
-            proposal.status = RemediationStatus.APPLIED_TO_MAIN
-            proposal.applied_commit_sha = commit_sha
-        elif is_simulated:
-            proposal.status = RemediationStatus.SIMULATED_APPROVED
-            proposal.applied_commit_sha = None
-        else:
-            proposal.status = RemediationStatus.HUMAN_APPROVED
-            proposal.applied_commit_sha = None
-
-        try:
-            self.store.save_proposal(proposal)
-        except Exception as store_err:
-            if is_reconcile:
-                logger.critical(
-                    "CRITICAL: Proposal %s already committed (SHA: %s) but failed to reconcile store: %s",
+                logger.info(
+                    "Remediation proposal %s for %s was approved by '%s' and applied to 'main' (commit: %s).",
                     proposal.proposal_id,
-                    commit_sha,
-                    str(store_err),
-                )
-            else:
-                logger.critical(
-                    "CRITICAL: Remediation proposal %s was successfully committed to 'main' (SHA: %s) "
-                    "by '%s', but failed to persist proposal state in store: %s",
-                    proposal.proposal_id,
-                    commit_sha,
+                    proposal.workload,
                     verified_identity,
-                    str(store_err),
+                    new_commit_sha,
                 )
-            raise
+                return final_proposal
 
-        if not is_reconcile:
-            logger.info(
-                "Remediation proposal %s for %s was approved by '%s' (mode=%s, status=%s).",
-                proposal.proposal_id,
-                proposal.workload,
-                verified_identity,
-                "SIMULATION" if is_simulated else "AUTHENTICATED",
-                proposal.status.value,
-            )
-        return proposal
+            else:
+                # commit_to_main is False (Simulation or staging)
+                target_status = RemediationStatus.SIMULATED_APPROVED if is_simulated else RemediationStatus.HUMAN_APPROVED
+                target_proposal = proposal.model_copy(deep=True)
+                target_proposal.is_approved_by_human = is_authenticated
+                target_proposal.is_simulated_approval = is_simulated
+                target_proposal.approval_mode = "SIMULATED" if is_simulated else "AUTHENTICATED"
+                target_proposal.approved_by = verified_identity
+                target_proposal.approved_at = datetime.now(timezone.utc)
+                target_proposal.status = target_status
+                target_proposal.applied_commit_sha = None
+
+                transitioned = self.store.atomic_transition_status(
+                    proposal_id=proposal.proposal_id,
+                    expected_statuses=[
+                        RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                        RemediationStatus.POLICY_APPROVED.value,
+                    ],
+                    new_status=target_status.value,
+                    updated_proposal=target_proposal,
+                )
+                if not transitioned:
+                    fresh = self.store.get_proposal(proposal.proposal_id)
+                    fresh_status = fresh.status.value if fresh else "UNKNOWN"
+                    raise PermissionError(
+                        f"Cannot approve proposal '{proposal.proposal_id}': status concurrently modified to '{fresh_status}'."
+                    )
+                logger.info(
+                    "Remediation proposal %s for %s was approved by '%s' (mode=%s, status=%s).",
+                    proposal.proposal_id,
+                    proposal.workload,
+                    verified_identity,
+                    "SIMULATION" if is_simulated else "AUTHENTICATED",
+                    target_status.value,
+                )
+                return target_proposal
 
     def reject_remediation(
         self,
@@ -337,7 +403,8 @@ class GitOpsRemediationEngine:
         """
         Explicitly and securely rejects a remediation proposal.
         Requires authenticated operator identity (or explicit simulation mode).
-        Fails closed if the proposal was already applied to main or if authentication fails.
+        Fails closed if the proposal was already applied to main, in-progress, or if authentication fails.
+        Uses atomic state transitions in DynamoDB to eliminate race conditions.
         """
         with self._apply_lock:
             proposal = self.store.get_proposal(proposal_id)
@@ -347,6 +414,11 @@ class GitOpsRemediationEngine:
             if proposal.status == RemediationStatus.APPLIED_TO_MAIN:
                 raise PermissionError(
                     f"Cannot reject proposal '{proposal_id}': already APPLIED_TO_MAIN (commit: {proposal.applied_commit_sha})."
+                )
+
+            if proposal.status == RemediationStatus.APPLICATION_IN_PROGRESS:
+                raise PermissionError(
+                    f"Cannot reject proposal '{proposal_id}': application is currently in progress."
                 )
 
             # Idempotent rejection check
@@ -374,17 +446,40 @@ class GitOpsRemediationEngine:
                     raise PermissionError(f"Human rejection authentication failed: {result_or_err}.")
                 verified_identity = result_or_err
 
-            # Transition state
+            # Transition state atomically
             now_utc = datetime.now(timezone.utc)
-            proposal.status = RemediationStatus.OPERATOR_REJECTED
-            proposal.rejected_by = verified_identity
-            proposal.rejected_at = now_utc
-            proposal.rejection_reason = reason
-            proposal.policy_reason = (proposal.policy_reason or "") + f" | Operator rejection by {verified_identity}: {reason}"
+            rejected_proposal = proposal.model_copy(deep=True)
+            rejected_proposal.status = RemediationStatus.OPERATOR_REJECTED
+            rejected_proposal.rejected_by = verified_identity
+            rejected_proposal.rejected_at = now_utc
+            rejected_proposal.rejection_reason = reason
+            rejected_proposal.policy_reason = (rejected_proposal.policy_reason or "") + f" | Operator rejection by {verified_identity}: {reason}"
 
-            self.store.save_proposal(proposal)
+            expected = [
+                RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                RemediationStatus.POLICY_APPROVED.value,
+                RemediationStatus.PROPOSED.value,
+            ]
+            transitioned = self.store.atomic_transition_status(
+                proposal_id=proposal_id,
+                expected_statuses=expected,
+                new_status=RemediationStatus.OPERATOR_REJECTED.value,
+                updated_proposal=rejected_proposal,
+            )
+            if not transitioned:
+                fresh = self.store.get_proposal(proposal_id)
+                if fresh and fresh.status == RemediationStatus.OPERATOR_REJECTED:
+                    return fresh
+                if fresh and fresh.status in (RemediationStatus.APPLICATION_IN_PROGRESS, RemediationStatus.APPLIED_TO_MAIN, RemediationStatus.HUMAN_APPROVED):
+                    raise PermissionError(
+                        f"Cannot reject proposal '{proposal_id}': concurrently approved or applied (status: {fresh.status.value})."
+                    )
+                raise PermissionError(
+                    f"Concurrent modification: proposal '{proposal_id}' status changed to '{fresh.status.value if fresh else 'UNKNOWN'}'."
+                )
+
             logger.info("Remediation proposal %s was rejected by '%s': %s", proposal_id, verified_identity, reason)
-            return proposal
+            return rejected_proposal
 
     def _extract_workload(self, rca: RootCauseAnalysis, incident: Optional[Dict[str, Any]]) -> str:
         """Determines target workload from incident context or RCA evidence."""
