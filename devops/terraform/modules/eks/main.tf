@@ -329,24 +329,11 @@ resource "aws_eks_pod_identity_association" "aiops_agent" {
   role_arn        = aws_iam_role.aiops_agent_role.arn
 }
 
-# Core EKS addons
-resource "aws_eks_addon" "coredns" {
-  cluster_name                = aws_eks_cluster.eks.name
-  addon_name                  = "coredns"
-  resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "OVERWRITE"
-}
-
-resource "aws_eks_addon" "kube_proxy" {
-  cluster_name                = aws_eks_cluster.eks.name
-  addon_name                  = "kube-proxy"
-  resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "OVERWRITE"
-}
-
-resource "aws_eks_addon" "eks_pod_identity_agent" {
-  cluster_name                = aws_eks_cluster.eks.name
-  addon_name                  = "eks-pod-identity-agent"
-  resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "OVERWRITE"
-}
+# ------------------------------------------------------------------------------
+# EKS Auto Mode Native System Capabilities
+# ------------------------------------------------------------------------------
+# In EKS Auto Mode (compute_config.enabled = true), CoreDNS, kube-proxy, and the
+# EKS Pod Identity Agent are natively built-in and automatically managed by AWS
+# as system-level components directly on the Bottlerocket worker node architecture.
+# Explicit aws_eks_addon declarations are intentionally omitted to avoid duplicate
+# management loops, resource collisions, and version-skew compatibility issues.

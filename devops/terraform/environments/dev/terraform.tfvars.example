@@ -17,14 +17,4 @@ availability_zones   = ["us-east-2a", "us-east-2b"]
 # as this will block external internet access to the EKS public API endpoint.
 admin_cidr_blocks = ["203.0.113.50/32"]
 
-# Node Group Configurations (Option B: Multi-Node Demo Architecture)
-on_demand_instance_types = ["m7i-flex.large"]
-on_demand_desired_size   = 2
-on_demand_min_size       = 2
-on_demand_max_size       = 3
-
-spot_instance_types = ["m7i-flex.large"]
-spot_desired_size   = 1
-spot_min_size       = 1
-spot_max_size       = 5
 

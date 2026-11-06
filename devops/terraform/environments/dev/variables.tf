@@ -58,57 +58,5 @@ variable "admin_cidr_blocks" {
   }
 }
 
-# -----------------------------------------------------------------------------
-# On-Demand Node Group Settings (Core Platform Services)
-# -----------------------------------------------------------------------------
-variable "on_demand_instance_types" {
-  description = "Instance types for On-Demand node group"
-  type        = list(string)
-  default     = ["m7i-flex.large"]
-}
 
-variable "on_demand_desired_size" {
-  description = "Desired number of On-Demand nodes (Option B requires 2 nodes for core workloads)"
-  type        = number
-  default     = 2
-}
-
-variable "on_demand_min_size" {
-  description = "Minimum number of On-Demand nodes (Option B requires 2 nodes)"
-  type        = number
-  default     = 2
-}
-
-variable "on_demand_max_size" {
-  description = "Maximum number of On-Demand nodes"
-  type        = number
-  default     = 3
-}
-
-# -----------------------------------------------------------------------------
-# Spot Node Group Settings (Stateless Microservices)
-# -----------------------------------------------------------------------------
-variable "spot_instance_types" {
-  description = "Instance types for Spot node group"
-  type        = list(string)
-  default     = ["m7i-flex.large"]
-}
-
-variable "spot_desired_size" {
-  description = "Desired number of Spot nodes"
-  type        = number
-  default     = 1
-}
-
-variable "spot_min_size" {
-  description = "Minimum number of Spot nodes"
-  type        = number
-  default     = 1
-}
-
-variable "spot_max_size" {
-  description = "Maximum number of Spot nodes"
-  type        = number
-  default     = 5
-}
 

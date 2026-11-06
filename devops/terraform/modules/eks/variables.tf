@@ -69,60 +69,6 @@ variable "aiops_remediations_table_arn" {
   default     = ""
 }
 
-variable "disk_size" {
-  description = "Root disk size in GiB for worker nodes (Legacy / Fallback)"
-  type        = number
-  default     = 30
-}
-
-# -----------------------------------------------------------------------------
-# Legacy Node Group Settings (Preserved for variable backwards-compatibility)
-# In EKS Auto Mode, node provisioning is dynamically handled by Karpenter NodePools.
-# -----------------------------------------------------------------------------
-variable "on_demand_instance_types" {
-  description = "EC2 instance types for On-Demand node pool"
-  type        = list(string)
-  default     = ["m7i-flex.large"]
-}
-
-variable "on_demand_desired_size" {
-  description = "Desired number of On-Demand worker nodes (Legacy)"
-  type        = number
-  default     = 2
-}
-
-variable "on_demand_min_size" {
-  description = "Minimum number of On-Demand worker nodes (Legacy)"
-  type        = number
-  default     = 2
-}
-
-variable "on_demand_max_size" {
-  description = "Maximum number of On-Demand worker nodes (Legacy)"
-  type        = number
-  default     = 3
-}
-
-variable "spot_instance_types" {
-  description = "EC2 instance types for Spot node pool"
-  type        = list(string)
-  default     = ["m7i-flex.large", "m6i.large", "c7i.large", "c6i.large"]
-}
-
-variable "spot_desired_size" {
-  description = "Desired number of Spot worker nodes (Legacy)"
-  type        = number
-  default     = 1
-}
-
-variable "spot_min_size" {
-  description = "Minimum number of Spot worker nodes (Legacy)"
-  type        = number
-  default     = 1
-}
-
-variable "spot_max_size" {
-  description = "Maximum number of Spot worker nodes (Legacy)"
-  type        = number
-  default     = 5
-}
+# NOTE: Legacy on-demand / spot node group variables and disk_size have been removed.
+# In EKS Auto Mode, worker scheduling and node capacity are managed dynamically via
+# Auto Mode NodePools (karpenter.sh/v1) and NodeClasses (eks.amazonaws.com/v1).
