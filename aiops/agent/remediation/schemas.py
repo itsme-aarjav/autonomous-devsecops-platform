@@ -107,4 +107,6 @@ class RemediationProposal(BaseModel):
     github_branch: Optional[str] = Field(None, description="Remediation feature branch name")
     diff_summary: Optional[str] = Field(None, description="Unified diff summary of proposed manifest changes")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Creation timestamp")
+    approved_at: Optional[datetime] = Field(None, description="Timestamp when proposal was approved")
+    rejected_at: Optional[datetime] = Field(None, description="Timestamp when proposal was rejected")
 

@@ -10,9 +10,9 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24%20LTS-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2015-4169E1.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-An enterprise-grade, cloud-native DevSecOps platform featuring a modern **3-Tier Microservices Architecture**, declarative GitOps driven by **Argo CD**, zero-downtime **Canary Progressive Delivery** via **Argo Rollouts**, full-stack telemetry using **Prometheus & Alertmanager**, and an intelligent **AIOps Agent (LangGraph + Claude/Bedrock)** with **Two-Tier Self-Healing Remediation**:
-1. **Immediate Operational Stabilization** powered by **Ansible Automated Runbooks (Syntax-Validated Playbooks; In-Cluster Runner Pending Deployment)**.
-2. **Permanent Declarative Fixes** via **Human-Approved GitOps Manifest Updates on Main (Code Implemented; Live Cluster Verification Pending)**.
+An enterprise-grade, cloud-native DevSecOps platform featuring a modern **3-Tier Microservices Architecture**, declarative GitOps driven by **Argo CD**, zero-downtime **Canary Progressive Delivery** via **Argo Rollouts**, full-stack telemetry using **Prometheus & Alertmanager**, and an intelligent **AIOps Agent (LangGraph + Claude/Bedrock)** with **Human-Approved GitOps Remediation**:
+1. **Automated Root Cause Diagnosis & Policy Gating**: Deterministic LangGraph + Amazon Bedrock (Claude) diagnosis bounded by strict allowlist and resource limits.
+2. **Permanent Declarative Fixes**: Authenticated **Cloud Operator Approval CLI** (`hmac.compare_digest` token auth), committing verified patches directly to GitOps manifests on `main` via atomic CAS, followed by automated Argo CD reconciliation.
 
 ---
 
@@ -51,8 +51,8 @@ flowchart TD
             Policy["Deterministic Policy Engine\n(Allowlists & Bounded Limits)"]
         end
 
-        subgraph Remediation["Two-Tier Self-Healing Engine"]
-            Ansible["Ansible Runbooks\n(Immediate Operational Healing)"]
+        subgraph Remediation["Human-Approved GitOps Remediation"]
+            OperatorCLI["Cloud Operator Approval CLI\n(Constant-Time Token Auth)"]
             GitOpsRemediation["GitOps Direct Patcher\n(Declarative Permanent Fix)"]
         end
     end
@@ -82,11 +82,10 @@ flowchart TD
     AIOpsAgent <--> LLM
     AIOpsAgent --> Policy
 
-    %% Two-Tier Remediation
-    Policy -->|Approved| Ansible
-    Policy -->|Approved| GitOpsRemediation
-    Ansible -->|Immediate Fix| Core_Services
-    GitOpsRemediation -->|Submits Proposal| ApprovalGate
+    %% GitOps Remediation
+    Policy -->|Approved Proposal| GitOpsRemediation
+    GitOpsRemediation -->|Proposes Patch| OperatorCLI
+    OperatorCLI -->|Human Approval (hmac)| ApprovalGate
     ApprovalGate -->|Applies Patch to main| GitRepo
     GitRepo -.->|Synchronizes| ArgoCD
     ArgoCD -.->|Deploys to Cluster| Kubernetes
@@ -130,44 +129,54 @@ validate_input → normalize_incident → collect_evidence → sanitize_evidence
 
 ---
 
-## 3. Two-Tier Self-Healing Remediation
+## 3. Human-Approved GitOps Remediation Engine
 
-When an incident strikes (e.g. `Pod OOMKilled` on `auth`), the platform architecture defines a **two-tier remediation strategy**:
+When an incident strikes (e.g. `Pod OOMKilled` on `auth`), the platform executes a deterministic, human-gated **GitOps Remediation Workflow**:
 
 ```
-Alertmanager Alert
+Prometheus / Alertmanager Alert
        │
        ▼
-AIOps LangGraph Root Cause Analysis (Real Bedrock Claude Haiku Profile)
+AIOps LangGraph Root Cause Analysis (Amazon Bedrock Claude Haiku)
        │
        ▼
 Deterministic Policy Engine Gate (Allowlist + Bounded Limits)
        │
-       ├────────────────────────────────────────┐
-       ▼                                        ▼
-[ Tier 1: Operational Stabilization ]      [ Tier 2: Permanent Declarative GitOps ]
-- Ansible playbooks (Syntax-verified)      - Automated YAML patch diff engine
-- Target runtime pod cgroup adjustments    - Constant-Time Operator Token Gate
-- (In-cluster runner pending deployment)   - Direct-to-main GitOps commit engine
+       ▼
+Cloud-Durable Proposal Store (DynamoDB: boutique-aiops-rca-reports)
+       │
+       ▼
+Cloud Operator Approval CLI (Token-Authenticated + Diff Confirmation)
+       │
+       ▼
+GitOps Direct-to-Main Manifest Update (Atomic CAS: PATCH refs/heads/main)
+       │
+       ▼
+Argo CD Reconciliation & Verified Cluster Recovery
 ```
 
 > [!NOTE]
-> **Implementation Status & Live Demonstration Boundaries**:
-> - **Tier-1 Operational Stabilization (Ansible)**: Runbooks (`remediate_memory.yml`, `restart_unhealthy.yml`, `clear_disk_cache.yml`) are fully authored and syntax-verified. Live in-cluster execution runner is not yet deployed to Kubernetes.
-> - **Tier-2 Permanent Declarative Remediation (GitOps)**: Core patching engine, constant-time operator authentication gate (`hmac.compare_digest`), and GitHub direct-main commit integration are fully coded and tested locally; live incident demonstration on AWS EKS is pending infrastructure provisioning.
+> **Implementation Status & Operational Boundaries**:
+> - **Human-Approved GitOps Remediation**: Core patching engine, constant-time operator authentication gate (`hmac.compare_digest`), DynamoDB proposal persistence adapter, CloudShell-ready operator approval CLI (`aiops/operator_cli.py`), and GitHub direct-main commit integration are fully coded and tested locally; live incident demonstration on AWS EKS is pending infrastructure provisioning.
+> - **Ansible Scheduled Database Backups**: Ansible playbooks and tooling in `devops/ansible/` are preserved and repurposed exclusively for scheduled PostgreSQL backups in AWS (daily at 2:00 AM Asia/Kolkata), maintaining clean separation from operational cluster remediation.
 > - **Amazon Bedrock Inference**: Cross-region inference profile (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) is verified active in AWS account `592668326948`; live paid inference calls will take place during the live EKS incident demonstration.
 
-### Tier 1: Operational Stabilization Runbooks (Ansible)
-Located in `devops/ansible/playbooks/`:
-- [`remediate_memory.yml`](devops/ansible/playbooks/remediate_memory.yml): Playbook to increase pod cgroup memory limits to mitigate crash loops under memory pressure.
-- [`restart_unhealthy.yml`](devops/ansible/playbooks/restart_unhealthy.yml): Playbook to execute clean rolling restarts on degraded deployments.
-- [`clear_disk_cache.yml`](devops/ansible/playbooks/clear_disk_cache.yml): Playbook to purge transient container cache and relieve ephemeral storage pressure.
+### Cloud Operator Approval Workflow
+- The agent renders clean, surgical YAML diffs against the GitOps manifests in `devops/gitops/k8s/` and stores proposals in DynamoDB (`boutique-aiops-rca-reports`).
+- Operators in AWS CloudShell review pending proposals, inspect diffs, and approve or reject them using the secure CLI:
+  ```bash
+  # List pending remediation proposals
+  python3 aiops/operator_cli.py list --status pending
 
-### Tier 2: Permanent Declarative GitOps Remediation
-- The agent renders clean, surgical YAML diffs against the GitOps manifests in `devops/gitops/k8s/`.
+  # Inspect root cause, policy evaluation, and unified manifest diff
+  python3 aiops/operator_cli.py show <proposal_id>
+
+  # Authenticate with operator token and apply to main
+  python3 aiops/operator_cli.py approve <proposal_id>
+  ```
 - Enforces **Constant-Time Human Approval Token Authentication** (`TrustedTokenApprovalAuthenticator`) using `hmac.compare_digest` against authorized operator credentials before applying remediation proposals.
 - Supports deterministic proposal generation with full audit provenance (Incident ID, Episode ID, root cause diagnosis, policy verification badge, and human review checklist).
-- Adheres to the platform's strict **Single-Main Branch Policy** for operational safety.
+- Adheres to the platform's strict **Single-Main Branch Policy** for operational safety using atomic Compare-And-Swap GitHub branch updates.
 
 ---
 
@@ -185,7 +194,7 @@ autonomous-devsecops-platform/
 │   ├── requirements-agent.txt  # Pinned agent dependencies
 │   └── README.md               # AIOps architecture documentation
 ├── devops/                     # DevOps & Cloud Platform Operations
-│   ├── ansible/                # Tier-1 Ansible self-healing runbooks & configuration
+│   ├── ansible/                # Ansible configuration & playbooks (repurposed for cloud PostgreSQL backups)
 │   │   ├── playbooks/          # Operational stabilization playbooks
 │   │   ├── inventory.ini       # Local execution inventory
 │   │   └── ansible.cfg         # Execution configuration
@@ -224,8 +233,8 @@ The platform enforces a clear separation between **local development validation*
 > [!NOTE]
 > **Operational Status & Platform Readiness**:
 > - **GitHub CI Validation & Multi-Stage Builds (Verified)**: Multi-stage Docker container builds (4 images), security vulnerability scanning (Trivy), Kustomize manifest validation, Ansible playbook syntax, and Terraform validation pass cleanly on hosted GitHub runners.
-> - **Tier-1 Ansible Operational Stabilization**: Automated runbooks are fully implemented and syntax-verified; live in-cluster execution runner is not yet deployed.
-> - **Tier-2 Human-Approved GitOps Remediation**: Code implemented with constant-time token gate (`hmac.compare_digest`) and GitHub direct-main commit engine; live cluster verification pending.
+> - **Human-Approved GitOps Remediation**: Implemented with DynamoDB proposal persistence store, constant-time operator authentication gate (`hmac.compare_digest`), CloudShell approval CLI (`aiops/operator_cli.py`), and GitHub atomic CAS direct-main commit engine; live cluster verification pending.
+> - **Ansible Scheduled Database Backups**: Tooling preserved and repurposed for automated cloud PostgreSQL backups in AWS (daily at 2:00 AM Asia/Kolkata).
 > - **Amazon Bedrock (Claude Haiku 4.5)**: Cross-region inference profile (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) verified active in AWS account `592668326948`; live paid inference pending cluster deployment.
 > - **Cloud & Container Infrastructure**: Terraform state bootstrap and persistent foundation configurations prepared; AWS ECR image publishing and AWS EKS Auto Mode cluster deployment pending.
 > - **Local Test Suites**: Comprehensive unit and integration test suites are maintained exclusively in the local development environment and omitted from the public repository distribution.
@@ -278,6 +287,6 @@ When an interviewer asks: *"Tell me about your Autonomous DevSecOps Platform pro
 > 
 > *For operations and incident management, I built an in-cluster **AIOps Assistant** using **LangGraph** and **Amazon Bedrock (Claude)**. When Prometheus and Alertmanager fire an alert—such as a Pod OOMKilled—the agent gathers read-only cluster telemetry, sanitizes sensitive credentials, and performs automated root cause analysis.*
 > 
-> *What makes the platform unique is its **Two-Tier Remediation** architecture:
-> 1. **Immediate Operational Stabilization (Ansible Runbooks)**: Syntax-validated playbooks authored to adjust runtime pod memory limits or perform rolling restarts to restore availability upon incident detection.
-> 2. **Permanent Declarative Fix (GitOps Direct Patcher)**: The agent deterministically renders minimal YAML patches with **Constant-Time Human Approval Authentication**, committing verified fixes directly to GitOps manifests on `main` under strict governance without configuration drift."*
+> *What makes the platform unique is its **Autonomous DevSecOps & Human-Approved GitOps Remediation** workflow:
+> 1. **Autonomous Root Cause Diagnosis (LangGraph + Bedrock)**: Gathers read-only cluster telemetry upon alert receipt, sanitizes sensitive tokens and URIs, performs root cause analysis with Claude, and gates proposals against a strict deterministic policy engine.
+> 2. **Human-Gated GitOps Execution (Cloud Operator CLI + CAS)**: Operators review unified manifest diffs via CloudShell CLI, authenticate with constant-time tokens (`hmac.compare_digest`), and commit verified declarative fixes directly to GitOps manifests on 'main' without drift, triggering automated Argo CD sync."*

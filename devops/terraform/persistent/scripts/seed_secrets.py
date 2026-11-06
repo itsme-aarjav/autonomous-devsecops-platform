@@ -19,6 +19,7 @@ Security & Idempotency Rules:
 """
 
 import argparse
+import getpass
 import json
 import logging
 import os
@@ -271,7 +272,7 @@ def run_seeding(
         # Check existing state without modifying
         try:
             has_github, gh_kms = check_existing_secret_state(sm_client, AIOPS_GITHUB_SECRET_NAME)
-            status_reason = "Existing GitHub token preserved" if has_github else "No token supplied (supply via --github-token when GitOps PR automation is enabled)"
+            status_reason = "Existing GitHub token preserved" if has_github else "No token supplied (set AIOPS_GITHUB_TOKEN env var when GitOps PR automation is enabled)"
             github_result = {
                 "secret_name": AIOPS_GITHUB_SECRET_NAME,
                 "action": "PRESERVED" if has_github else "OPTIONAL_PENDING",
@@ -295,24 +296,42 @@ def run_seeding(
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Secure, idempotent seeding for AWS Secrets Manager credentials.")
+    parser = argparse.ArgumentParser(
+        description="Secure, idempotent seeding for AWS Secrets Manager credentials.",
+        epilog="Note: Supply GitHub PAT via AIOPS_GITHUB_TOKEN environment variable (or interactive prompt); CLI argument is disabled for security."
+    )
     parser.add_argument("--region", default=DEFAULT_REGION, help=f"AWS Region (default: {DEFAULT_REGION})")
     parser.add_argument("--rotate", action="store_true", help="Force credential rotation for all secrets if already existing")
     parser.add_argument("--rotate-jwt-only", action="store_true", help="Force rotation of JWT secret only (preserves database credentials & webhook token)")
     parser.add_argument("--rotate-webhook-only", action="store_true", help="Force rotation of AIOps webhook token only (preserves database & JWT credentials)")
-    parser.add_argument("--github-token", default=os.getenv("AIOPS_GITHUB_TOKEN", None), help="Optional GitHub Personal Access Token to seed into boutique/aiops/github-token")
+    # GitHub token is intentionally NOT accepted as a CLI argument to prevent exposure in
+    # shell history and /proc/*/cmdline. Supply it via the AIOPS_GITHUB_TOKEN environment
+    # variable (set without shell history via: export AIOPS_GITHUB_TOKEN=... before running)
+    # or leave it unset to be prompted securely via getpass at runtime.
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
+
+    # Resolve GitHub token securely: env var first, then interactive prompt, never CLI arg.
+    github_token: str | None = os.getenv("AIOPS_GITHUB_TOKEN", "").strip() or None
+    if github_token is None:
+        try:
+            prompted = getpass.getpass(
+                "Enter GitHub PAT for boutique/aiops/github-token (leave blank to skip): "
+            ).strip()
+            github_token = prompted if prompted else None
+        except (EOFError, KeyboardInterrupt):
+            github_token = None
+
     try:
         success = run_seeding(
             region=args.region,
             rotate=args.rotate,
             rotate_jwt_only=args.rotate_jwt_only,
             rotate_webhook_only=args.rotate_webhook_only,
-            github_token=args.github_token
+            github_token=github_token,
         )
         sys.exit(0 if success else 1)
     except Exception as exc:

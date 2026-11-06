@@ -5,6 +5,7 @@ Autonomous AIOps Platform — Autonomous GitOps Remediation Generator & PR Orche
 import hashlib
 import logging
 import threading
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from pathlib import Path
 
@@ -20,7 +21,6 @@ from .policy import RemediationPolicyEngine, WORKLOAD_MANIFEST_MAP
 from .renderer import ManifestPatchRenderer, ManifestRenderError
 from .github_provider import BaseGitHubProvider
 from .store import BaseRemediationStore, InMemoryRemediationStore
-from .runbook_executor import AnsibleRunbookExecutor, AnsibleExecutionResult
 from .authenticator import BaseApprovalAuthenticator
 
 logger = logging.getLogger("aiops.remediation.generator")
@@ -39,7 +39,6 @@ class GitOpsRemediationEngine:
         renderer: Optional[ManifestPatchRenderer] = None,
         github_provider: Optional[BaseGitHubProvider] = None,
         store: Optional[BaseRemediationStore] = None,
-        runbook_executor: Optional[AnsibleRunbookExecutor] = None,
         approval_authenticator: Optional[BaseApprovalAuthenticator] = None,
         min_confidence: float = 0.70,
     ):
@@ -48,9 +47,7 @@ class GitOpsRemediationEngine:
         self.renderer = renderer or ManifestPatchRenderer(repo_root=repo_root, github_provider=github_provider)
         self.github_provider = github_provider
         self.store = store or InMemoryRemediationStore()
-        self.runbook_executor = runbook_executor or AnsibleRunbookExecutor(dry_run=True)
         self.approval_authenticator = approval_authenticator
-        self.last_runbook_result: Optional[AnsibleExecutionResult] = None
         # In-process lock serializing concurrent approval calls on this engine instance.
         # Cross-process concurrency is safely governed by GitHub atomic branch CAS (PATCH refs/heads/main).
         self._apply_lock = threading.Lock()
@@ -101,11 +98,7 @@ class GitOpsRemediationEngine:
 
         proposal.status = RemediationStatus.POLICY_APPROVED
 
-        # 3. Trigger immediate Ansible operational self-healing runbook if applicable
-        if self.runbook_executor:
-            self._trigger_operational_runbook(proposal)
-
-        # 4. Render manifest patch
+        # 3. Render manifest patch
         try:
             rendered = self.renderer.render_proposal_patch(proposal)
             proposal.diff_summary = rendered.diff
@@ -208,8 +201,13 @@ class GitOpsRemediationEngine:
                     verified_identity,
                 )
 
-            # 2. Render patch to obtain exact modified file contents
+            # 2. Render patch and verify patch integrity against operator review
             rendered = self.renderer.render_proposal_patch(proposal)
+            if proposal.diff_summary and rendered.diff.strip() != proposal.diff_summary.strip():
+                raise PermissionError(
+                    f"Remediation patch integrity check failed: generated diff differs from reviewed diff "
+                    f"for proposal '{proposal.proposal_id}'. Aborting to prevent unreviewed mutations."
+                )
 
             if write_to_working_tree:
                 repo_path = Path(self.repo_root)
@@ -271,6 +269,7 @@ class GitOpsRemediationEngine:
         proposal.is_simulated_approval = is_simulated
         proposal.approval_mode = "SIMULATED" if is_simulated else "AUTHENTICATED"
         proposal.approved_by = verified_identity
+        proposal.approved_at = datetime.now(timezone.utc)
         proposal.status = RemediationStatus.APPLIED_TO_MAIN
         proposal.applied_commit_sha = commit_sha
 
@@ -355,25 +354,3 @@ class GitOpsRemediationEngine:
             confidence_score=rca.confidence_score,
             justification=justification,
         )
-
-    def _trigger_operational_runbook(self, proposal: RemediationProposal) -> None:
-        """
-        Selects and triggers immediate operational self-healing runbooks for safe Tier-1 categories.
-        Declarative resource alterations (e.g. Pod OOMKilled memory adjustments) are strictly Tier-2
-        and require explicit human approval via GitOps, preventing unapproved live cluster mutations.
-        """
-        extra_vars: Dict[str, Any] = {}
-        if proposal.category in ("Kubernetes Pod CrashLoopBackOff", "Deployment replicas unavailable"):
-            playbook = "restart_unhealthy.yml"
-        elif "disk" in proposal.category.lower():
-            playbook = "clear_disk_cache.yml"
-        else:
-            playbook = None
-
-        self.last_runbook_result = None
-        if playbook:
-            logger.info("Triggering Ansible operational runbook '%s' for %s", playbook, proposal.workload)
-            self.last_runbook_result = self.runbook_executor.execute_runbook(
-                playbook_name=playbook, workload=proposal.workload, namespace=proposal.namespace, extra_vars=extra_vars
-            )
-

@@ -93,7 +93,47 @@ for tool in aws jq kubectl; do
 done
 
 # ------------------------------------------------------------------------------
-# 2. Safe Temporary Workspace & Cleanup Trap Setup
+# 2. Pre-flight AWS Account, Region & Cluster Identity Verification
+# Fail closed: abort if any identity check fails before touching any secret.
+# ------------------------------------------------------------------------------
+EXPECTED_ACCOUNT="592668326948"
+EXPECTED_REGION="us-east-2"
+EXPECTED_CLUSTER="boutique-dev-eks"
+
+echo "==> Verifying AWS caller identity..."
+ACTUAL_ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")
+if [[ "$ACTUAL_ACCOUNT" != "$EXPECTED_ACCOUNT" ]]; then
+  echo "[ERROR] AWS account mismatch. Expected: ${EXPECTED_ACCOUNT}, Got: '${ACTUAL_ACCOUNT}'. Aborting." >&2
+  exit 1
+fi
+echo "    [OK] AWS account verified: ${ACTUAL_ACCOUNT}"
+
+echo "==> Verifying AWS region..."
+if [[ "$REGION" != "$EXPECTED_REGION" ]]; then
+  echo "[ERROR] Region mismatch. Expected: ${EXPECTED_REGION}, Got: '${REGION}'. Aborting." >&2
+  exit 1
+fi
+echo "    [OK] AWS region verified: ${REGION}"
+
+echo "==> Verifying Kubernetes context cluster..."
+CURRENT_CLUSTER=$(kubectl config view --minify -o jsonpath='{.clusters[0].name}' 2>/dev/null || echo "")
+if [[ "$CURRENT_CLUSTER" != *"${EXPECTED_CLUSTER}"* ]]; then
+  echo "[ERROR] Kubernetes cluster mismatch. Expected context targeting '${EXPECTED_CLUSTER}', Got: '${CURRENT_CLUSTER}'. Aborting." >&2
+  exit 1
+fi
+echo "    [OK] Kubernetes context cluster verified: ${CURRENT_CLUSTER}"
+
+echo "==> Verifying EKS cluster status via AWS API..."
+EKS_CLUSTER_STATUS=$(aws eks describe-cluster --name "${EXPECTED_CLUSTER}" --region "${EXPECTED_REGION}" --query 'cluster.status' --output text 2>/dev/null || echo "")
+if [[ "$EKS_CLUSTER_STATUS" != "ACTIVE" ]]; then
+  echo "[ERROR] EKS cluster '${EXPECTED_CLUSTER}' is not ACTIVE in AWS (status: '${EKS_CLUSTER_STATUS}'). Aborting." >&2
+  exit 1
+fi
+echo "    [OK] EKS cluster status: ACTIVE"
+
+# ------------------------------------------------------------------------------
+# 3. Safe Temporary Workspace & Cleanup Trap Setup
+# (Was section 2 — renumbered after pre-flight insertion)
 # ------------------------------------------------------------------------------
 TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t 'k8s_secret_sync')
 chmod 700 "$TMP_DIR"
@@ -111,12 +151,14 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Ensure namespaces exist
+# Verify required namespaces exist — do NOT create them on an unverified cluster.
+# Namespaces must be provisioned by Terraform/Helm before this script runs.
 for ns in "$NAMESPACE" "$MONITORING_NAMESPACE"; do
   if ! kubectl get namespace "$ns" >/dev/null 2>&1; then
-    echo "==> Ensuring namespace '${ns}' exists..."
-    kubectl create namespace "$ns" >/dev/null
+    echo "[ERROR] Required namespace '${ns}' does not exist. Provision it via Terraform/Helm before running this script." >&2
+    exit 1
   fi
+  echo "    [OK] Namespace '${ns}' exists."
 done
 
 # Helper: fetch secret payload safely

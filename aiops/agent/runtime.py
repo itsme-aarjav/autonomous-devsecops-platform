@@ -62,6 +62,7 @@ from .remediation import (
     GitOpsRemediationEngine,
     RemediationPolicyEngine,
     ManifestPatchRenderer,
+    TrustedTokenApprovalAuthenticator,
 )
 
 # Configure logging
@@ -192,16 +193,53 @@ class AIOpsAgentRuntime:
         raise ValueError(f"Unsupported AIOPS_PERSISTENCE_BACKEND: '{self.config.persistence_backend}'. Must be 'dynamodb' or 'memory'")
 
     def _init_remediation(self):
-        store = (
-            InMemoryRemediationStore() if self.config.persistence_backend == "memory"
-            else LocalFileRemediationStore()
-        )
+        # Remediation proposal persistence: DynamoDB when dynamodb backend is active, else in-memory.
+        if self.config.persistence_backend == "dynamodb":
+            from .remediation.store import DynamoDBRemediationStore
+            rca_table = (self.config.dynamodb_rca_table or "").strip() or "boutique-aiops-rca-reports"
+            store: BaseRemediationStore = DynamoDBRemediationStore(
+                region=self.config.aws_region,
+                table_name=rca_table,
+            )
+            logger.info("Remediation store: DynamoDBRemediationStore (table: %s)", rca_table)
+        else:
+            store = InMemoryRemediationStore()
+            logger.info("Remediation store: InMemoryRemediationStore (local/test mode)")
+
         provider = None
         if self.config.github_token:
             provider = GitHubApiProvider(
                 repository=self.config.github_repository,
                 token=self.config.github_token,
                 api_base_url=self.config.github_api_url,
+            )
+
+        # Wire approval authenticator from AIOPS_APPROVAL_TOKENS env var.
+        # Format: "token1:operator_id1,token2:operator_id2"
+        # Loaded from the aiops-approval-secret Kubernetes secret or CloudShell env — never from CLI args.
+        approval_authenticator = None
+        _raw_tokens = os.getenv("AIOPS_APPROVAL_TOKENS", "").strip()
+        if _raw_tokens:
+            authorized_operators: dict = {}
+            for entry in _raw_tokens.split(","):
+                parts = entry.strip().split(":", 1)
+                if len(parts) == 2 and parts[0].strip() and parts[1].strip():
+                    authorized_operators[parts[0].strip()] = parts[1].strip()
+            if authorized_operators:
+                approval_authenticator = TrustedTokenApprovalAuthenticator(authorized_operators)
+                logger.info(
+                    "Approval authenticator configured with %d authorized operator(s).",
+                    len(authorized_operators),
+                )
+            else:
+                logger.warning(
+                    "AIOPS_APPROVAL_TOKENS is set but contains no valid token:operator entries. "
+                    "Approval authenticator will NOT be configured — apply_approved_remediation will fail closed."
+                )
+        else:
+            logger.info(
+                "AIOPS_APPROVAL_TOKENS not set. Approval authenticator not configured — "
+                "apply_approved_remediation will fail closed until tokens are provisioned."
             )
 
         engine = None
@@ -212,6 +250,7 @@ class AIOpsAgentRuntime:
                 renderer=ManifestPatchRenderer(repo_root=self.config.git_repo_root, github_provider=provider),
                 github_provider=provider,
                 store=store,
+                approval_authenticator=approval_authenticator,
                 min_confidence=self.config.remediation_min_confidence,
             )
         return store, provider, engine
