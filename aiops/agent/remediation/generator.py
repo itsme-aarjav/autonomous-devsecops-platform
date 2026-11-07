@@ -615,8 +615,12 @@ class GitOpsRemediationEngine:
         """Determines target workload from incident context or RCA evidence."""
         if incident and incident.get("affected_workload"):
             raw = str(incident["affected_workload"]).strip().lower()
+            if raw in WORKLOAD_MANIFEST_MAP:
+                return raw
             candidate = raw.removeprefix("boutique-")
-            return candidate if candidate in WORKLOAD_MANIFEST_MAP else raw
+            if candidate in WORKLOAD_MANIFEST_MAP:
+                return candidate
+            return candidate
         text = f"{rca.root_cause} {rca.summary}".lower()
         return next((svc for svc in WORKLOAD_MANIFEST_MAP if svc in text), "unknown")
 
@@ -637,7 +641,8 @@ class GitOpsRemediationEngine:
 
         if category == "Pod OOMKilled":
             action_type = RemediationActionType.SET_MEMORY_RESOURCES
-            params = RemediationParameters(memory_request="256Mi", memory_limit="512Mi", target_container=workload)
+            target_c = workload.removeprefix("boutique-")
+            params = RemediationParameters(memory_request="256Mi", memory_limit="512Mi", target_container=target_c)
             justification = f"Scale container memory limits for {workload} to mitigate Pod OOMKilled condition."
         elif category in ("High CPU utilization", "Application HTTP 5xx spike"):
             action_type = RemediationActionType.SCALE_REPLICAS

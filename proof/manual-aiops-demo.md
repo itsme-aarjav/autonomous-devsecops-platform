@@ -91,19 +91,19 @@ python3 aiops/operator_cli.py reject sim-prop-002 --simulate --yes --reason "Sca
 > [!IMPORTANT]
 > **Production Safety Invariant**: Never disrupt core services (`boutique-auth`, `boutique-gateway`, `boutique-frontend`, `boutique-postgres`) to demonstrate AIOps capabilities. The procedure below uses an isolated canary test pod in namespace `boutique` that safely breaches a 32Mi memory boundary without impacting live storefront customer traffic.
 
-### Step 1: Launch the Isolated Canary Test Pod
-Deploy the standalone failing canary pod into the `boutique` namespace:
+### Step 1: Launch the Isolated Canary Memory Pressure Test
+Deploy the isolated canary workload under memory pressure into the `boutique` namespace:
 ```bash
 kubectl apply -f devops/gitops/k8s/aiops/isolated-incident-test.yaml
 ```
 
-Check the pod status:
+Check the canary pod status:
 ```bash
-kubectl get pod boutique-demo-incident-pod -n boutique -w
+kubectl get pods -n boutique -l app=canary -w
 ```
-Within a few seconds, the pod will terminate with `OOMKilled` / `Error`. Verify with:
+Within a few seconds, the canary container will terminate with `OOMKilled` / `Error` (Exit Code 137). Verify with:
 ```bash
-kubectl describe pod boutique-demo-incident-pod -n boutique | grep -E "Reason:|Exit Code:"
+kubectl describe pod -l app=canary -n boutique | grep -E "Reason:|Exit Code:"
 ```
 Expected output:
 ```text
@@ -154,12 +154,13 @@ Upon typing `APPROVE`:
 - A GitHub Pull Request is opened with full RCA rationale.
 - The PR URL is printed to the operator console.
 
-### Step 6: Clean Up the Canary Test Pod
-Delete the isolated canary pod once verification is complete:
+### Step 6: Restore Canary Baseline State
+Once human approval and Pull Request review is complete, restore the healthy baseline configuration:
 ```bash
-kubectl delete -f devops/gitops/k8s/aiops/isolated-incident-test.yaml
+kubectl apply -f devops/gitops/overlays/dev/canary.yml
 ```
-Verify the boutique namespace has returned to clean baseline state:
+Alternatively, merge the generated PR into `main` and let Argo CD automatically synchronize the updated memory limits to the `boutique-canary` deployment on EKS.
+Verify the boutique namespace has returned to clean running state:
 ```bash
-kubectl get pods -n boutique
+kubectl get pods -n boutique -l app=canary
 ```

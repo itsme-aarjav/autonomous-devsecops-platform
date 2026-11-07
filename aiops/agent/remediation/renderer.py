@@ -51,11 +51,8 @@ class ManifestPatchRenderer:
                 f"Cannot render patch for unapproved proposal: status={proposal.policy_decision.value}"
             )
 
-        # Determine target manifest files (e.g. frontend updates rollout.yaml)
-        if proposal.workload == "frontend":
-            target_manifests = WORKLOAD_MANIFEST_MAP.get("frontend", [proposal.target_manifest])
-        else:
-            target_manifests = [proposal.target_manifest]
+        # Determine target manifest file
+        target_manifests = [proposal.target_manifest]
 
         modified_files: Dict[str, str] = {}
         all_diffs: List[str] = []
@@ -147,8 +144,9 @@ class ManifestPatchRenderer:
             meta = doc.get("metadata", {})
             name = meta.get("name", "")
 
-            # Target only the workload's Deployment or Rollout
-            if kind in ("Deployment", "Rollout") and name == workload:
+            # Target only the workload's Deployment or Rollout (supporting canonical and boutique- prefixed names)
+            workload_names = {workload, f"boutique-{workload}", workload.removeprefix("boutique-")}
+            if kind in ("Deployment", "Rollout") and name in workload_names:
                 matched = True
                 spec = doc.setdefault("spec", {})
 
@@ -163,8 +161,16 @@ class ManifestPatchRenderer:
 
                     # Find target container (or default to first container)
                     target_container = None
+                    candidate_container_names = {
+                        workload,
+                        workload.removeprefix("boutique-"),
+                    }
+                    if params.target_container:
+                        candidate_container_names.add(params.target_container)
+                        candidate_container_names.add(params.target_container.removeprefix("boutique-"))
+
                     for c in containers:
-                        if c.get("name") == workload or c.get("name") == params.target_container:
+                        if c.get("name") in candidate_container_names:
                             target_container = c
                             break
                     if not target_container:

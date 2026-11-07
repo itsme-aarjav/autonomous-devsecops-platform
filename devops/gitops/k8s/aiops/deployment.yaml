@@ -52,7 +52,7 @@ spec:
       containers:
         - name: aiops-agent
           # Gated: Pending initial GitHub Actions CI build & ECR digest promotion
-          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant:pending-ecr-build
+          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:29fe36a567996b4d2761dffe25ab96f6b503589d340068d084058e4ad8c00e85
           imagePullPolicy: IfNotPresent
           ports:
             - name: http-health

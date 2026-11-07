@@ -50,17 +50,25 @@ spec:
                 - -ec
                 - |
                   echo "[$(date -u +%FT%TZ)] Starting PostgreSQL backup for 'auth_db' at ${PGHOST}:${PGPORT}..."
+                  TMP_DUMP="/backup/auth_db_dump.sql"
                   BACKUP_FILE="/backup/auth_db_dump.sql.gz"
                   
-                  pg_dump -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" --clean --if-exists "${PGDATABASE}" | gzip -9 > "${BACKUP_FILE}"
+                  # Fail-closed execution: dump to uncompressed file first so pg_dump failure cannot be masked by gzip
+                  pg_dump -h "${PGHOST}" -p "${PGPORT}" -U "${PGUSER}" --clean --if-exists "${PGDATABASE}" > "${TMP_DUMP}"
                   
-                  FILE_SIZE=$(wc -c < "${BACKUP_FILE}")
-                  echo "[$(date -u +%FT%TZ)] pg_dump complete: ${FILE_SIZE} bytes"
+                  DUMP_SIZE=$(wc -c < "${TMP_DUMP}")
+                  echo "[$(date -u +%FT%TZ)] pg_dump complete: ${DUMP_SIZE} bytes"
                   
-                  if [ "${FILE_SIZE}" -lt 500 ]; then
-                    echo "[ERROR] Backup size ${FILE_SIZE} bytes is below safety threshold! Aborting." >&2
+                  if [ "${DUMP_SIZE}" -lt 500 ]; then
+                    echo "[ERROR] Uncompressed dump size ${DUMP_SIZE} bytes is below safety threshold! Aborting." >&2
+                    rm -f "${TMP_DUMP}"
                     exit 1
                   fi
+                  
+                  gzip -9 "${TMP_DUMP}"
+                  
+                  FILE_SIZE=$(wc -c < "${BACKUP_FILE}")
+                  echo "[$(date -u +%FT%TZ)] Gzip compression complete: ${FILE_SIZE} bytes"
                   
                   echo "[$(date -u +%FT%TZ)] Verifying gzip integrity..."
                   gzip -t "${BACKUP_FILE}"

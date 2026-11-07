@@ -88,7 +88,7 @@ jobs:
           done
           echo "All 4 microservice container digests verified in ECR."
 
-      - name: Verify Kubernetes Cluster Connectivity and Workload Rollouts (Fail Closed)
+      - name: Verify Kubernetes Cluster Connectivity, Release Parity, and Rollouts (Fail Closed)
         run: |
           echo "Configuring kubectl for EKS cluster boutique-dev-eks..."
           aws eks update-kubeconfig --region us-east-2 --name boutique-dev-eks
@@ -99,16 +99,39 @@ jobs:
           echo "Verifying Argo CD GitOps Application Synchronization..."
           SYNC_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
           HEALTH_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
-          echo "Argo CD boutique application status: Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}"
+          SYNCED_REVISION=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.revision}' 2>/dev/null || echo "Unknown")
+          echo "Argo CD boutique application status: Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, SyncedRevision=${SYNCED_REVISION}"
           if [ "${SYNC_STATUS}" != "Synced" ] || [ "${HEALTH_STATUS}" != "Healthy" ]; then
             echo "Error: Argo CD application 'boutique' is not Synced and Healthy (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS})!" >&2
             exit 1
           fi
 
+          echo "Verifying desired-versus-running release image parity on live EKS workloads..."
+          AUTH_IMG=$(kubectl get deployment/auth -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
+          GATEWAY_IMG=$(kubectl get deployment/gateway -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
+          AIOPS_IMG=$(kubectl get deployment/aiops-assistant -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
+          FRONTEND_IMG=$(kubectl get rollout/frontend -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
+          CANARY_IMG=$(kubectl get deployment/boutique-canary -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
+
+          echo "  ✓ auth deployment image:            ${AUTH_IMG}"
+          echo "  ✓ gateway deployment image:         ${GATEWAY_IMG}"
+          echo "  ✓ aiops-assistant deployment image: ${AIOPS_IMG}"
+          echo "  ✓ frontend rollout image:           ${FRONTEND_IMG}"
+          echo "  ✓ boutique-canary deployment image: ${CANARY_IMG}"
+
+          # Verify that each workload is pinned to an immutable digest (@sha256:)
+          for img in "${AUTH_IMG}" "${GATEWAY_IMG}" "${AIOPS_IMG}" "${FRONTEND_IMG}"; do
+            if [[ "$img" != *"@sha256:"* ]]; then
+              echo "Error: Workload image '${img}' violates immutable digest pinning policy (@sha256: required)!" >&2
+              exit 1
+            fi
+          done
+
           echo "Verifying workload rollouts in namespace 'boutique'..."
           kubectl rollout status deployment/auth -n boutique --timeout=120s
           kubectl rollout status deployment/gateway -n boutique --timeout=120s
           kubectl rollout status deployment/aiops-assistant -n boutique --timeout=120s
+          kubectl rollout status deployment/boutique-canary -n boutique --timeout=120s
 
           echo "Verifying active pods and restart counts..."
           kubectl get pods -n boutique -o wide

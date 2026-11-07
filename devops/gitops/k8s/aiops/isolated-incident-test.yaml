@@ -1,28 +1,61 @@
----
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: boutique-demo-incident-pod
+  name: boutique-canary
   namespace: boutique
   labels:
-    app.kubernetes.io/name: boutique-demo-incident
+    app: canary
+    app.kubernetes.io/name: canary
     app.kubernetes.io/part-of: autonomous-devsecops-platform
     environment: dev
 spec:
-  restartPolicy: Never
-  containers:
-    - name: canary
-      image: public.ecr.aws/docker/library/alpine:3.19
-      command: ["/bin/sh", "-c"]
-      args:
-        - |
-          echo "Simulating memory limit breach in isolated canary workload..."
-          # Rapidly allocate memory in user space to breach the 32Mi limit
-          awk 'BEGIN{for(i=0;i<5000000;i++) a[i]="canary_memory_exhaustion_test";}'
-      resources:
-        limits:
-          memory: "32Mi"
-          cpu: "100m"
-        requests:
-          memory: "16Mi"
-          cpu: "50m"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: canary
+  template:
+    metadata:
+      labels:
+        app: canary
+    spec:
+      tolerations:
+        - key: "role"
+          operator: "Equal"
+          value: "core-platform"
+          effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: In
+                    values:
+                      - core-platform
+      containers:
+        - name: canary
+          image: public.ecr.aws/docker/library/alpine:3.19
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              echo "[$(date -u +%FT%TZ)] Starting Boutique Canary Worker with simulated memory pressure..."
+              echo "[$(date -u +%FT%TZ)] Simulating isolated canary memory exhaustion..."
+              awk 'BEGIN{for(i=0;i<5000000;i++) a[i]="oom_test";}'
+              trap "exit 0" TERM INT
+              while true; do
+                sleep 5
+              done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL

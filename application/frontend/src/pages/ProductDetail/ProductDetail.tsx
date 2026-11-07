@@ -380,7 +380,6 @@ const ProductDetail: React.FC = () => {
             >
               <Tab label="Description" />
               <Tab label="Details" />
-              <Tab label="Demonstration Notice" />
             </Tabs>
             
             <Box sx={{ px: 4 }}>
@@ -411,14 +410,6 @@ const ProductDetail: React.FC = () => {
                     <Typography variant="body1" paragraph>{product.brand || 'Boutique'}</Typography>
                   </Grid>
                 </Grid>
-              </TabPanel>
-              
-              <TabPanel value={tabValue} index={2}>
-                <Typography variant="body1" paragraph sx={{ lineHeight: 1.8 }}>
-                  This storefront is deployed as part of an autonomous DevSecOps and cloud platform demonstration.
-                  Product browsing, cart operations, user authentication, and order records are backed by live cloud microservices and PostgreSQL persistence.
-                  No real credit card payment or commercial fulfillment is processed.
-                </Typography>
               </TabPanel>
             </Box>
           </Paper>
