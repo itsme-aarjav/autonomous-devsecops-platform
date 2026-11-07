@@ -177,7 +177,7 @@ resource "helm_release" "monitoring" {
   namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "kube-prometheus-stack"
-  version    = "56.21.0"
+  version    = "92.22.0"
 
   timeout          = 600
   create_namespace = false
@@ -198,6 +198,10 @@ resource "helm_release" "monitoring" {
           }
         ]
       }
+      kubeControllerManager = { enabled = false }
+      kubeScheduler         = { enabled = false }
+      kubeEtcd              = { enabled = false }
+      kubeProxy             = { enabled = false }
       grafana = {
         service = { type = "ClusterIP" }
         nodeSelector = {
@@ -418,7 +422,7 @@ resource "helm_release" "argo_rollouts" {
   namespace  = kubernetes_namespace_v1.argo_rollouts.metadata[0].name
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-rollouts"
-  version    = "2.37.2"
+  version    = "2.43.9"
 
   create_namespace = false
   cleanup_on_fail  = true
