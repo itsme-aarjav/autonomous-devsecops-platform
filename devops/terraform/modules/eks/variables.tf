@@ -20,17 +20,26 @@ variable "worker_subnet_ids" {
   type        = list(string)
 }
 
+variable "allow_open_dev_eks_api" {
+  description = "Temporary DEV-only override allowing 0.0.0.0/0 for EKS public API access"
+  type        = bool
+  default     = false
+}
+
 variable "admin_cidr_blocks" {
   description = "Authorized administrative CIDR blocks for EKS public API endpoint"
   type        = list(string)
 
   validation {
     condition = length(var.admin_cidr_blocks) > 0 && alltrue([
-      for cidr in var.admin_cidr_blocks : can(cidrnetmask(cidr)) && try(tonumber(split("/", cidr)[1]) > 0, false)
+      for cidr in var.admin_cidr_blocks : can(cidrnetmask(cidr)) && (
+        var.allow_open_dev_eks_api ? true : try(tonumber(split("/", cidr)[1]) > 0, false)
+      )
     ])
-    error_message = "admin_cidr_blocks must be a non-empty list of valid IPv4 CIDR blocks (e.g. [\"203.0.113.50/32\"]). IPv6 prefixes and 0.0.0.0/0 are not permitted."
+    error_message = "admin_cidr_blocks must be a non-empty list of valid IPv4 CIDR blocks (e.g. [\"203.0.113.50/32\"]). 0.0.0.0/0 is only permitted if allow_open_dev_eks_api is set to true."
   }
 }
+
 
 variable "diagnostics_bucket_name" {
   description = "Dedicated S3 bucket name for EKS Auto Mode NodeDiagnostic bundles"

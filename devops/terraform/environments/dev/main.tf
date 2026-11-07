@@ -20,6 +20,7 @@ module "eks" {
   control_plane_subnet_ids = module.vpc.private_subnet_ids
   worker_subnet_ids        = [module.vpc.private_subnet_ids[0]] # Workers in us-east-2a for demo co-location
   admin_cidr_blocks        = var.admin_cidr_blocks
+  allow_open_dev_eks_api   = var.allow_open_dev_eks_api
 
   diagnostics_kms_key_arn = data.terraform_remote_state.persistent.outputs.kms_key_arn
   diagnostics_bucket_name = data.terraform_remote_state.persistent.outputs.node_diagnostics_bucket_name
