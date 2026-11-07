@@ -8,13 +8,10 @@ spec:
   source:
     repoURL: 'https://github.com/itsme-aarjav/autonomous-devsecops-platform.git'
     targetRevision: main
-    path: devops/gitops
+    path: devops/gitops/overlays/dev
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: boutique
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true
