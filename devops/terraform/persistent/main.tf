@@ -330,7 +330,12 @@ resource "aws_iam_role" "github_actions_ecr_publisher" {
         Condition = {
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-            "token.actions.githubusercontent.com:sub" = "repo:itsme-aarjav/autonomous-devsecops-platform:ref:refs/heads/main"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = [
+              "repo:itsme-aarjav/autonomous-devsecops-platform:ref:refs/heads/main",
+              "repo:itsme-aarjav@*/autonomous-devsecops-platform@*:ref:refs/heads/main"
+            ]
           }
         }
       }
