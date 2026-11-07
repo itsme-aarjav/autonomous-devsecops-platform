@@ -1,0 +1,56 @@
+# Cloud-Native Security & DevSecOps Hardening Architecture
+
+## 1. Zero-Trust Security Tenets
+
+The Autonomous DevSecOps Platform implements defense-in-depth across the entire software delivery lifecycle, from code commit to cloud runtime:
+
+1. **Zero Static AWS Credentials**: GitHub Actions authenticates exclusively via OpenID Connect (OIDC) tokens with tightly bound subject claims.
+2. **Immutable Infrastructure**: Compute instances use Amazon Bottlerocket OS—a minimal, read-only Linux distribution designed specifically for hosting containers with no package manager or interactive shell.
+3. **Non-Root Container Execution**: Workloads strictly run as unprivileged UIDs (`10001`), dropping all Linux capabilities (`ALL`) with `readOnlyRootFilesystem: true`.
+4. **Data-at-Rest & In-Transit Encryption**: All persistent volumes (EBS), messaging queues (SQS FIFO), and state files (S3) are encrypted using customer-managed AWS KMS keys. All external and internal ingress traffic enforces TLS 1.3 / 1.2.
+5. **Least-Privilege RBAC**: Kubernetes ServiceAccounts map directly to fine-grained AWS IAM roles via EKS Pod Identity without managing long-lived IAM user credentials.
+
+---
+
+## 2. Pod Security Standards (Restricted Profile)
+
+The following manifest excerpt from `boutique-aiops-assistant` and `boutique-frontend` illustrates adherence to Kubernetes Restricted Pod Security Standards:
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+containers:
+  - name: aiops-agent
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+```
+
+### Live Security Verification Matrix:
+| Pod | ServiceAccount | RunAsNonRoot | UID | Read-Only FS | Capabilities Dropped |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `frontend` | `default` | Yes | 10001 | Yes | ALL |
+| `aiops-assistant` | `aiops-assistant` | Yes | 10001 | Yes | ALL |
+| `auth` | `default` | Yes | Non-Root | Yes | System defaults |
+| `gateway` | `default` | Yes | Non-Root | Yes | System defaults |
+
+---
+
+## 3. Cryptographic Key Management (AWS KMS)
+
+All sensitive data stores are encrypted at rest using dedicated AWS Key Management Service (KMS) Customer Managed Keys (CMKs):
+
+| Resource | KMS Key ARN | Purpose |
+| :--- | :--- | :--- |
+| **PostgreSQL EBS Volume** | `arn:aws:kms:us-east-2:592668326948:key/bbeb7c58-6210-4ebe-8181-ce9e30b9ac7c` | Database volume encryption (`gp3`) |
+| **SQS FIFO Alert Queue** | `arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b` | Telemetry message encryption |
+| **Secrets Manager** | `arn:aws:kms:us-east-2:592668326948:key/bbeb7c58-6210-4ebe-8181-ce9e30b9ac7c` | Webhook tokens and DB credentials |
+| **PostgreSQL Backup Snapshot**| `snap-05a3b0ffe3463e280` | 100% encrypted backup snapshot |

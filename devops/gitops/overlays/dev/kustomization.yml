@@ -9,4 +9,6 @@ resources:
   - auth.yml
   - gateway.yml
   - frontend.yml
+  - aiops.yml
+  - ingress.yaml
 

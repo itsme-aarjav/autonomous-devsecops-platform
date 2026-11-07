@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-assistant
+  namespace: boutique
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+    app.kubernetes.io/component: reasoning-engine
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aiops-assistant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aiops-assistant
+        app.kubernetes.io/part-of: autonomous-devsecops-platform
+        app.kubernetes.io/component: reasoning-engine
+    spec:
+      serviceAccountName: aiops-assistant
+      automountServiceAccountToken: true
+      nodeSelector:
+        workload-class: platform
+        node-lifecycle: on-demand
+      tolerations:
+        - key: role
+          value: core-platform
+          operator: Equal
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: aiops-agent
+          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:a5138d28c1410010fb948326357f27d9ab1b046f13eace9a0a9bf118fb76d4b4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http-health
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: AWS_REGION
+              value: "us-east-2"
+            - name: AIOPS_BEDROCK_MODEL_ID
+              value: "amazon.nova-lite-v1:0"
+            - name: PROMETHEUS_BASE_URL
+              value: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+            - name: AIOPS_HEALTH_PORT
+              value: "8080"
+            - name: AIOPS_QUEUE_BACKEND
+              value: "sqs"
+            - name: AIOPS_PERSISTENCE_BACKEND
+              value: "dynamodb"
+            - name: AIOPS_SQS_QUEUE_NAME
+              value: "boutique-aiops-alert-queue.fifo"
+            - name: AIOPS_SQS_DLQ_NAME
+              value: "boutique-aiops-alert-dlq.fifo"
+            - name: AIOPS_DYNAMODB_EPISODES_TABLE
+              value: "boutique-aiops-episodes"
+            - name: AIOPS_DYNAMODB_RCA_TABLE
+              value: "boutique-aiops-rca-reports"
+            - name: AIOPS_SQS_VISIBILITY_TIMEOUT
+              value: "300"
+            - name: AIOPS_WEBHOOK_ENABLED
+              value: "true"
+            - name: AIOPS_BEDROCK_ENABLED
+              value: "true"
+            - name: AIOPS_REMEDIATION_ENABLED
+              value: "false"
+            - name: AIOPS_WEBHOOK_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-webhook-secret
+                  key: token
+                  optional: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
+      volumes:
+        - name: tmp-dir
+          emptyDir:
+            sizeLimit: 100Mi
