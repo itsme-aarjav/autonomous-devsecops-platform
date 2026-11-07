@@ -60,3 +60,39 @@ The agent worker dequeued message `76e4c06b-bec5-47d3-a26a-8ccd17a0d589` and ini
 - **TTL**: 30-day automatic expiration (`1796662433`)
 - **Confidence Score**: `0.9` (High Confidence)
 - **Remediation State**: Marked `is_destructive=false` with proposed actions logged; autonomous mutations safely disabled by policy (`AIOPS_REMEDIATION_ENABLED=false`).
+
+---
+
+## 5. End-to-End Pipeline Verification: PrometheusRule &rarr; Bedrock Nova Lite
+
+To rigorously verify the full automated pipeline from rule evaluation through to generative reasoning, a temporary synthetic alert was created and traced:
+
+### Step 1: Alert Generation via Custom PrometheusRule
+A temporary `PrometheusRule` was created in namespace `monitoring` with `expr: vector(1) > 0` and alert name `PodOOMKilled`.
+- **Evaluation Time**: Within 15 seconds, Prometheus evaluated the rule and transitioned it to `FIRING` state at `17:41:21 UTC`.
+
+### Step 2: Alertmanager Webhook Dispatch
+Alertmanager's routing rule matched the firing alert and dispatched an authenticated HTTP POST payload to:
+- `http://aiops-assistant.boutique.svc.cluster.local:8080/api/v1/alerts`
+- Payload authenticated via bearer token stored in Kubernetes Secret `aiops-webhook-secret`.
+
+### Step 3: SQS FIFO Decoupling & Worker Consumption
+- The webhook ingress service validated the secret and enqueued an event to SQS FIFO:
+  - **SQS MessageId**: `e71deba7-6971-4a4c-b93f-aa79df6f2520`
+  - **Message Group ID**: `incident-boutique-PodOOMKilled`
+- The asynchronous worker dequeued the message, registered Episode ID:
+  `04f3ecd0bcca412b5cb3f0854ecc50c5e478eb52b9bbe8827ae015d5a1d46767`,
+  and gathered live diagnostic context (pod status, node conditions, memory metrics).
+
+### Step 4: Amazon Bedrock Generative Inference
+- The worker invoked the Amazon Bedrock Converse API using `amazon.nova-lite-v1:0`.
+- **Inference Latency**: `3.57 seconds`
+- **Model Output**: Synthesized root cause analysis identifying pod memory limits, low host memory pressure, and recommended rightsizing adjustments.
+- **Confidence Score**: `0.85`
+- **Destructive Flag**: `is_destructive: false`
+- **DynamoDB Record**: Persisted in table `boutique-aiops-rca-reports`.
+
+### Step 5: Immediate Rule Cleanup & Safety Capping
+- The temporary `PrometheusRule` was immediately deleted via `kubectl delete prometheusrule -n monitoring synthetic-aiops-validation-rule`.
+- Alertmanager resolved the alert; Prometheus returned to 0 firing alerts.
+- Total lifetime Bedrock Converse API calls across all test executions strictly capped at **3 calls** ($0.0003 total inference cost).

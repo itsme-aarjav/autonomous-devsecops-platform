@@ -11,7 +11,7 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
   id-token: write
   deployments: write
 
@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   promote-production:
-    name: Promote Verified Artifacts to Production
+    name: Production Promotion (FAIL-CLOSED: Production Target Not Implemented)
     runs-on: ubuntu-24.04
     environment:
       name: production
@@ -29,9 +29,24 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Audit Promotion Request
+      - name: Fail Closed — Production Infrastructure Not Provisioned
         run: |
-          echo "Promoting image tag ${{ github.event.inputs.image_tag }} to production."
-          echo "Authorization Reason: ${{ github.event.inputs.reason }}"
-          echo "Promoted by: ${{ github.actor }}"
-          echo "Promotion verified successfully."
+          echo "================================================================================"
+          echo "CRITICAL STATUS: PRODUCTION DEPLOYMENT NOT IMPLEMENTED / NOT DEPLOYABLE"
+          echo "================================================================================"
+          echo "Requested Image Tag: ${{ github.event.inputs.image_tag }}"
+          echo "Reason / Change ID : ${{ github.event.inputs.reason }}"
+          echo "Initiated By       : ${{ github.actor }}"
+          echo ""
+          echo "[FAIL-CLOSED ENFORCEMENT]"
+          echo "Production target infrastructure (EKS prod cluster, prod VPC, prod GitOps overlay)"
+          echo "has intentionally NOT been provisioned. To prevent false green deployment records"
+          echo "and unverified promotions, this workflow fails closed."
+          echo ""
+          echo "Required before production promotion can succeed:"
+          echo "  1. Reviewed and provisioned Terraform production layer (e.g. environments/prod)."
+          echo "  2. Dedicated production Kubernetes cluster with validated network isolation."
+          echo "  3. Production GitOps overlay and Argo CD application definition."
+          echo "  4. Verified least-privilege deployment role credentials."
+          echo "================================================================================"
+          exit 1

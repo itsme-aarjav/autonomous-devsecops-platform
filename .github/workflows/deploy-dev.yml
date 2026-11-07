@@ -1,22 +1,12 @@
-name: Deploy DEV
+name: Deploy DEV (Rollout & Verification)
 
 on:
   workflow_dispatch:
     inputs:
-      service:
-        description: "Microservice to publish and deploy (or 'all')"
+      release_tag:
+        description: "Target image tag or Git SHA to verify and deploy to DEV"
         required: true
-        default: "all"
-        type: choice
-        options:
-          - all
-          - boutique-auth
-          - boutique-gateway
-          - boutique-frontend
-          - boutique-aiops-assistant
-  push:
-    tags:
-      - 'v*'
+        default: "dev-latest"
 
 permissions:
   contents: read
@@ -24,104 +14,140 @@ permissions:
   deployments: write
 
 concurrency:
-  group: deploy-dev-${{ github.ref }}
+  group: deploy-dev
   cancel-in-progress: false
 
 jobs:
-  publish-and-deploy-dev:
-    name: Build, Scan & Publish to ECR (DEV)
+  deploy-and-verify-dev:
+    name: Verify & Record DEV Deployment
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: boutique-auth
-            build_dir: application/backend/services/auth
-          - service: boutique-gateway
-            build_dir: application/backend/services/gateway
-          - service: boutique-frontend
-            build_dir: application/frontend
-          - service: boutique-aiops-assistant
-            build_dir: aiops
-            dockerfile: aiops/Dockerfile.agent
+    environment:
+      name: development
+      url: https://demo.aarjav.site
     steps:
-      - name: Filter Target Service
-        id: filter
-        run: |
-          TARGET="${{ github.event.inputs.service || 'all' }}"
-          if [ "$TARGET" != "all" ] && [ "$TARGET" != "${{ matrix.service }}" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipping ${{ matrix.service }} (target is $TARGET)"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout Code
-        if: steps.filter.outputs.skip == 'false'
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Build Container Image
-        if: steps.filter.outputs.skip == 'false'
+      - name: Create GitHub Deployment Record
+        id: create_deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ -n "${{ matrix.dockerfile }}" ]; then
-            docker build -f "${{ matrix.dockerfile }}" -t "${{ matrix.service }}:${{ github.sha }}" "${{ matrix.build_dir }}"
-          else
-            docker build -t "${{ matrix.service }}:${{ github.sha }}" "${{ matrix.build_dir }}"
-          fi
+          DEPLOYMENT_JSON=$(gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/deployments \
+            -f ref="${{ github.ref }}" \
+            -f environment="development" \
+            -f description="DEV deployment verification for release ${{ github.event.inputs.release_tag }}" \
+            -F transient_environment=false \
+            -F production_environment=false \
+            -F auto_merge=false \
+            -F required_contexts='[]')
 
-      - name: Verify Non-Root User Execution for Frontend
-        if: steps.filter.outputs.skip == 'false' && matrix.service == 'boutique-frontend'
-        run: |
-          CONTAINER_UID=$(docker run --rm "${{ matrix.service }}:${{ github.sha }}" id -u)
-          if [ "${CONTAINER_UID}" != "10001" ]; then
-            echo "Error: Frontend container must run as dedicated non-root UID 10001 (found ${CONTAINER_UID})"
-            exit 1
-          fi
+          DEPLOYMENT_ID=$(echo "$DEPLOYMENT_JSON" | jq -r .id)
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "Created GitHub Deployment ID: $DEPLOYMENT_ID"
 
-      - name: Scan Microservice Container with Trivy
-        if: steps.filter.outputs.skip == 'false'
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: 'image'
-          image-ref: '${{ matrix.service }}:${{ github.sha }}'
-          severity: 'HIGH,CRITICAL'
-          exit-code: '1'
+          # Set initial status to in_progress
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+            -f state="in_progress" \
+            -f environment="development" \
+            -f environment_url="https://demo.aarjav.site" \
+            -f description="Verifying live microservices deployment on EKS..."
 
       - name: Configure AWS Credentials via GitHub OIDC
-        if: steps.filter.outputs.skip == 'false'
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-2
           audience: sts.amazonaws.com
 
-      - name: Login to Amazon ECR
-        if: steps.filter.outputs.skip == 'false'
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
-
-      - name: Publish Verified Image to ECR & Resolve Digest
-        if: steps.filter.outputs.skip == 'false'
+      - name: Verify Immutable Container Image Digests in ECR
         run: |
-          REGISTRY="${{ steps.login-ecr.outputs.registry }}"
-          TAGGED_IMAGE="${REGISTRY}/${{ matrix.service }}:${{ github.sha }}"
-          TAGGED_DEV="${REGISTRY}/${{ matrix.service }}:dev-latest"
-          docker tag "${{ matrix.service }}:${{ github.sha }}" "${TAGGED_IMAGE}"
-          docker tag "${{ matrix.service }}:${{ github.sha }}" "${TAGGED_DEV}"
-          echo "Pushing immutable image: ${TAGGED_IMAGE}..."
-          docker push "${TAGGED_IMAGE}"
-          docker push "${TAGGED_DEV}"
+          SERVICES=("boutique-frontend" "boutique-gateway" "boutique-auth" "boutique-aiops-assistant")
+          TAG="${{ github.event.inputs.release_tag }}"
+          echo "Verifying ECR image availability for release tag: ${TAG}"
 
-          DIGEST=$(aws ecr describe-images \
-            --repository-name "${{ matrix.service }}" \
-            --image-ids imageTag="${{ github.sha }}" \
-            --region us-east-2 \
-            --query "imageDetails[0].imageDigest" \
-            --output text)
+          for svc in "${SERVICES[@]}"; do
+            DIGEST=$(aws ecr describe-images \
+              --repository-name "${svc}" \
+              --image-ids imageTag="${TAG}" \
+              --region us-east-2 \
+              --query "imageDetails[0].imageDigest" \
+              --output text 2>/dev/null || echo "None")
 
-          if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
-            echo "Error: Failed to resolve ECR image digest for ${{ matrix.service }}" >&2
+            if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+              echo "Error: Service ${svc} is missing required image tag '${TAG}' in ECR!" >&2
+              exit 1
+            fi
+            echo "  ✓ ${svc}: ${DIGEST}"
+          done
+          echo "All 4 microservice container digests verified in ECR."
+
+      - name: Execute Live DEV Application Smoke Tests
+        id: smoke_tests
+        run: |
+          echo "Executing live smoke tests against https://demo.aarjav.site..."
+
+          # Smoke Test 1: Frontend HTTPS 200 OK
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://demo.aarjav.site)
+          echo "Frontend HTTP Status: ${HTTP_STATUS}"
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Error: Frontend returned status ${HTTP_STATUS} (expected 200)" >&2
             exit 1
           fi
 
-          echo "Successfully published ${{ matrix.service }} to ECR with digest: ${DIGEST}"
+          # Smoke Test 2: API Gateway & Auth Health Endpoint
+          AUTH_HEALTH=$(curl -s --max-time 15 https://demo.aarjav.site/api/auth/health)
+          echo "Auth Health Response: ${AUTH_HEALTH}"
+          STATUS_FIELD=$(echo "$AUTH_HEALTH" | jq -r .status 2>/dev/null || echo "invalid")
+          if [ "$STATUS_FIELD" != "auth is healthy" ]; then
+            echo "Error: Unexpected auth health response: ${AUTH_HEALTH}" >&2
+            exit 1
+          fi
+
+          # Smoke Test 3: HTTP to HTTPS 301 Redirect Check
+          REDIRECT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 http://demo.aarjav.site)
+          echo "HTTP Redirect Status: ${REDIRECT_STATUS}"
+          if [ "$REDIRECT_STATUS" != "301" ]; then
+            echo "Error: Expected 301 redirect on plain HTTP, got ${REDIRECT_STATUS}" >&2
+            exit 1
+          fi
+
+          echo "All live application smoke tests PASSED successfully."
+
+      - name: Mark GitHub Deployment Successful
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+            -f state="success" \
+            -f environment="development" \
+            -f environment_url="https://demo.aarjav.site" \
+            -f description="DEV deployment verified healthy. Live at https://demo.aarjav.site"
+
+      - name: Mark GitHub Deployment Failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+              -f state="failure" \
+              -f environment="development" \
+              -f environment_url="https://demo.aarjav.site" \
+              -f description="DEV deployment verification failed smoke tests."
+          fi

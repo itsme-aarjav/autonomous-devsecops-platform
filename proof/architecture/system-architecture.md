@@ -85,7 +85,8 @@ flowchart TD
 
 ### B. Amazon EKS Auto Mode Compute Foundation (Terraform Module: `eks`)
 - **Kubernetes Version**: `v1.36.4-eks-cfb47f5`
-- **OS Image**: Bottlerocket OS (EKS Auto, Standard) with Linux kernel 6.18
+- **Worker Node Hardware**: 3x `m7i-flex.large` (2 vCPU, 8 GiB Memory, Intel Xeon 4th Gen)
+- **OS Image**: Bottlerocket OS (EKS Auto, Standard) 2026.10.31 with Linux kernel 6.18
 - **Node Automation**: EKS Auto Mode dynamically provisions, scales, and patches EC2 compute capacity without manual node group management.
 - **Storage**: AWS EBS CSI Driver natively integrated via EKS Auto Mode with StorageClass `auto-ebs-sc` providing encrypted `gp3` storage with dynamic volume binding.
 
@@ -102,5 +103,5 @@ flowchart TD
 | **boutique-frontend** | React / Vite / Nginx | 3000 | Alpine Unprivileged | `runAsUser: 10001`, `runAsNonRoot: true`, `readOnlyRootFilesystem: true` |
 | **boutique-gateway** | Node.js / Express | 3001 | Node 20 Slim | `runAsNonRoot: true`, drop capabilities |
 | **boutique-auth** | Node.js / TypeScript | 3002 | Node 20 Slim | `runAsNonRoot: true`, drop capabilities |
-| **boutique-postgres** | PostgreSQL 16 | 5432 | Postgres 16 Alpine | StatefulSet with 20Gi encrypted persistent storage |
+| **boutique-postgres** | PostgreSQL 15 | 5432 | Postgres 15 Alpine (v15.19) | StatefulSet with 20Gi encrypted persistent storage |
 | **aiops-assistant** | Python 3.11 / FastAPI | 8080 | Python 3.11 Slim | `runAsUser: 10001`, `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, `dropCaps: ["ALL"]` |
