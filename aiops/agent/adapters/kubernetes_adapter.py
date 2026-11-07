@@ -185,9 +185,15 @@ class KubernetesEvidenceAdapter(BaseEvidenceAdapter):
     def _get_pods_evidence(self, namespace: str, workload: str) -> List[Dict[str, Any]]:
         """Reads status, containers, restart counts, and termination states for pods."""
         result: List[Dict[str, Any]] = []
-        # Query with label selectors matching workload
+        canonical = workload.replace("boutique-", "") if workload.startswith("boutique-") else workload
+        # Query with label selectors matching workload and canonical alias
         pod_list = None
-        selectors = [f"app={workload}", f"app.kubernetes.io/name={workload}"]
+        selectors = [
+            f"app={workload}",
+            f"app.kubernetes.io/name={workload}",
+            f"app={canonical}",
+            f"app.kubernetes.io/name={canonical}",
+        ]
 
         for selector in selectors:
             try:
@@ -207,7 +213,7 @@ class KubernetesEvidenceAdapter(BaseEvidenceAdapter):
                 namespace=namespace,
                 _request_timeout=self.timeout,
             )
-            items = [p for p in (all_pods.items or []) if p.metadata and p.metadata.name and workload in p.metadata.name]
+            items = [p for p in (all_pods.items or []) if p.metadata and p.metadata.name and (workload in p.metadata.name or canonical in p.metadata.name)]
         else:
             items = pod_list.items
 
@@ -298,10 +304,11 @@ class KubernetesEvidenceAdapter(BaseEvidenceAdapter):
             _request_timeout=self.timeout,
         )
         parsed: List[Dict[str, Any]] = []
+        canonical = workload.replace("boutique-", "") if workload.startswith("boutique-") else workload
 
         for ev in (events_list.items or []):
             involved_name = ev.involved_object.name if ev.involved_object else ""
-            if not involved_name or workload not in involved_name:
+            if not involved_name or (workload not in involved_name and canonical not in involved_name):
                 continue
 
             event_entry = {
@@ -321,13 +328,21 @@ class KubernetesEvidenceAdapter(BaseEvidenceAdapter):
 
     def _get_deployment_evidence(self, namespace: str, workload: str) -> Dict[str, Any]:
         """Reads deployment replica state and rollout status conditions."""
-        try:
-            dep = self.apps_v1.read_namespaced_deployment(
-                name=workload,
-                namespace=namespace,
-                _request_timeout=self.timeout,
-            )
-        except Exception:
+        canonical = workload.replace("boutique-", "") if workload.startswith("boutique-") else workload
+        dep = None
+        for name in [workload, canonical]:
+            try:
+                dep = self.apps_v1.read_namespaced_deployment(
+                    name=name,
+                    namespace=namespace,
+                    _request_timeout=self.timeout,
+                )
+                if dep:
+                    break
+            except Exception:
+                continue
+
+        if not dep:
             # Might not be a deployment (e.g. statefulset or raw pod)
             return {}
 

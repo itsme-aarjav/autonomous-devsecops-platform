@@ -114,6 +114,16 @@ class PrometheusEvidenceAdapter(BaseEvidenceAdapter):
                 evidence["metrics"][metric_name] = metric_result
                 success_count += 1
             except Exception as e:
+                # Fallback to canonical workload if prefixed (e.g. boutique-auth -> auth)
+                if workload.startswith("boutique-"):
+                    canonical = workload.replace("boutique-", "")
+                    try:
+                        metric_result = self.execute_query(query_template.format(namespace=namespace, workload=canonical))
+                        evidence["metrics"][metric_name] = metric_result
+                        success_count += 1
+                        continue
+                    except Exception:
+                        pass
                 failure_count += 1
                 msg = f"Prometheus query '{metric_name}' failed: {str(e)}"
                 logger.warning(msg)
@@ -153,6 +163,14 @@ class PrometheusEvidenceAdapter(BaseEvidenceAdapter):
         raw_content = resp.raw.read(self.max_response_bytes + 1)
         if len(raw_content) > self.max_response_bytes:
             raise ValueError(f"Prometheus response exceeded maximum size {self.max_response_bytes} bytes")
+
+        # Decompress gzip/deflate if response was compressed
+        if raw_content.startswith(b"\x1f\x8b"):
+            import gzip
+            raw_content = gzip.decompress(raw_content)
+        elif raw_content.startswith(b"\x78\x9c"):
+            import zlib
+            raw_content = zlib.decompress(raw_content)
 
         try:
             payload = json.loads(raw_content.decode("utf-8"))
