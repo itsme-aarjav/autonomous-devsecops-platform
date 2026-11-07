@@ -11,5 +11,6 @@ resources:
   - gateway.yml
   - frontend.yml
   - aiops.yml
+  - canary.yml
   - ingress.yaml
 

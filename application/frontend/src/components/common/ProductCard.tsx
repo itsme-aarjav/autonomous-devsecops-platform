@@ -76,9 +76,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
             )}
           </Box>
         ))}
-        <Typography variant="caption" color="text.secondary">
-          ({product.reviewCount || 0})
-        </Typography>
+        {product.reviewCount ? (
+          <Typography variant="caption" color="text.secondary">
+            ({product.reviewCount})
+          </Typography>
+        ) : null}
       </Box>
     );
   };

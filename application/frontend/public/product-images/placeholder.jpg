@@ -3,6 +3,5 @@
   <rect x="50" y="50" width="300" height="300" fill="#E0E0E0" rx="10"/>
   <rect x="75" y="75" width="250" height="250" fill="#F0F0F0" rx="8"/>
   <circle cx="200" cy="180" r="30" fill="#B0B0B0"/>
-  <text x="200" y="260" text-anchor="middle" fill="#888" font-family="Arial, sans-serif" font-size="14">Product Image</text>
-  <text x="200" y="280" text-anchor="middle" fill="#AAA" font-family="Arial, sans-serif" font-size="12">Coming Soon</text>
+  <text x="200" y="270" text-anchor="middle" fill="#888" font-family="Arial, sans-serif" font-size="14">Boutique Luxury Item</text>
 </svg>

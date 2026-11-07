@@ -146,20 +146,19 @@ const Orders: React.FC = () => {
             <Avatar sx={{ width: 80, height: 80, mx: 'auto', mb: 3, backgroundColor: '#f5f5f5' }}>
               <ShoppingBagIcon sx={{ fontSize: 40, color: '#999' }} />
             </Avatar>
-            <Typography variant="h5" gutterBottom>
-              Order History Unavailable
+            <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
+              You haven't placed any orders yet.
             </Typography>
-            <Alert severity="info" sx={{ maxWidth: 600, mx: 'auto', mb: 4, textAlign: 'left' }}>
-              <strong>Orders Backend Retired</strong><br />
-              The orders backend microservice has been retired as part of the 3-tier architecture rationalization. Order placement, order history, and tracking are currently unavailable.
-            </Alert>
+            <Typography variant="body1" color="text.secondary" paragraph sx={{ mb: 4 }}>
+              When you complete a demonstration checkout, your order history will appear here.
+            </Typography>
             <Button
-              variant="outlined"
+              variant="contained"
               size="large"
-              href="/"
+              href="/products"
               sx={{ px: 4 }}
             >
-              Return Home
+              Start Shopping
             </Button>
           </Paper>
         ) : (

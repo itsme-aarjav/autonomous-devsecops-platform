@@ -691,10 +691,11 @@ class AIOpsAgentRuntime:
     def run(self):
         """Main process loop with signal handling."""
         self.start_health_server(start_worker=False)
-        if self.initialize_components():
-            self.start_worker()
-        else:
-            logger.error("AIOps Agent initialization failed. Worker thread will NOT be started.")
+        if not self.initialize_components():
+            logger.critical("AIOps Agent component initialization failed! Aborting startup (fail-closed).")
+            self.shutdown()
+            sys.exit(1)
+        self.start_worker()
 
         def signal_handler(signum, frame):
             sig_name = signal.Signals(signum).name

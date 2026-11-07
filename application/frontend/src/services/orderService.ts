@@ -9,8 +9,8 @@ export const orderService = {
     try {
       const response = await apiClient.post('/orders', orderData);
       return response.data;
-    } catch (error) {
-      console.warn('[OrderService] Backend orders service offline or retired');
+    } catch (error: any) {
+      console.error('[OrderService] Failed to create order:', error.message || error);
       throw error;
     }
   },
@@ -19,8 +19,8 @@ export const orderService = {
     try {
       const response = await apiClient.get('/orders/my-orders');
       return response.data;
-    } catch (error) {
-      console.warn('[OrderService] Backend orders service offline or retired, returning empty list');
+    } catch (error: any) {
+      console.error('[OrderService] Failed to fetch orders:', error.message || error);
       return [];
     }
   },
@@ -29,8 +29,8 @@ export const orderService = {
     try {
       const response = await apiClient.get(`/orders/${id}`);
       return response.data;
-    } catch (error) {
-      console.warn(`[OrderService] Backend orders service offline or order ${id} not found`);
+    } catch (error: any) {
+      console.error(`[OrderService] Failed to fetch order ${id}:`, error.message || error);
       return null as any;
     }
   },
@@ -39,8 +39,8 @@ export const orderService = {
     try {
       const response = await apiClient.patch(`/orders/${id}/status`, { status });
       return response.data;
-    } catch (error) {
-      console.warn(`[OrderService] Backend orders service offline or order ${id} update failed`);
+    } catch (error: any) {
+      console.error(`[OrderService] Failed to update order ${id} status:`, error.message || error);
       throw error;
     }
   },

@@ -47,7 +47,7 @@ This repository and evaluation package represent a complete, end-to-end implemen
                                             ▼                             ▼
                              ┌─────────────────────────────┐┌───────────────────────────┐
                              │   Amazon Bedrock Converse   ││   Amazon DynamoDB Stores  │
-                             │  (Claude 3.5 Sonnet / Nova) ││   (Episodes & RCA Reports)│
+                             │  (Amazon Nova Lite v1:0)    ││   (Episodes & RCA Reports)│
                              └─────────────────────────────┘└───────────────────────────┘
 ```
 

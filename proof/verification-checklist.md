@@ -38,8 +38,9 @@ This checklist provides human evaluators, operators, and recruiters with an item
 
 ---
 
-## 4. Disaster Recovery & Snapshot Restoration
+## 4. Disaster Recovery & Backup Architecture
 
+- [x] **Real Daily PostgreSQL S3 Backup CronJob**: Two-stage Kubernetes CronJob (`postgres:15-alpine` dump + `aws-cli` upload) configured with native `timeZone: "Asia/Kolkata"` at `0 2 * * *`. Encrypted using KMS CMK (`1e4e2ce3-e642-47a9-a20d-3a47b052918b`) to S3 bucket `boutique-aiops-backups-592668326948-us-east-2/backups/`.
 - [x] **EBS Automated Snapshot**: Snapshot `snap-05a3b0ffe3463e280` completed (100% progress) and encrypted with AWS KMS CMK `bbeb7c58-6210-4ebe-8181-ce9e30b9ac7c`.
 - [x] **Isolated Restoration Test**: Successfully restored into an isolated EBS volume (`vol-0e374b00d6f4cfe90`) and launched in temporary `pod/postgres-restore-verified` in `default` namespace.
 - [x] **Data Integrity Validated**: PostgreSQL 15.19 started cleanly, WAL redo completed, and all historical user records (`users` table) verified intact.

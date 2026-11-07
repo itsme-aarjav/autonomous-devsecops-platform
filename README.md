@@ -5,13 +5,13 @@
 [![Argo CD](https://img.shields.io/badge/GitOps-Argo%20CD-EF7B4D.svg?logo=argo&logoColor=white)](https://argo-cd.readthedocs.io/)
 [![Argo Rollouts](https://img.shields.io/badge/Progressive%20Delivery-Argo%20Rollouts-blueviolet.svg?logo=argo&logoColor=white)](https://argoproj.github.io/argo-rollouts/)
 [![Ansible](https://img.shields.io/badge/Automation-Ansible%20Self--Healing-EE0000.svg?logo=ansible&logoColor=white)](https://www.ansible.com/)
-[![AIOps](https://img.shields.io/badge/AIOps-LangGraph%20%2B%20Amazon%20Bedrock-232F3E.svg?logo=anthropic&logoColor=white)](https://aws.amazon.com/bedrock/)
+[![AIOps](https://img.shields.io/badge/AIOps-LangGraph%20%2B%20Amazon%20Bedrock%20Nova-232F3E.svg?logo=amazon-aws&logoColor=white)](https://aws.amazon.com/bedrock/)
 [![Observability](https://img.shields.io/badge/Observability-Prometheus%20%2B%20Alertmanager-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
 [![Node.js](https://img.shields.io/badge/Node.js-24%20LTS-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2015-4169E1.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-An enterprise-grade, cloud-native DevSecOps platform featuring a modern **3-Tier Microservices Architecture**, declarative GitOps driven by **Argo CD**, zero-downtime **Canary Progressive Delivery** via **Argo Rollouts**, full-stack telemetry using **Prometheus & Alertmanager**, and an intelligent **AIOps Agent (LangGraph + Claude/Bedrock)** with **Human-Approved GitOps Remediation**:
-1. **Automated Root Cause Diagnosis & Policy Gating**: Deterministic LangGraph + Amazon Bedrock (Claude) diagnosis bounded by strict allowlist and resource limits.
+An enterprise-grade, cloud-native DevSecOps platform featuring a modern **3-Tier Microservices Architecture**, declarative GitOps driven by **Argo CD**, zero-downtime **Canary Progressive Delivery** via **Argo Rollouts**, full-stack telemetry using **Prometheus & Alertmanager**, and an intelligent **AIOps Agent (LangGraph + Amazon Bedrock Nova Lite)** with **Human-Approved GitOps Remediation**:
+1. **Automated Root Cause Diagnosis & Policy Gating**: Deterministic LangGraph + Amazon Bedrock (Nova Lite `amazon.nova-lite-v1:0`) diagnosis bounded by strict allowlist and resource limits.
 2. **Permanent Declarative Fixes**: Authenticated **Cloud Operator Approval CLI** (`hmac.compare_digest` token auth), committing verified patches directly to GitOps manifests on `main` via atomic CAS, followed by automated Argo CD reconciliation.
 
 ---
@@ -45,9 +45,9 @@ flowchart TD
         end
 
         subgraph AIOps_Platform["Autonomous AIOps Platform"]
-            AlertQueue["Durable FIFO Alert Queue\n(Leasing & Dead Letter Queue)"]
+            AlertQueue["Durable FIFO Alert Queue\n(SQS FIFO: boutique-aiops-alert-queue.fifo)"]
             AIOpsAgent["AIOps Diagnostic Agent\n(8-Node LangGraph StateGraph)"]
-            LLM["Amazon Bedrock / Claude Haiku\n(Prompt-Sanitized Inference)"]
+            LLM["Amazon Bedrock / Nova Lite\n(Prompt-Sanitized Inference)"]
             Policy["Deterministic Policy Engine\n(Allowlists & Bounded Limits)"]
         end
 
@@ -124,26 +124,26 @@ The platform features an autonomous diagnostic agent built using an **8-node Lan
 validate_input → normalize_incident → collect_evidence → sanitize_evidence → analyze_with_llm → validate_rca → propose_remediation → persist_result
 ```
 - **Read-Only Telemetry Collection**: Strictly collects pod logs, Kubelet event streams, and PromQL metric rates without mutating cluster state.
-- **Safety & Prompt Sanitization**: Redacts JWTs, database connection strings, bearer tokens, and private keys before invoking Bedrock/Claude Haiku.
+- **Safety & Prompt Sanitization**: Redacts JWTs, database connection strings, bearer tokens, and private keys before invoking Bedrock Nova Lite (`amazon.nova-lite-v1:0`).
 - **Strict Non-Destructive Invariant**: Rejects destructive suggestions (`rm -rf`, `kubectl delete`, `DROP TABLE`).
 
 ---
 
 ## 3. Human-Approved GitOps Remediation Engine
 
-When an incident strikes (e.g. `Pod OOMKilled` on `auth`), the platform executes a deterministic, human-gated **GitOps Remediation Workflow**:
+When an incident strikes (e.g. `Pod OOMKilled` on `canary`), the platform executes a deterministic, human-gated **GitOps Remediation Workflow**:
 
 ```
 Prometheus / Alertmanager Alert
        │
        ▼
-AIOps LangGraph Root Cause Analysis (Amazon Bedrock Claude Haiku)
+AIOps LangGraph Root Cause Analysis (Amazon Bedrock Nova Lite)
        │
        ▼
 Deterministic Policy Engine Gate (Allowlist + Bounded Limits)
        │
        ▼
-Cloud-Durable Proposal Store (DynamoDB: boutique-aiops-rca-reports)
+Cloud-Durable Proposal Store (DynamoDB: boutique-aiops-remediations)
        │
        ▼
 Cloud Operator Approval CLI (Token-Authenticated + Diff Confirmation)
@@ -232,12 +232,11 @@ The platform enforces a clear separation between **local development validation*
 
 > [!NOTE]
 > **Operational Status & Platform Readiness**:
-> - **GitHub CI Validation & Multi-Stage Builds (Verified)**: Multi-stage Docker container builds (4 images), security vulnerability scanning (Trivy), Kustomize manifest validation, Ansible playbook syntax, and Terraform validation pass cleanly on hosted GitHub runners.
-> - **Human-Approved GitOps Remediation**: Implemented with DynamoDB proposal persistence store, constant-time operator authentication gate (`hmac.compare_digest`), CloudShell approval CLI (`aiops/operator_cli.py`), and GitHub atomic CAS direct-main commit engine; live cluster verification pending.
-> - **Ansible Scheduled Database Backups**: Tooling preserved and repurposed for automated cloud PostgreSQL backups in AWS (daily at 2:00 AM Asia/Kolkata).
-> - **Amazon Bedrock (Claude Haiku 4.5)**: Cross-region inference profile (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) verified active in AWS account `592668326948`; live paid inference pending cluster deployment.
-> - **Cloud & Container Infrastructure**: Terraform state bootstrap and persistent foundation configurations prepared; AWS ECR image publishing and AWS EKS Auto Mode cluster deployment pending.
-> - **Local Test Suites**: Comprehensive unit and integration test suites are maintained exclusively in the local development environment and omitted from the public repository distribution.
+> - **GitHub CI Validation & Multi-Stage Builds (Verified)**: Multi-stage Docker container builds (4 images), security vulnerability scanning (Trivy), Kustomize manifest validation, Ansible playbook syntax, and Terraform validation pass cleanly on hosted GitHub runners (10/10 jobs).
+> - **Live EKS Cluster & ECR Deployment**: EKS cluster (`boutique-dev-eks`) deployed on AWS (`592668326948` / `us-east-2`) with Argo CD, Prometheus Operator, Argo Rollouts, and ALB Ingress serving `https://demo.aarjav.site`. Immutable image digests published to private ECR.
+> - **Automated S3 Backups**: Two-stage Kubernetes CronJob performs daily compressed `pg_dump` backups encrypted with AWS KMS (`1e4e2ce3-e642-47a9-a20d-3a47b052918b`) to S3 bucket `boutique-aiops-backups-592668326948-us-east-2`.
+> - **Amazon Bedrock (Nova Lite)**: Integrated with Amazon Bedrock Nova Lite (`amazon.nova-lite-v1:0`) and DynamoDB stores (`boutique-aiops-episodes`, `boutique-aiops-remediations`).
+> - **Human-Approved GitOps Remediation**: Implemented with DynamoDB proposal persistence store, constant-time operator authentication gate (`hmac.compare_digest`), CloudShell approval CLI (`aiops/operator_cli.py`), and GitHub atomic CAS direct-main commit engine. Synthetic canary test suite ready for operator live verification.
 
 ### 1. Verify Kubernetes Manifests
 ```bash
@@ -285,8 +284,8 @@ When an interviewer asks: *"Tell me about your Autonomous DevSecOps Platform pro
 > 
 > *For progressive delivery, I implemented **Argo Rollouts** with an automated **Canary deployment strategy** (20% → 50% → 100% traffic shifting) alongside declarative GitOps managed by **Argo CD** on a strict **Single-Main Branch** operational model.*
 > 
-> *For operations and incident management, I built an in-cluster **AIOps Assistant** using **LangGraph** and **Amazon Bedrock (Claude)**. When Prometheus and Alertmanager fire an alert—such as a Pod OOMKilled—the agent gathers read-only cluster telemetry, sanitizes sensitive credentials, and performs automated root cause analysis.*
+> *For operations and incident management, I built an in-cluster **AIOps Assistant** using **LangGraph** and **Amazon Bedrock (Nova Lite)**. When Prometheus and Alertmanager fire an alert—such as a Pod OOMKilled—the agent gathers read-only cluster telemetry, sanitizes sensitive credentials, and performs automated root cause analysis.*
 > 
 > *What makes the platform unique is its **Autonomous DevSecOps & Human-Approved GitOps Remediation** workflow:
-> 1. **Autonomous Root Cause Diagnosis (LangGraph + Bedrock)**: Gathers read-only cluster telemetry upon alert receipt, sanitizes sensitive tokens and URIs, performs root cause analysis with Claude, and gates proposals against a strict deterministic policy engine.
+> 1. **Autonomous Root Cause Diagnosis (LangGraph + Bedrock)**: Gathers read-only cluster telemetry upon alert receipt, sanitizes sensitive tokens and URIs, performs root cause analysis with Amazon Bedrock Nova Lite, and gates proposals against a strict deterministic policy engine.
 > 2. **Human-Gated GitOps Execution (Cloud Operator CLI + CAS)**: Operators review unified manifest diffs via CloudShell CLI, authenticate with constant-time tokens (`hmac.compare_digest`), and commit verified declarative fixes directly to GitOps manifests on 'main' without drift, triggering automated Argo CD sync."*

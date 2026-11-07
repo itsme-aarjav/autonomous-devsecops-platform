@@ -11,7 +11,7 @@ metadata:
 spec:
   restartPolicy: Never
   containers:
-    - name: canary-memory-stress
+    - name: canary
       image: public.ecr.aws/docker/library/alpine:3.19
       command: ["/bin/sh", "-c"]
       args:

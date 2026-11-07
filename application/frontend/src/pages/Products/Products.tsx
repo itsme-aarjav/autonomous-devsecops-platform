@@ -277,14 +277,17 @@ const Products: React.FC = () => {
 
       {filteredProducts.length === 0 && (
         <Box sx={{ textAlign: 'center', py: 6 }}>
-          <Alert severity="info" sx={{ maxWidth: 600, mx: 'auto', mb: 2, textAlign: 'left' }}>
-            <strong>Product Catalog Unavailable</strong><br />
-            The product catalog microservice has been retired as part of the 3-tier architecture rationalization. Product browsing and live ordering are currently unavailable.
-          </Alert>
-          {searchQuery && (
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            {searchQuery ? 'No products match your search.' : 'No products found.'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            {searchQuery ? 'Try adjusting your search terms or filters.' : 'Please check back later or try clearing your filters.'}
+          </Typography>
+          {(searchQuery || sortBy !== 'featured') && (
             <Button variant="outlined" onClick={() => {
               setSearchQuery('');
               setSortBy('featured');
+              setFilteredProducts(products);
             }}>
               Clear Filters
             </Button>

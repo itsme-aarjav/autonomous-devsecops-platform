@@ -123,11 +123,13 @@ const ProductDetail: React.FC = () => {
     return (
       <Container maxWidth="md">
         <Box sx={{ py: 8, textAlign: 'center' }}>
-          <Alert severity="info" sx={{ maxWidth: 500, mx: 'auto', mb: 3, textAlign: 'left' }}>
-            <strong>Product Details Unavailable</strong><br />
-            The product backend microservice has been retired as part of the 3-tier architecture rationalization. Product details and live inventory lookups are unavailable.
-          </Alert>
-          <Button variant="contained" onClick={() => navigate('/products')}>
+          <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
+            Product Not Found
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
+            We couldn't find the product you're looking for. It may have been moved or is no longer available.
+          </Typography>
+          <Button variant="contained" onClick={() => navigate('/products')} sx={{ px: 4 }}>
             Back to Products
           </Button>
         </Box>
@@ -190,7 +192,7 @@ const ProductDetail: React.FC = () => {
                   {product.name}
                 </Typography>
                 
-                {product.rating && (
+                {product.rating ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                     {[...Array(5)].map((_, index) => (
                       <StarIcon
@@ -201,11 +203,13 @@ const ProductDetail: React.FC = () => {
                         }}
                       />
                     ))}
-                    <Typography variant="body2" color="text.secondary">
-                      ({product.reviewCount || 0} reviews)
-                    </Typography>
+                    {product.reviewCount && (
+                      <Typography variant="body2" color="text.secondary">
+                        ({product.reviewCount} reviews)
+                      </Typography>
+                    )}
                   </Box>
-                )}
+                ) : null}
                 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
                   <Typography variant="h4" color="primary" sx={{ fontWeight: 700 }}>
@@ -376,19 +380,13 @@ const ProductDetail: React.FC = () => {
             >
               <Tab label="Description" />
               <Tab label="Details" />
-              <Tab label="Reviews" />
-              <Tab label="Shipping" />
+              <Tab label="Demonstration Notice" />
             </Tabs>
             
             <Box sx={{ px: 4 }}>
               <TabPanel value={tabValue} index={0}>
                 <Typography variant="body1" paragraph sx={{ lineHeight: 1.8 }}>
                   {product.description}
-                </Typography>
-                <Typography variant="body1" paragraph sx={{ lineHeight: 1.8 }}>
-                  Experience the perfect blend of luxury and functionality with this premium product. 
-                  Crafted with attention to detail and using only the finest materials, this piece 
-                  exemplifies excellence in design and quality.
                 </Typography>
               </TabPanel>
               
@@ -400,36 +398,26 @@ const ProductDetail: React.FC = () => {
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="body2" color="text.secondary">Category:</Typography>
-                    <Typography variant="body1" paragraph>{product.category}</Typography>
+                    <Typography variant="body1" paragraph sx={{ textTransform: 'capitalize' }}>{product.category}</Typography>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="body2" color="text.secondary">Availability:</Typography>
                     <Typography variant="body1" paragraph>
-                      {product.inventory > 0 ? 'In Stock' : 'Out of Stock'}
+                      {product.inventory > 0 ? `${product.inventory} available` : 'Out of Stock'}
                     </Typography>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="body2" color="text.secondary">Shipping:</Typography>
-                    <Typography variant="body1" paragraph>Free over $500</Typography>
+                    <Typography variant="body2" color="text.secondary">Brand:</Typography>
+                    <Typography variant="body1" paragraph>{product.brand || 'Boutique'}</Typography>
                   </Grid>
                 </Grid>
               </TabPanel>
               
               <TabPanel value={tabValue} index={2}>
-                <Typography variant="body1" paragraph>
-                  No reviews yet. Be the first to review this product!
-                </Typography>
-                <Button variant="outlined">Write a Review</Button>
-              </TabPanel>
-              
-              <TabPanel value={tabValue} index={3}>
-                <Typography variant="h6" gutterBottom>Shipping Information</Typography>
-                <Typography variant="body1" paragraph>
-                  • Free shipping on orders over $500<br/>
-                  • Standard shipping: 5-7 business days<br/>
-                  • Express shipping: 2-3 business days<br/>
-                  • International shipping available<br/>
-                  • 30-day return policy
+                <Typography variant="body1" paragraph sx={{ lineHeight: 1.8 }}>
+                  This storefront is deployed as part of an autonomous DevSecOps and cloud platform demonstration.
+                  Product browsing, cart operations, user authentication, and order records are backed by live cloud microservices and PostgreSQL persistence.
+                  No real credit card payment or commercial fulfillment is processed.
                 </Typography>
               </TabPanel>
             </Box>

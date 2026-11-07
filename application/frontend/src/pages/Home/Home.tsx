@@ -289,11 +289,10 @@ const Home: React.FC = () => {
           </Box>
           
           {products.length === 0 ? (
-            <Box sx={{ maxWidth: 600, mx: 'auto', py: 2 }}>
-              <Alert severity="info" sx={{ textAlign: 'left' }}>
-                <strong>Product Catalog Microservice Offline</strong><br />
-                The product catalog backend service was decommissioned in the 3-tier architecture rationalization. Product catalog browsing is currently unavailable.
-              </Alert>
+            <Box sx={{ maxWidth: 600, mx: 'auto', py: 4, textAlign: 'center' }}>
+              <Typography variant="body1" color="text.secondary">
+                We couldn't load featured products right now. Please try again.
+              </Typography>
             </Box>
           ) : (
             <Grid container spacing={4}>

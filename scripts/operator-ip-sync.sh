@@ -138,11 +138,11 @@ else
 fi
 
 # Optional local dev.auto.tfvars sync (if present and ignored)
-TFVARS_FILE="infra/terraform/environments/dev/dev.auto.tfvars"
+TFVARS_FILE="devops/terraform/environments/dev/dev.auto.tfvars"
 if [[ -f "${TFVARS_FILE}" ]]; then
-  if grep -q "authorized_source_cidrs" "${TFVARS_FILE}"; then
+  if grep -q "admin_cidr_blocks" "${TFVARS_FILE}"; then
     echo "[*] Aligning local Git-ignored ${TFVARS_FILE} with ${TARGET_CIDR}..."
-    sed -i.bak -E "s|authorized_source_cidrs\s*=\s*\[.*\]|authorized_source_cidrs = [\"${TARGET_CIDR}\"]|" "${TFVARS_FILE}"
+    sed -i.bak -E "s|admin_cidr_blocks\s*=\s*\[.*\]|admin_cidr_blocks = [\"${TARGET_CIDR}\"]|" "${TFVARS_FILE}"
     rm -f "${TFVARS_FILE}.bak"
     echo "[+] Updated ${TFVARS_FILE} successfully."
   fi

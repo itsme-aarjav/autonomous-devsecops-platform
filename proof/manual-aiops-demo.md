@@ -9,11 +9,11 @@ This guide allows human evaluators, operators, and recruiters to personally trig
 ```
 Alertmanager Alert
        │
-       ▼ (Webhook / SQS FIFO)
-AIOps Reasoning Agent (Bedrock Claude 3.5 Sonnet)
+       ▼ (Webhook / SQS FIFO: `boutique-aiops-alert-queue.fifo`)
+AIOps Reasoning Agent (Amazon Bedrock Nova Lite `amazon.nova-lite-v1:0`)
        │
        ▼ (Deterministic Policy Evaluation)
-DynamoDB RCA & Remediation Proposal (`boutique-aiops-rca-reports`)
+DynamoDB RCA & Remediation Proposal (`boutique-aiops-remediations`)
        │
        ▼
 Human Operator CLI (`aiops/operator_cli.py`)
@@ -121,8 +121,8 @@ kubectl port-forward svc/kube-prometheus-stack-alertmanager -n monitoring 9093:9
 Visit [`http://localhost:9093`](http://localhost:9093) to confirm the `PodOOMKilled` alert is firing.
 
 ### Step 3: Observe Autonomous SQS Queueing & Bedrock RCA
-1. Alertmanager forwards the webhook payload to the SQS FIFO queue `boutique-aiops-alerts.fifo`.
-2. The `aiops-assistant` worker daemon ingests the incident payload and queries Amazon Bedrock (Claude 3.5 Sonnet) for root cause analysis and deterministic policy gating.
+1. Alertmanager forwards the webhook payload to the SQS FIFO queue `boutique-aiops-alert-queue.fifo`.
+2. The `aiops-assistant` worker daemon ingests the incident payload and queries Amazon Bedrock Nova Lite (`amazon.nova-lite-v1:0`) for root cause analysis and deterministic policy gating.
 3. Tail the live assistant logs to watch the autonomous analysis unfold:
    ```bash
    kubectl logs -n boutique deployment/aiops-assistant -f

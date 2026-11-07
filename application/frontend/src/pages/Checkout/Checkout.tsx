@@ -37,7 +37,7 @@ const Checkout: React.FC = () => {
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
 
   const [address, setAddress] = useState({
-    fullName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Demo Recruiter',
+    fullName: user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '',
     street: '100 Innovation Way, Suite 400',
     city: 'Columbus',
     state: 'OH',
@@ -102,7 +102,7 @@ const Checkout: React.FC = () => {
             Thank you for your demo purchase, {address.fullName}.
           </Typography>
           <Alert severity="success" sx={{ my: 3, textAlign: 'left' }}>
-            <strong>Demo Transaction Completed:</strong> A real database record has been created in PostgreSQL and inventory has been atomically deducted.
+            <strong>Demonstration Order Placed Successfully:</strong> Your order has been recorded and inventory updated.
             <br />
             <strong>Order Reference ID:</strong> <code>{completedOrder.id}</code>
             <br />
@@ -170,10 +170,9 @@ const Checkout: React.FC = () => {
       </Typography>
 
       <Alert severity="info" sx={{ mb: 4 }}>
-        <strong>DEMO CHECKOUT — NO REAL PAYMENT REQUIRED</strong>
+        <strong>DEMONSTRATION CHECKOUT — NO PAYMENT REQUIRED</strong>
         <br />
-        This is a live cloud architecture demo. No credit card or real payment information is collected or processed.
-        Submitting this form executes an atomic database transaction in PostgreSQL and decrements real product inventory.
+        This storefront is a live cloud demonstration. No real payment or credit card is collected or required to complete this order.
       </Alert>
 
       {errorMessage && (

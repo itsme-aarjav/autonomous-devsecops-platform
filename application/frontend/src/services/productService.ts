@@ -33,8 +33,8 @@ export const productService = {
             category: product.category,
             brand: product.brand,
             inventory: product.inventory_quantity || 0,
-            rating: product.rating || 4.5,
-            reviewCount: product.reviewCount || Math.floor(Math.random() * 50) + 10,
+            rating: product.rating ? parseFloat(product.rating) : undefined,
+            reviewCount: product.reviewCount || undefined,
             isNew: product.is_featured,
             discountPercentage: product.discountPercentage,
             createdAt: product.created_at,
@@ -63,7 +63,7 @@ export const productService = {
         updatedAt: product.updated_at,
       })) : [];
     } catch (error: any) {
-      console.warn('[ProductService] Backend products service offline or retired, returning empty catalog');
+      console.error('[ProductService] Failed to fetch products:', error.message || error);
       return [];
     }
   },
@@ -93,7 +93,7 @@ export const productService = {
         images: product.images || [],
       };
     } catch (error: any) {
-      console.warn(`[ProductService] Backend products service offline or product ${id} not found`);
+      console.error(`[ProductService] Failed to fetch product ${id}:`, error.message || error);
       return null as any;
     }
   },
@@ -113,8 +113,8 @@ export const productService = {
         category: product.category,
         brand: product.brand,
         inventory: product.inventory_quantity || product.inventory || 0,
-        rating: product.rating,
-        reviewCount: product.reviewCount || 25,
+        rating: product.rating ? parseFloat(product.rating) : undefined,
+        reviewCount: product.reviewCount || undefined,
         isNew: product.is_featured,
         discountPercentage: product.discountPercentage,
         createdAt: product.created_at,
@@ -140,8 +140,8 @@ export const productService = {
         category: product.category,
         brand: product.brand,
         inventory: product.inventory_quantity || product.inventory || 0,
-        rating: product.rating,
-        reviewCount: product.reviewCount || 25,
+        rating: product.rating ? parseFloat(product.rating) : undefined,
+        reviewCount: product.reviewCount || undefined,
         isNew: product.is_featured,
         discountPercentage: product.discountPercentage,
         createdAt: product.created_at,
