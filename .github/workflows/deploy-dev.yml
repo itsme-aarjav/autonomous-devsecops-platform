@@ -31,8 +31,6 @@ jobs:
   publish-and-deploy-dev:
     name: Build, Scan & Publish to ECR (DEV)
     runs-on: ubuntu-24.04
-    environment:
-      name: development
     strategy:
       fail-fast: false
       matrix:
