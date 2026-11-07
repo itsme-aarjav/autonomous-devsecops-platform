@@ -121,13 +121,9 @@ class BaseGitHubProvider(ABC):
         commit_message: str,
         expected_parent_sha: Optional[str] = None,
     ) -> str:
-        """Commits files directly to default branch ('main') without creating a separate branch."""
-        default_branch = self.get_default_branch()
-        return self.commit_files(
-            branch_name=default_branch,
-            files=files,
-            commit_message=commit_message,
-            expected_parent_sha=expected_parent_sha,
+        """Disabled by security policy: direct commits to main are forbidden. Use create_remediation_pr."""
+        raise PermissionError(
+            "Direct commit to main is strictly disabled by security policy. All approvals must create a reviewed GitHub Pull Request via create_remediation_pr."
         )
 
     def get_file_content(self, path: str, ref: Optional[str] = None) -> Optional[str]:

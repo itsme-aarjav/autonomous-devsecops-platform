@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: boutique-demo-incident-pod
+  namespace: boutique
+  labels:
+    app.kubernetes.io/name: boutique-demo-incident
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+    environment: dev
+spec:
+  restartPolicy: Never
+  containers:
+    - name: canary-memory-stress
+      image: public.ecr.aws/docker/library/alpine:3.19
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          echo "Simulating memory limit breach in isolated canary workload..."
+          # Rapidly allocate memory in user space to breach the 32Mi limit
+          awk 'BEGIN{for(i=0;i<5000000;i++) a[i]="canary_memory_exhaustion_test";}'
+      resources:
+        limits:
+          memory: "32Mi"
+          cpu: "100m"
+        requests:
+          memory: "16Mi"
+          cpu: "50m"

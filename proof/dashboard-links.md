@@ -57,13 +57,47 @@ curl -s -X POST https://demo.aarjav.site/api/auth/login \
 
 ---
 
-## 3. Zero-Trust Internal Services (ClusterIP Only)
+## 3. Zero-Trust Cloud-Only Architecture & Cost Optimization
 
-In adherence to zero-trust cloud architecture principles, services without native multi-user authentication mechanisms are strictly kept on internal `ClusterIP` networks. Evaluators access these securely via encrypted Kubernetes API tunnels (`kubectl port-forward`).
+### Zero-Trust Invariant: Why Internal Dashboards Are Kept Private
+Services without native identity and access management (IAM) mechanisms (such as **Prometheus** and **Alertmanager**) are strictly isolated on internal Kubernetes `ClusterIP` networks.
+
+Exposing unauthenticated monitoring administrative endpoints directly to the public internet presents severe attack vectors:
+- **Alertmanager**: An unauthenticated attacker could inject silences, suppress critical alerts during an intrusion, or re-route telemetry.
+- **Prometheus**: An attacker could craft heavy TSDB queries to cause Denial-of-Service (DoS) on monitoring nodes, or scrape sensitive environment variables and internal infrastructure topologies.
+
+### Architectural Trade-Off: Zero-Trust Tunnels vs. Expensive Infrastructure
+In enterprise cloud environments, securing internal dashboards without port-forwarding typically requires:
+1. **AWS Cognito User Pool + ALB OIDC Authentication**: Enforces OAuth2/OIDC login at the Application Load Balancer layer before traffic reaches internal pods.
+2. **Dedicated Bastion Host + Multi-AZ NAT Gateways**: Incurs substantial ongoing cloud costs — each AWS NAT Gateway costs ~$32.40/month ($65–$97/month across 2–3 Availability Zones) plus $0.045/GB data processing fees, alongside Bastion EC2 compute costs.
+
+Our platform adopts a **Zero-Trust Cloud-Native Model**:
+- **Zero Idle Cost**: Eliminates expensive NAT Gateways and idle Bastion compute instances.
+- **IAM-Governed Access**: Authorized operators tunnel directly to internal services via encrypted Kubernetes API channels (`kubectl port-forward`), authenticated through AWS IAM Signature Version 4 and Kubernetes RBAC.
+- **Dual Defense**: External public access remains strictly limited to applications with mature native authentication (Grafana RBAC, Argo CD JWT sessions, Boutique Customer Auth).
 
 | Service | Internal Target | Port-Forward Command | Local URL | Zero-Trust Rationale |
 | :--- | :--- | :--- | :--- | :--- |
-| **Prometheus** | `svc/kube-prometheus-stack-prometheus` (`monitoring`) | `kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:9090` | `http://localhost:9090` | Prometheus lacks native authentication. Exposing unauthenticated administrative controls to the public internet violates least-privilege security. |
+| **Prometheus** | `svc/kube-prometheus-stack-prometheus` (`monitoring`) | `kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:9090` | `http://localhost:9090` | Prometheus lacks native authentication. Kept internal to prevent TSDB DoS and infrastructure reconnaissance. |
 | **Alertmanager** | `svc/kube-prometheus-stack-alertmanager` (`monitoring`) | `kubectl port-forward svc/kube-prometheus-stack-alertmanager -n monitoring 9093:9093` | `http://localhost:9093` | Alertmanager lacks native login. Kept internal to prevent unauthorized silence injection or routing tampering. |
 | **AIOps Assistant API** | `svc/aiops-assistant` (`boutique`) | `kubectl port-forward svc/aiops-assistant -n boutique 8080:8080` | `http://localhost:8080` | Headless reasoning agent; receives alerts via SQS and internal webhook with Bearer token authentication. |
 | **PostgreSQL Database** | `pod/boutique-postgres-0` (`boutique`) | `kubectl port-forward pod/boutique-postgres-0 -n boutique 5432:5432` | `localhost:5432` | Direct database access is restricted to backend microservices inside the cluster. |
+
+---
+
+## 4. Secure Operator Workstation IP Synchronization
+
+During early development and testing, the Kubernetes API endpoint allowlist was temporarily broadened to `0.0.0.0/0`. To restore or update least-privilege `/32` IP allowlisting on demand (e.g. when the operator's dynamic ISP address changes), use the provided synchronization utility:
+
+```bash
+# Check current EKS endpoint access configuration
+./scripts/operator-ip-sync.sh --status
+
+# Automatically detect public IP and restrict EKS access to your workstation /32
+./scripts/operator-ip-sync.sh
+
+# Or specify a fixed IP explicitly
+./scripts/operator-ip-sync.sh --ip 198.51.100.12
+```
+
+This updates the AWS EKS `publicAccessCidrs` in-place without touching VPC routing, destroying state, or interrupting running cluster workloads.

@@ -74,7 +74,9 @@ spec:
             - name: AIOPS_BEDROCK_ENABLED
               value: "true"
             - name: AIOPS_REMEDIATION_ENABLED
-              value: "false"
+              value: "true"
+            - name: AIOPS_DYNAMODB_REMEDIATIONS_TABLE
+              value: "boutique-aiops-remediations"
             - name: AIOPS_WEBHOOK_BEARER_TOKEN
               valueFrom:
                 secretKeyRef:

@@ -88,18 +88,38 @@ jobs:
           done
           echo "All 4 microservice container digests verified in ECR."
 
-      - name: Verify Kubernetes Workload Rollouts and Pod Health
+      - name: Verify Kubernetes Cluster Connectivity and Workload Rollouts (Fail Closed)
         run: |
           echo "Configuring kubectl for EKS cluster boutique-dev-eks..."
-          aws eks update-kubeconfig --region us-east-2 --name boutique-dev-eks || true
-          if kubectl get nodes >/dev/null 2>&1; then
-            echo "Verifying workload rollouts in namespace 'boutique'..."
-            kubectl rollout status deployment/auth -n boutique --timeout=90s
-            kubectl rollout status deployment/gateway -n boutique --timeout=90s
-            kubectl get pods -n boutique -o wide
-          else
-            echo "Direct Kubernetes API access not permitted from runner IP; relying on GitOps reconciliation and authoritative smoke tests."
+          aws eks update-kubeconfig --region us-east-2 --name boutique-dev-eks
+
+          echo "Verifying EKS cluster connectivity (strict fail-closed)..."
+          kubectl get nodes -o wide
+
+          echo "Verifying Argo CD GitOps Application Synchronization..."
+          SYNC_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
+          HEALTH_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
+          echo "Argo CD boutique application status: Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}"
+          if [ "${SYNC_STATUS}" != "Synced" ] || [ "${HEALTH_STATUS}" != "Healthy" ]; then
+            echo "Error: Argo CD application 'boutique' is not Synced and Healthy (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS})!" >&2
+            exit 1
           fi
+
+          echo "Verifying workload rollouts in namespace 'boutique'..."
+          kubectl rollout status deployment/auth -n boutique --timeout=120s
+          kubectl rollout status deployment/gateway -n boutique --timeout=120s
+          kubectl rollout status deployment/aiops-assistant -n boutique --timeout=120s
+
+          echo "Verifying active pods and restart counts..."
+          kubectl get pods -n boutique -o wide
+          RESTARTS=$(kubectl get pods -n boutique -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.restartCount}{" "}{end}{end}')
+          echo "Container restart counts: ${RESTARTS}"
+          for count in ${RESTARTS}; do
+            if [ "${count}" -gt 5 ]; then
+              echo "Error: Detected high restart count (${count}) in boutique workloads!" >&2
+              exit 1
+            fi
+          done
 
       - name: Execute Live DEV Application Smoke Tests
         id: smoke_tests

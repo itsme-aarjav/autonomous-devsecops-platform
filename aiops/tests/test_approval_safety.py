@@ -220,67 +220,67 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
             self.engine.apply_approved_remediation(
                 proposal_id="prop-compete-01",
                 approval_token="token-secret-1234567890abcdef",
-                commit_to_main=True,
+                create_pr=True,
             )
         self.assertIn("rejected", str(ctx.exception).lower())
-        # Verify NO commit was created on GitHub
-        self.assertIsNone(self.github.find_commit_for_proposal("prop-compete-01"))
+        # Verify NO pull request was created on GitHub
+        self.assertEqual(len(self.github.pull_requests), 0)
 
     def test_rejection_cannot_override_in_progress_or_applied(self):
         """Rejection is forbidden if proposal is already in-progress or applied."""
         prop = _create_test_proposal("prop-apply-first-01")
         self.store.save_proposal(prop)
 
-        # Operator A applies and commits to main
+        # Operator A applies and creates PR
         applied = self.engine.apply_approved_remediation(
             proposal_id="prop-apply-first-01",
             approval_token="token-secret-1234567890abcdef",
-            commit_to_main=True,
+            create_pr=True,
         )
-        self.assertEqual(applied.status, RemediationStatus.APPLIED_TO_MAIN)
+        self.assertEqual(applied.status, RemediationStatus.PR_CREATED)
         self.assertIsNotNone(applied.applied_commit_sha)
 
-        # Operator B attempts to reject the already applied proposal
+        # Operator B attempts to reject the already applied/PR-created proposal
         with self.assertRaises(PermissionError) as ctx:
             self.engine.reject_remediation(
                 proposal_id="prop-apply-first-01",
                 reason="Too late rejection",
                 approval_token="token-secret-1234567890abcdef",
             )
-        self.assertIn("already APPLIED_TO_MAIN", str(ctx.exception))
+        self.assertIn("already finalized", str(ctx.exception))
 
     # -----------------------------------------------------------------------
     # 2. Competing Approvals (Single Winner)
     # -----------------------------------------------------------------------
     def test_competing_approvals_idempotence(self):
-        """Two concurrent approvals result in a single commit, not duplicate application."""
+        """Two concurrent approvals result in a single PR, not duplicate application."""
         prop = _create_test_proposal("prop-compete-appr-01")
         self.store.save_proposal(prop)
 
         res1 = self.engine.apply_approved_remediation(
             proposal_id="prop-compete-appr-01",
             approval_token="token-secret-1234567890abcdef",
-            commit_to_main=True,
+            create_pr=True,
         )
-        self.assertEqual(res1.status, RemediationStatus.APPLIED_TO_MAIN)
+        self.assertEqual(res1.status, RemediationStatus.PR_CREATED)
         initial_sha = res1.applied_commit_sha
 
         # Second approval call runs
         res2 = self.engine.apply_approved_remediation(
             proposal_id="prop-compete-appr-01",
             approval_token="token-secret-1234567890abcdef",
-            commit_to_main=True,
+            create_pr=True,
         )
-        self.assertEqual(res2.status, RemediationStatus.APPLIED_TO_MAIN)
-        # Must return the SAME commit SHA (no duplicate commits)
+        self.assertEqual(res2.status, RemediationStatus.PR_CREATED)
+        # Must return the SAME commit SHA and PR number
         self.assertEqual(res2.applied_commit_sha, initial_sha)
-        self.assertEqual(len(self.github.commits), 1)
+        self.assertEqual(len(self.github.pull_requests), 1)
 
     # -----------------------------------------------------------------------
-    # 3. GitHub Commit Failure Reverts Claim
+    # 3. GitHub PR Failure Reverts Claim
     # -----------------------------------------------------------------------
     def test_commit_failure_reverts_claim_to_pending(self):
-        """When GitHub commit fails, the proposal is NOT left as APPLIED_TO_MAIN and reverts to PENDING."""
+        """When GitHub PR creation fails, the proposal reverts to PENDING."""
         prop = _create_test_proposal("prop-commit-fail-01")
         self.store.save_proposal(prop)
 
@@ -291,9 +291,9 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
             self.engine.apply_approved_remediation(
                 proposal_id="prop-commit-fail-01",
                 approval_token="token-secret-1234567890abcdef",
-                commit_to_main=True,
+                create_pr=True,
             )
-        self.assertIn("GitHub commit failed", str(ctx.exception))
+        self.assertIn("GitHub PR creation failed", str(ctx.exception))
 
         # Check proposal status in store
         refreshed = self.store.get_proposal("prop-commit-fail-01")
@@ -301,29 +301,20 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
         self.assertIsNone(refreshed.applied_commit_sha)
 
     # -----------------------------------------------------------------------
-    # 4. Successful Commit with Store Failure Reconciles
+    # 4. Direct Commit to Main Strictly Prohibited
     # -----------------------------------------------------------------------
     def test_commit_success_reconciliation_via_github_evidence(self):
-        """If a commit lands on GitHub but the store diverges, reconciliation restores APPLIED_TO_MAIN."""
+        """Direct commit to main is prohibited by security policy."""
         prop = _create_test_proposal("prop-reconcile-01")
         self.store.save_proposal(prop)
 
-        # Simulate pre-existing commit landed on GitHub by another worker/crash
-        synthetic_sha = "abcdef12345678901234567890abcdef12345678"
-        self.github.commits[synthetic_sha] = {
-            "message": f"fix(gitops): apply\n\nProposal-ID: prop-reconcile-01\nApproved-by: test",
-            "files": {},
-            "parent": self.github.head_sha,
-        }
-
-        # Running apply now detects existing commit and reconciles
-        res = self.engine.apply_approved_remediation(
-            proposal_id="prop-reconcile-01",
-            approval_token="token-secret-1234567890abcdef",
-            commit_to_main=True,
-        )
-        self.assertEqual(res.status, RemediationStatus.APPLIED_TO_MAIN)
-        self.assertEqual(res.applied_commit_sha, synthetic_sha)
+        with self.assertRaises(PermissionError) as ctx:
+            self.engine.apply_approved_remediation(
+                proposal_id="prop-reconcile-01",
+                approval_token="token-secret-1234567890abcdef",
+                commit_to_main=True,
+            )
+        self.assertIn("direct commits to 'main' branch are strictly prohibited", str(ctx.exception))
 
     # -----------------------------------------------------------------------
     # 5. Terminal Rejection Protection
@@ -337,7 +328,7 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
             self.engine.apply_approved_remediation(
                 proposal_id="prop-rej-term-01",
                 approval_token="token-secret-1234567890abcdef",
-                commit_to_main=True,
+                create_pr=True,
             )
 
     # -----------------------------------------------------------------------
@@ -409,7 +400,7 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
                 is_simulation=True,
                 commit_to_main=True,
             )
-        self.assertIn("simulation mode cannot commit", str(ctx.exception))
+        self.assertIn("direct commits to 'main' branch are strictly prohibited", str(ctx.exception))
 
     # -----------------------------------------------------------------------
     # 9. Secret Non-Leakage
@@ -422,7 +413,7 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
         applied = self.engine.apply_approved_remediation(
             proposal_id="prop-secret-check-01",
             approval_token="token-secret-1234567890abcdef",
-            commit_to_main=True,
+            create_pr=True,
         )
         serialized = json.dumps(applied.model_dump(mode="json"))
         self.assertNotIn("token-secret-1234567890abcdef", serialized)
@@ -492,7 +483,7 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
         applied = self.engine.apply_approved_remediation(
             proposal_id="prop-audit-01",
             approval_token="token-secret-1234567890abcdef",
-            commit_to_main=True,
+            create_pr=True,
         )
         self.assertEqual(applied.approved_by, "arn:aws:iam::592668326948:user/terra-admin")
         self.assertIsInstance(applied.approved_at, datetime)
@@ -500,6 +491,8 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
         self.assertEqual(applied.approval_mode, "AUTHENTICATED")
         self.assertTrue(applied.is_approved_by_human)
         self.assertFalse(applied.is_simulated_approval)
+        self.assertEqual(applied.status, RemediationStatus.PR_CREATED)
+        self.assertEqual(applied.github_pr_number, 1)
 
         # Test rejected audit fields
         prop2 = _create_test_proposal("prop-audit-02")
@@ -535,7 +528,7 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
                 res = self.engine.apply_approved_remediation(
                     proposal_id="prop-barrier-01",
                     approval_token="token-secret-1234567890abcdef",
-                    commit_to_main=True,
+                    create_pr=True,
                 )
                 results.append((thread_id, res))
             except Exception as e:
@@ -552,14 +545,13 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
         total_attempts = len(results) + len(errors)
         self.assertEqual(total_attempts, 2)
 
-        # In all cases, EXACTLY ONE commit must have landed on GitHub
-        matching_commits = [sha for sha, c in self.github.commits.items() if "prop-barrier-01" in c["message"]]
-        self.assertEqual(len(matching_commits), 1, "Exactly one commit must land regardless of thread race")
+        # In all cases, EXACTLY ONE PR must have been created on GitHub
+        self.assertEqual(len(self.github.pull_requests), 1, "Exactly one PR must be created regardless of thread race")
 
-        # The proposal in store must be APPLIED_TO_MAIN
+        # The proposal in store must be PR_CREATED
         final_prop = self.store.get_proposal("prop-barrier-01")
-        self.assertEqual(final_prop.status, RemediationStatus.APPLIED_TO_MAIN)
-        self.assertEqual(final_prop.applied_commit_sha, matching_commits[0])
+        self.assertEqual(final_prop.status, RemediationStatus.PR_CREATED)
+        self.assertEqual(final_prop.github_pr_number, 1)
 
     # -----------------------------------------------------------------------
     # 14. In-Progress Proposal Cannot Be Reclaimed
@@ -567,7 +559,7 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
     def test_in_progress_proposal_cannot_be_reclaimed_without_commit(self):
         """
         An already APPLICATION_IN_PROGRESS proposal must not be acquired
-        again by another process if no commit exists on GitHub.
+        again by another process.
         """
         prop = _create_test_proposal("prop-in-prog-01", status=RemediationStatus.APPLICATION_IN_PROGRESS)
         prop.approved_by = "arn:aws:iam::592668326948:user/worker-1"
@@ -577,9 +569,8 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
             self.engine.apply_approved_remediation(
                 proposal_id="prop-in-prog-01",
                 approval_token="token-secret-1234567890abcdef",
-                commit_to_main=True,
+                create_pr=True,
             )
-        self.assertIn("currently in progress", str(ctx.exception))
         self.assertIn("APPLICATION_IN_PROGRESS", str(ctx.exception))
 
     # -----------------------------------------------------------------------
@@ -587,17 +578,17 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
     # -----------------------------------------------------------------------
     def test_atomic_finalize_conflict_never_overwrites_with_save(self):
         """
-        If the atomic transition to APPLIED_TO_MAIN fails, the engine raises
+        If the atomic transition to PR_CREATED fails, the engine raises
         RuntimeError and does NOT unconditionally call save_proposal.
         """
         prop = _create_test_proposal("prop-finalize-fail-01")
         self.store.save_proposal(prop)
 
-        # Hook atomic_transition_status to fail ONLY when transitioning to APPLIED_TO_MAIN
+        # Hook atomic_transition_status to fail ONLY when transitioning to PR_CREATED
         orig_transition = self.store.atomic_transition_status
 
         def fail_finalize(proposal_id, expected_statuses, new_status, updated_proposal):
-            if new_status == RemediationStatus.APPLIED_TO_MAIN.value:
+            if new_status == RemediationStatus.PR_CREATED.value:
                 return False
             return orig_transition(proposal_id, expected_statuses, new_status, updated_proposal)
 
@@ -607,74 +598,54 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
             self.engine.apply_approved_remediation(
                 proposal_id="prop-finalize-fail-01",
                 approval_token="token-secret-1234567890abcdef",
-                commit_to_main=True,
+                create_pr=True,
             )
-        self.assertIn("CRITICAL: Commit", str(ctx.exception))
-        self.assertIn("Unconditional overwrite denied", str(ctx.exception))
+        self.assertIn("atomic status transition to PR_CREATED failed", str(ctx.exception))
 
     # -----------------------------------------------------------------------
-    # 16. Ambiguous GitHub Commit Outcome Fails Closed
+    # 16. Direct Commit to Main Forbidden
     # -----------------------------------------------------------------------
-    def test_ambiguous_github_commit_outcome_fails_closed(self):
-        """
-        If commit_to_main fails with an exception AND authoritative verification
-        also fails with an exception, the engine fails closed, leaves proposal
-        in APPLICATION_IN_PROGRESS, and raises RuntimeError.
-        """
+    def test_direct_commit_to_main_forbidden(self):
+        """Passing commit_to_main=True strictly raises PermissionError under all modes."""
         prop = _create_test_proposal("prop-ambig-01")
         self.store.save_proposal(prop)
 
-        self.github.commit_to_main = MagicMock(side_effect=RuntimeError("GitHub 500 Internal Error"))
-        # First call (pre-claim check) returns None; second call (post-failure check) raises Network Down
-        self.github.find_commit_for_proposal = MagicMock(side_effect=[None, RuntimeError("GitHub API Network Down")])
-
-        with self.assertRaises(RuntimeError) as ctx:
+        with self.assertRaises(PermissionError) as ctx:
             self.engine.apply_approved_remediation(
                 proposal_id="prop-ambig-01",
                 approval_token="token-secret-1234567890abcdef",
                 commit_to_main=True,
             )
-        self.assertIn("Ambiguous GitHub API outcome", str(ctx.exception))
-
-        # Status MUST remain APPLICATION_IN_PROGRESS (claim retained to prevent double application)
-        fresh = self.store.get_proposal("prop-ambig-01")
-        self.assertEqual(fresh.status, RemediationStatus.APPLICATION_IN_PROGRESS)
+        self.assertIn("direct commits to 'main' branch are strictly prohibited", str(ctx.exception))
 
     # -----------------------------------------------------------------------
     # 17. Reconciliation Preserves Original Authenticated Identity
     # -----------------------------------------------------------------------
     def test_reconciliation_preserves_original_authenticated_identity(self):
         """
-        When reconciling an in-progress proposal that already committed to GitHub,
+        When reconciling a proposal that already created a PR,
         original approved_by and approved_at provenance must be preserved.
         """
         orig_time = datetime(2026, 11, 5, 12, 0, 0, tzinfo=timezone.utc)
-        prop = _create_test_proposal("prop-reconcile-orig-01", status=RemediationStatus.APPLICATION_IN_PROGRESS)
+        prop = _create_test_proposal("prop-reconcile-orig-01", status=RemediationStatus.PR_CREATED)
         prop.approved_by = "arn:aws:iam::592668326948:user/alice-operator"
         prop.approved_at = orig_time
         prop.is_approved_by_human = True
+        prop.github_pr_number = 42
+        prop.github_pr_url = "https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/42"
         self.store.save_proposal(prop)
 
-        # Inject simulated commit on GitHub
-        fake_sha = "f00baa1234567890abcdef1234567890abcdef12"
-        self.github.commits[fake_sha] = {
-            "message": "fix(gitops): apply\n\nProposal-ID: prop-reconcile-orig-01",
-            "files": {},
-            "parent": "parent-sha",
-            "branch": "main",
-        }
-
-        # Another operator (terra-admin) reconciles
+        # Another operator (terra-admin) attempts re-apply
         reconciled = self.engine.apply_approved_remediation(
             proposal_id="prop-reconcile-orig-01",
             approval_token="token-secret-1234567890abcdef",
-            commit_to_main=True,
+            create_pr=True,
         )
-        self.assertEqual(reconciled.status, RemediationStatus.APPLIED_TO_MAIN)
-        self.assertEqual(reconciled.applied_commit_sha, fake_sha)
+        self.assertEqual(reconciled.status, RemediationStatus.PR_CREATED)
         # Provenance must be ALICE, not terra-admin!
         self.assertEqual(reconciled.approved_by, "arn:aws:iam::592668326948:user/alice-operator")
         self.assertEqual(reconciled.approved_at, orig_time)
+        self.assertEqual(reconciled.github_pr_number, 42)
 
     # -----------------------------------------------------------------------
     # 18. IAM Authenticator: Root, Wildcards, Worker Denials & Allowed Principals
@@ -809,9 +780,9 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
         applied = self.engine.apply_approved_remediation(
             proposal_id="prop-stale-01",
             approval_token="token-secret-1234567890abcdef",
-            commit_to_main=True,
+            create_pr=True,
         )
-        self.assertEqual(applied.status, RemediationStatus.APPLIED_TO_MAIN)
+        self.assertEqual(applied.status, RemediationStatus.PR_CREATED)
 
     # -----------------------------------------------------------------------
     # 21. Human Approval Creates Pull Request Workflow

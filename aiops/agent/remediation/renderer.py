@@ -77,9 +77,14 @@ class ManifestPatchRenderer:
                     )
 
             if original_content is None:
-                if not manifest_path.is_file():
-                    raise ManifestRenderError(f"Target manifest file not found: {rel_manifest}")
-                original_content = manifest_path.read_text(encoding="utf-8")
+                if manifest_path.is_file():
+                    original_content = manifest_path.read_text(encoding="utf-8")
+                else:
+                    bundled_fallback = Path(__file__).parent / "manifests" / Path(rel_manifest).name
+                    if bundled_fallback.is_file():
+                        original_content = bundled_fallback.read_text(encoding="utf-8")
+                    else:
+                        raise ManifestRenderError(f"Target manifest file not found: {rel_manifest}")
             new_content = self._apply_remediation_to_yaml(
                 original_content,
                 proposal.workload,

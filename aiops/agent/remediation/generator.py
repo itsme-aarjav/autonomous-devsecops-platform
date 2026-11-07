@@ -148,10 +148,10 @@ class GitOpsRemediationEngine:
           Simulation mode CANNOT commit to real remote GitHub repositories.
         Fails closed if the proposal is not policy-approved or was rejected.
         """
-        if is_simulation and commit_to_main:
+        if commit_to_main:
             raise PermissionError(
-                "Security violation: offline simulation mode cannot commit to real GitHub repository. "
-                "Production commits require authentic human operator verification."
+                "Security policy violation: direct commits to 'main' branch are strictly prohibited. "
+                "All remediation approvals must create a reviewed GitHub Pull Request."
             )
 
         with self._apply_lock:
@@ -384,193 +384,10 @@ class GitOpsRemediationEngine:
                 return final_proposal
 
             elif commit_to_main:
-                if not self.github_provider:
-                    raise RuntimeError(
-                        f"Cannot commit remediation proposal '{proposal.proposal_id}' to main: no GitHub provider or credentials configured."
-                    )
-
-                # Check if already committed on GitHub (idempotent reconciliation)
-                try:
-                    existing_commit_sha = self.github_provider.find_commit_for_proposal(
-                        proposal_id=proposal.proposal_id,
-                    )
-                except Exception as precheck_err:
-                    if proposal.status == RemediationStatus.APPLICATION_IN_PROGRESS:
-                        raise RuntimeError(
-                            f"Cannot inspect in-progress proposal '{proposal_id}': GitHub verification failed ({precheck_err}). "
-                            "Status remains APPLICATION_IN_PROGRESS to prevent races."
-                        ) from precheck_err
-                    logger.debug("Pre-claim commit check failed: %s", precheck_err)
-                    existing_commit_sha = None
-                if existing_commit_sha:
-                    logger.info(
-                        "Remediation proposal %s was already committed to 'main' in commit %s. Reconciling proposal state.",
-                        proposal_id,
-                        existing_commit_sha,
-                    )
-                    reconciled = proposal.model_copy(deep=True)
-                    reconciled.is_approved_by_human = True if proposal.is_approved_by_human else is_authenticated
-                    reconciled.is_simulated_approval = proposal.is_simulated_approval if proposal.is_simulated_approval is not None else is_simulated
-                    reconciled.approval_mode = proposal.approval_mode or ("SIMULATED" if is_simulated else "AUTHENTICATED")
-                    reconciled.approved_by = proposal.approved_by or verified_identity
-                    reconciled.approved_at = proposal.approved_at or datetime.now(timezone.utc)
-                    reconciled.status = RemediationStatus.APPLIED_TO_MAIN
-                    reconciled.applied_commit_sha = existing_commit_sha
-
-                    reconcile_statuses = [
-                        RemediationStatus.PENDING_HUMAN_APPROVAL.value,
-                        RemediationStatus.POLICY_APPROVED.value,
-                        RemediationStatus.APPLICATION_IN_PROGRESS.value,
-                    ]
-                    reconciled_ok = self.store.atomic_transition_status(
-                        proposal_id=proposal.proposal_id,
-                        expected_statuses=reconcile_statuses,
-                        new_status=RemediationStatus.APPLIED_TO_MAIN.value,
-                        updated_proposal=reconciled,
-                    )
-                    if not reconciled_ok:
-                        fresh = self.store.get_proposal(proposal.proposal_id)
-                        if fresh and fresh.status == RemediationStatus.APPLIED_TO_MAIN:
-                            return fresh
-                        logger.warning(
-                            "Reconciliation transition could not be finalized for %s (current status: %s).",
-                            proposal_id,
-                            fresh.status.value if fresh else "UNKNOWN",
-                        )
-                    return reconciled
-
-                if proposal.status == RemediationStatus.APPLICATION_IN_PROGRESS:
-                    raise PermissionError(
-                        f"Cannot apply proposal '{proposal_id}': proposal is currently in progress (APPLICATION_IN_PROGRESS, claimed by '{proposal.approved_by}'). "
-                        "No GitHub commit was found. Use explicit operator recovery or wait for lease to expire."
-                    )
-
-                # ATOMIC CLAIM: Reserve proposal before live commit to prevent race with rejections/competing approvals
-                claimed_proposal = proposal.model_copy(deep=True)
-                claimed_proposal.status = RemediationStatus.APPLICATION_IN_PROGRESS
-                claimed_proposal.approved_by = verified_identity
-                claimed_proposal.is_approved_by_human = is_authenticated
-                claimed_proposal.is_simulated_approval = is_simulated
-                claimed_proposal.approval_mode = "AUTHENTICATED"
-                claimed_proposal.approved_at = datetime.now(timezone.utc)
-
-                allowed_pre_claim_statuses = [
-                    RemediationStatus.PENDING_HUMAN_APPROVAL.value,
-                    RemediationStatus.POLICY_APPROVED.value,
-                ]
-                claimed = self.store.atomic_transition_status(
-                    proposal_id=proposal.proposal_id,
-                    expected_statuses=allowed_pre_claim_statuses,
-                    new_status=RemediationStatus.APPLICATION_IN_PROGRESS.value,
-                    updated_proposal=claimed_proposal,
+                raise PermissionError(
+                    "Security policy violation: direct commits to 'main' branch are strictly prohibited. "
+                    "All remediation approvals must create a reviewed GitHub Pull Request via create_pr=True."
                 )
-                if not claimed:
-                    fresh = self.store.get_proposal(proposal.proposal_id)
-                    fresh_status = fresh.status.value if fresh else "UNKNOWN"
-                    if fresh and fresh.status == RemediationStatus.OPERATOR_REJECTED:
-                        raise PermissionError(
-                            f"Cannot apply proposal '{proposal.proposal_id}': proposal was rejected by operator ({fresh.rejected_by})."
-                        )
-                    if fresh and fresh.status == RemediationStatus.APPLIED_TO_MAIN:
-                        return fresh
-                    if fresh and fresh.status == RemediationStatus.APPLICATION_IN_PROGRESS:
-                        raise PermissionError(
-                            f"Concurrent claim conflict: proposal '{proposal.proposal_id}' is already claimed by '{fresh.approved_by}' (APPLICATION_IN_PROGRESS)."
-                        )
-                    raise PermissionError(
-                        f"Concurrent state conflict: proposal '{proposal.proposal_id}' status is now '{fresh_status}'."
-                    )
-
-                # Now perform live GitHub commit with CAS
-                commit_msg = (
-                    f"fix(gitops): apply approved {proposal.action_type.value} for {proposal.workload}\n\n"
-                    f"Proposal-ID: {proposal.proposal_id}\n"
-                    f"Incident: {proposal.incident_id}\n"
-                    f"Episode: {proposal.episode_id}\n"
-                    f"Approved-by: {verified_identity}\n"
-                    f"Mode: AUTHENTICATED\n"
-                    f"Action: {rendered.summary}"
-                )
-                new_commit_sha = None
-                try:
-                    default_branch = self.github_provider.get_default_branch()
-                    parent_sha = self.github_provider.get_branch_head_sha(default_branch)
-                    new_commit_sha = self.github_provider.commit_to_main(
-                        files=rendered.modified_files,
-                        commit_message=commit_msg,
-                        expected_parent_sha=parent_sha,
-                    )
-                except Exception as commit_err:
-                    # Check if the commit landed despite an exception
-                    recheck_error = None
-                    rechecked_sha = None
-                    try:
-                        rechecked_sha = self.github_provider.find_commit_for_proposal(proposal_id=proposal.proposal_id)
-                    except Exception as chk_err:
-                        recheck_error = chk_err
-
-                    if rechecked_sha:
-                        new_commit_sha = rechecked_sha
-                    elif recheck_error is not None:
-                        # Ambiguous outcome: commit failed and status check also failed.
-                        # Fail closed: retain APPLICATION_IN_PROGRESS claim to prevent races/duplicate commits.
-                        logger.error(
-                            "Ambiguous GitHub API outcome for proposal %s: commit failed (%s) and authoritative verification failed (%s). "
-                            "Retaining APPLICATION_IN_PROGRESS claim.",
-                            proposal.proposal_id,
-                            commit_err,
-                            recheck_error,
-                        )
-                        raise RuntimeError(
-                            f"Ambiguous GitHub API outcome for proposal '{proposal.proposal_id}': commit failed ({commit_err}) "
-                            f"and authoritative verification failed ({recheck_error}). Claim retained in APPLICATION_IN_PROGRESS "
-                            f"to prevent duplicate execution. Manual operator investigation required."
-                        ) from commit_err
-                    else:
-                        # Authoritative check confirmed commit did NOT land
-                        # Revert in-progress reservation back to PENDING_HUMAN_APPROVAL so operator can retry
-                        try:
-                            revert_proposal = claimed_proposal.model_copy(deep=True)
-                            revert_proposal.status = RemediationStatus.PENDING_HUMAN_APPROVAL
-                            self.store.atomic_transition_status(
-                                proposal_id=proposal.proposal_id,
-                                expected_statuses=[RemediationStatus.APPLICATION_IN_PROGRESS.value],
-                                new_status=RemediationStatus.PENDING_HUMAN_APPROVAL.value,
-                                updated_proposal=revert_proposal,
-                            )
-                        except Exception as rev_err:
-                            logger.error("Failed to release in-progress reservation for %s: %s", proposal.proposal_id, rev_err)
-                        raise RuntimeError(f"GitHub commit failed for proposal '{proposal.proposal_id}': {commit_err}") from commit_err
-
-                # ATOMIC FINALIZE: Transition from APPLICATION_IN_PROGRESS -> APPLIED_TO_MAIN
-                final_proposal = claimed_proposal.model_copy(deep=True)
-                final_proposal.status = RemediationStatus.APPLIED_TO_MAIN
-                final_proposal.applied_commit_sha = new_commit_sha
-
-                finalized = self.store.atomic_transition_status(
-                    proposal_id=proposal.proposal_id,
-                    expected_statuses=[RemediationStatus.APPLICATION_IN_PROGRESS.value],
-                    new_status=RemediationStatus.APPLIED_TO_MAIN.value,
-                    updated_proposal=final_proposal,
-                )
-                if not finalized:
-                    fresh = self.store.get_proposal(proposal.proposal_id)
-                    if fresh and fresh.status == RemediationStatus.APPLIED_TO_MAIN:
-                        return fresh
-                    raise RuntimeError(
-                        f"CRITICAL: Commit '{new_commit_sha}' was pushed to GitHub 'main', but atomic status transition "
-                        f"to APPLIED_TO_MAIN failed (current store status: {fresh.status.value if fresh else 'UNKNOWN'}). "
-                        f"Unconditional overwrite denied. Manual operator reconciliation required."
-                    )
-
-                logger.info(
-                    "Remediation proposal %s for %s was approved by '%s' and applied to 'main' (commit: %s).",
-                    proposal.proposal_id,
-                    proposal.workload,
-                    verified_identity,
-                    new_commit_sha,
-                )
-                return final_proposal
 
             else:
                 # commit_to_main is False (Simulation or staging)
@@ -628,9 +445,9 @@ class GitOpsRemediationEngine:
             if not proposal:
                 raise ValueError(f"Remediation proposal '{proposal_id}' not found in store.")
 
-            if proposal.status == RemediationStatus.APPLIED_TO_MAIN:
+            if proposal.status in (RemediationStatus.APPLIED_TO_MAIN, RemediationStatus.PR_CREATED):
                 raise PermissionError(
-                    f"Cannot reject proposal '{proposal_id}': already APPLIED_TO_MAIN (commit: {proposal.applied_commit_sha})."
+                    f"Cannot reject proposal '{proposal_id}': proposal is already finalized with status {proposal.status.value}."
                 )
 
             if proposal.status == RemediationStatus.APPLICATION_IN_PROGRESS:

@@ -58,5 +58,18 @@ This checklist provides human evaluators, operators, and recruiters with an item
 
 ## 6. Truthful Evaluation Evidence Framework
 
-- [x] **Synthetic PNGs Removed**: All 11 generated screenshots removed from `proof/screenshots/`.
+- [x] **Synthetic Proof Removed**: All 11 generated screenshots and historical AI proofs removed from the evaluator-facing `proof/` directory.
 - [x] **Manual Capture Framework**: Directory structure prepared with `.gitkeep` and guidelines for human evaluators to save their personal screenshots and terminal logs.
+
+---
+
+## 7. User Verification & Personal Demonstration Tasks (Pending)
+
+The following items are strictly reserved for the human evaluator/recruiter to execute and verify personally:
+
+- [ ] **Personal Storefront Evaluation**: Visit `https://demo.aarjav.site`, browse products, log in with demo account, place an order, and save screenshot to `proof/screenshots/01-storefront.png`.
+- [ ] **Personal Grafana Verification**: Log in to `https://grafana.demo.aarjav.site`, inspect compute and pod metrics for namespace `boutique`, and save screenshot to `proof/screenshots/04-grafana-dashboard.png`.
+- [ ] **Personal Argo CD Verification**: Log in to `https://argocd.demo.aarjav.site`, verify `boutique` application sync status and controller health, and save screenshot to `proof/screenshots/05-argocd-ui.png`.
+- [ ] **Personal Isolated Incident Trigger**: Deploy the safe test canary workload (`devops/gitops/k8s/aiops/isolated-incident-test.yaml`) to observe real-time Alertmanager, SQS FIFO, Bedrock Nova Lite reasoning, and DynamoDB proposal creation.
+- [ ] **Personal Operator CLI Evaluation**: Execute `python3 aiops/operator_cli.py list`, `show`, `reject`, and `approve`, observing Pull Request generation. Save terminal output to `proof/terminal-outputs/03-aiops-cli-session.txt`.
+- [ ] **Personal PR Review & Merge**: Inspect the generated GitHub PR diff, approve and merge into `main`, and verify Argo CD automated synchronization.

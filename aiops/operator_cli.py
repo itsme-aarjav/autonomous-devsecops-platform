@@ -148,7 +148,10 @@ def _create_simulation_store():
         justification="Mitigated OOMKilled on payment service.",
         policy_decision=PolicyDecision.APPROVED,
         policy_reason="Policy approved",
-        status=RemediationStatus.APPLIED_TO_MAIN,
+        status=RemediationStatus.PR_CREATED,
+        github_pr_url="https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/42",
+        github_pr_number=42,
+        github_branch="fix/aiops-proposal-sim-prop-004",
         applied_commit_sha="a1b2c3d4e5f678901234567890abcdef12345678",
         approved_by="arn:aws:iam::592668326948:user/terra-admin",
     )
@@ -294,8 +297,8 @@ def cmd_list(args, store):
         if raw_filter == "pending":
             if p.status not in (RemediationStatus.PENDING_HUMAN_APPROVAL, RemediationStatus.POLICY_APPROVED):
                 continue
-        elif raw_filter == "applied":
-            if p.status != RemediationStatus.APPLIED_TO_MAIN:
+        elif raw_filter in ("applied", "pr_created", "pr"):
+            if p.status not in (RemediationStatus.PR_CREATED, RemediationStatus.APPLIED_TO_MAIN):
                 continue
         elif raw_filter == "rejected":
             if p.status not in (RemediationStatus.POLICY_REJECTED, RemediationStatus.OPERATOR_REJECTED):
@@ -348,11 +351,11 @@ def cmd_approve(args, store):
         sys.exit(1)
 
     from aiops.agent.remediation.schemas import RemediationStatus
-    # Idempotent: already applied
-    if proposal.status == RemediationStatus.APPLIED_TO_MAIN:
-        print(f"[INFO] Proposal '{args.proposal_id}' is already applied to main.")
-        if proposal.applied_commit_sha:
-            print(f"       Commit SHA: {proposal.applied_commit_sha}")
+    # Idempotent: already has PR created
+    if proposal.status == RemediationStatus.PR_CREATED:
+        print(f"[INFO] Proposal '{args.proposal_id}' already has a Pull Request open for review.")
+        if proposal.github_pr_url:
+            print(f"       PR URL: {proposal.github_pr_url}")
         sys.exit(0)
 
     # Disallow approving rejected proposals
@@ -364,29 +367,18 @@ def cmd_approve(args, store):
         sys.exit(1)
 
     is_simulation = getattr(args, "simulate", False)
-    explicit_commit = getattr(args, "commit", False)
 
     # Guard: --yes is strictly forbidden in production mode
     if not is_simulation and getattr(args, "yes", False):
         print(
             "[ERROR] Security policy violation: '--yes' flag is forbidden in production mode. "
             "Production approval strictly requires interactive human review and manual typing of 'APPROVE'. "
-            "'--yes' is permitted only with '--simulate'.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    # Strict invariant: simulation CANNOT commit to real GitHub
-    if is_simulation and explicit_commit:
-        print(
-            "[ERROR] Security violation: cannot combine --simulate with --commit. "
-            "Simulation mode is strictly offline/mock-only and cannot mutate remote repositories.",
+            "'--yes' is permitted only with '--simulate' / '--simulation'.",
             file=sys.stderr,
         )
         sys.exit(1)
 
     if is_simulation:
-        should_commit = False
         should_pr = True
         operator_id = getattr(args, "operator", None) or os.getenv("AIOPS_OPERATOR_ID", "simulation-operator")
         approval_token = None
@@ -394,13 +386,8 @@ def cmd_approve(args, store):
         github_provider = None
         print(f"[NOTICE] Running in SIMULATION mode with operator '{operator_id}'.")
     else:
-        # In real mode, approval proceeds via reviewed GitHub Pull Request (NEVER unreviewed direct main mutation)
-        if explicit_commit:
-            should_commit = True
-            should_pr = False
-        else:
-            should_commit = False
-            should_pr = True
+        # In real mode, approval proceeds strictly via reviewed GitHub Pull Request (NEVER direct main mutation)
+        should_pr = True
         operator_id = None
         authenticator = _resolve_authenticator(is_simulation=False)
         approval_token = _resolve_approval_token(authenticator)
@@ -424,7 +411,7 @@ def cmd_approve(args, store):
         operator=operator_id if is_simulation else None,
         approval_token=approval_token,
         is_simulation=is_simulation,
-        commit_to_main=should_commit,
+        commit_to_main=False,
         create_pr=should_pr,
         write_to_working_tree=False,
     )
@@ -443,21 +430,13 @@ def cmd_approve(args, store):
         print(f"  1. Review the Pull Request at: {result.github_pr_url}")
         print(f"  2. Inspect the diff and merge into 'main' to trigger Argo CD / GitOps rollout.")
         print(f"  3. Verify the deployment in EKS namespace '{result.namespace}'.")
-    elif result.status == RemediationStatus.APPLIED_TO_MAIN:
-        print(f"[SUCCESS] Proposal applied directly to main.")
-        print(f"          Approved by : {result.approved_by}")
-        print(f"          Mode        : {result.approval_mode}")
-        if result.approved_at:
-            print(f"          Timestamp   : {result.approved_at.strftime('%Y-%m-%d %H:%M:%SZ')}")
-        if result.applied_commit_sha:
-            print(f"          Commit SHA  : {result.applied_commit_sha}")
     elif result.status == RemediationStatus.SIMULATED_APPROVED:
         print(f"[SUCCESS] Proposal approved in offline SIMULATION mode.")
         print(f"          Simulated by: {result.approved_by}")
         if result.approved_at:
             print(f"          Timestamp   : {result.approved_at.strftime('%Y-%m-%d %H:%M:%SZ')}")
     elif result.status == RemediationStatus.HUMAN_APPROVED:
-        print(f"[SUCCESS] Proposal human approved (commit pending).")
+        print(f"[SUCCESS] Proposal human approved (PR creation pending).")
         print(f"          Approved by : {result.approved_by}")
     else:
         print(f"[ERROR] Apply did not reach successful state. Final status: {result.status.value}", file=sys.stderr)
@@ -473,9 +452,10 @@ def cmd_reject(args, store):
 
     from aiops.agent.remediation.schemas import RemediationStatus
 
-    if proposal.status == RemediationStatus.APPLIED_TO_MAIN:
+    if proposal.status in (RemediationStatus.PR_CREATED, RemediationStatus.APPLIED_TO_MAIN):
+        ref = proposal.github_pr_url or proposal.applied_commit_sha or "PR created"
         print(
-            f"[ERROR] Proposal '{args.proposal_id}' is already APPLIED_TO_MAIN (commit: {proposal.applied_commit_sha}) and cannot be rejected.",
+            f"[ERROR] Proposal '{args.proposal_id}' is already {proposal.status.value} ({ref}) and cannot be rejected.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -594,7 +574,10 @@ def cmd_recover(args, store):
     )
     print(f"[SUCCESS] Proposal '{args.proposal_id}' recovered successfully.")
     print(f"          Final status : {result.status.value}")
-    if result.status == RemediationStatus.APPLIED_TO_MAIN:
+    if result.status == RemediationStatus.PR_CREATED:
+        print(f"          Pull Request : {result.github_pr_url}")
+        print(f"          Approved by  : {result.approved_by}")
+    elif result.status == RemediationStatus.APPLIED_TO_MAIN:
         print(f"          Committed SHA: {result.applied_commit_sha}")
         print(f"          Approved by  : {result.approved_by}")
 
@@ -606,7 +589,9 @@ def cmd_status(args, store):
         print(f"[ERROR] Proposal '{args.proposal_id}' not found.", file=sys.stderr)
         sys.exit(1)
     print(f"Proposal '{args.proposal_id}': status={proposal.status.value}")
-    if proposal.applied_commit_sha:
+    if proposal.github_pr_url:
+        print(f"  Pull Request  : {proposal.github_pr_url}")
+    elif proposal.applied_commit_sha:
         print(f"  Applied commit: {proposal.applied_commit_sha}")
 
 
@@ -633,33 +618,32 @@ Environment variables (required, never CLI args):
 
     p_list = sub.add_parser("list", help="List remediation proposals")
     p_list.add_argument("--status", default="all", help="Filter by status: pending, all (default: all)")
-    p_list.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
+    p_list.add_argument("--simulate", "--simulation", dest="simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
 
     p_show = sub.add_parser("show", help="Show full details of a proposal")
     p_show.add_argument("proposal_id", help="Proposal ID (or prefix)")
-    p_show.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
+    p_show.add_argument("--simulate", "--simulation", dest="simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
 
     p_approve = sub.add_parser("approve", help="Approve and create a remediation Pull Request for human review")
     p_approve.add_argument("proposal_id", help="Proposal ID")
-    p_approve.add_argument("--commit", action="store_true", default=False, help="Commit directly to GitHub main via API (CAS protected)")
-    p_approve.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")
+    p_approve.add_argument("--simulate", "--simulation", dest="simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")
     p_approve.add_argument("--operator", default=None, help="Operator identifier for simulation mode")
     p_approve.add_argument("--yes", "-y", action="store_true", default=False, help="Skip interactive confirmation prompt")
 
     p_reject = sub.add_parser("reject", help="Reject a proposal")
     p_reject.add_argument("proposal_id", help="Proposal ID")
     p_reject.add_argument("--reason", default=None, help="Rejection reason (optional)")
-    p_reject.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")
+    p_reject.add_argument("--simulate", "--simulation", dest="simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")
     p_reject.add_argument("--operator", default=None, help="Operator identifier for simulation mode")
     p_reject.add_argument("--yes", "-y", action="store_true", default=False, help="Skip interactive confirmation prompt")
 
     p_status = sub.add_parser("status", help="Print the status of a proposal")
     p_status.add_argument("proposal_id", help="Proposal ID")
-    p_status.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
+    p_status.add_argument("--simulate", "--simulation", dest="simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
 
     p_recover = sub.add_parser("recover", help="Recover a proposal stuck in APPLICATION_IN_PROGRESS")
     p_recover.add_argument("proposal_id", help="Proposal ID")
-    p_recover.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")
+    p_recover.add_argument("--simulate", "--simulation", dest="simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")
     p_recover.add_argument("--operator", default=None, help="Operator identifier for simulation mode")
     p_recover.add_argument("--yes", "-y", action="store_true", default=False, help="Skip interactive confirmation prompt")
 

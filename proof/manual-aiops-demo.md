@@ -86,36 +86,80 @@ python3 aiops/operator_cli.py reject sim-prop-002 --simulate --yes --reason "Sca
 
 ---
 
-## 3. How to Trigger a Live Synthetic Incident (Optional)
+## 3. How to Trigger a Safe Isolated Incident (User Verification)
 
-To trigger a live test alert on the EKS cluster and observe the agent in action:
+> [!IMPORTANT]
+> **Production Safety Invariant**: Never disrupt core services (`boutique-auth`, `boutique-gateway`, `boutique-frontend`, `boutique-postgres`) to demonstrate AIOps capabilities. The procedure below uses an isolated canary test pod in namespace `boutique` that safely breaches a 32Mi memory boundary without impacting live storefront customer traffic.
 
-1. **Inject synthetic high memory pressure or replica degradation**:
+### Step 1: Launch the Isolated Canary Test Pod
+Deploy the standalone failing canary pod into the `boutique` namespace:
+```bash
+kubectl apply -f devops/gitops/k8s/aiops/isolated-incident-test.yaml
+```
+
+Check the pod status:
+```bash
+kubectl get pod boutique-demo-incident-pod -n boutique -w
+```
+Within a few seconds, the pod will terminate with `OOMKilled` / `Error`. Verify with:
+```bash
+kubectl describe pod boutique-demo-incident-pod -n boutique | grep -E "Reason:|Exit Code:"
+```
+Expected output:
+```text
+    Reason:       OOMKilled
+    Exit Code:    137
+```
+
+### Step 2: Observe Prometheus & Alertmanager Detection
+The Prometheus rule `aiops-pod-oomkilled` evaluates `kube_pod_container_status_last_terminated_reason{reason="OOMKilled", namespace="boutique"} == 1` immediately (`for: 0m`).
+
+To inspect firing alerts in Alertmanager:
+```bash
+kubectl port-forward svc/kube-prometheus-stack-alertmanager -n monitoring 9093:9093
+```
+Visit [`http://localhost:9093`](http://localhost:9093) to confirm the `PodOOMKilled` alert is firing.
+
+### Step 3: Observe Autonomous SQS Queueing & Bedrock RCA
+1. Alertmanager forwards the webhook payload to the SQS FIFO queue `boutique-aiops-alerts.fifo`.
+2. The `aiops-assistant` worker daemon ingests the incident payload and queries Amazon Bedrock (Claude 3.5 Sonnet) for root cause analysis and deterministic policy gating.
+3. Tail the live assistant logs to watch the autonomous analysis unfold:
    ```bash
-   kubectl scale deployment auth -n boutique --replicas=0
+   kubectl logs -n boutique deployment/aiops-assistant -f
    ```
-2. **Observe Prometheus & Alertmanager**:
-   - Port-forward Alertmanager: `kubectl port-forward svc/kube-prometheus-stack-alertmanager -n monitoring 9093:9093`
-   - Visit [`http://localhost:9093`](http://localhost:9093) to view the firing alert.
-3. **Inspect SQS & Bedrock Processing**:
-   - The alert triggers the SQS queue `boutique-aiops-alerts.fifo`.
-   - The `aiops-assistant` pod ingests the message and invokes Amazon Bedrock Claude 3.5 Sonnet.
-   - Tail assistant logs:
-     ```bash
-     kubectl logs -n boutique deployment/aiops-assistant -f
-     ```
-4. **Inspect DynamoDB RCA Report**:
-   ```bash
-   aws dynamodb scan --region us-east-2 --table-name boutique-aiops-rca-reports \
-     --query 'Items[*].{ProposalID:proposal_id.S, Category:category.S, Status:status.S, Confidence:confidence_score.N}'
-   ```
-5. **Review and Approve via CLI**:
-   ```bash
-   python3 aiops/operator_cli.py list
-   python3 aiops/operator_cli.py show <PROPOSAL_ID>
-   python3 aiops/operator_cli.py approve <PROPOSAL_ID>
-   ```
-6. **Restore Baseline Replicas**:
-   ```bash
-   kubectl scale deployment auth -n boutique --replicas=1
-   ```
+
+### Step 4: Verify Proposal in DynamoDB
+The agent persists the structured RCA report and proposed GitOps manifest patch into DynamoDB with status `PENDING_HUMAN_APPROVAL`:
+```bash
+aws dynamodb scan --region us-east-2 --table-name boutique-aiops-remediations \
+  --query 'Items[*].{ProposalID:proposal_id.S, Category:category.S, Status:status.S, Confidence:confidence_score.N}' \
+  --output table
+```
+
+### Step 5: Review and Approve via Operator CLI
+Review the generated proposal using the operator CLI:
+```bash
+# List pending proposals
+python3 aiops/operator_cli.py list
+
+# View detailed RCA and unified diff
+python3 aiops/operator_cli.py show <PROPOSAL_ID>
+
+# Review and approve (creates a GitHub Pull Request; strictly forbids direct commits to main)
+python3 aiops/operator_cli.py approve <PROPOSAL_ID>
+```
+Upon typing `APPROVE`:
+- A new git branch `fix/aiops-proposal-<id[:8]>` is created.
+- The validated remediation manifest patch is committed.
+- A GitHub Pull Request is opened with full RCA rationale.
+- The PR URL is printed to the operator console.
+
+### Step 6: Clean Up the Canary Test Pod
+Delete the isolated canary pod once verification is complete:
+```bash
+kubectl delete -f devops/gitops/k8s/aiops/isolated-incident-test.yaml
+```
+Verify the boutique namespace has returned to clean baseline state:
+```bash
+kubectl get pods -n boutique
+```

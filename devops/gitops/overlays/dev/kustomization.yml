@@ -6,6 +6,7 @@ namespace: boutique
 resources:
   - storageclass.yml
   - postgres.yml
+  - backup-cronjob.yml
   - auth.yml
   - gateway.yml
   - frontend.yml
