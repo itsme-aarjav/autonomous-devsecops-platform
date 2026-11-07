@@ -47,7 +47,7 @@ This repository and evaluation package represent a complete, end-to-end implemen
                                             ▼                             ▼
                              ┌─────────────────────────────┐┌───────────────────────────┐
                              │   Amazon Bedrock Converse   ││   Amazon DynamoDB Stores  │
-                             │  (Amazon Nova Lite v1:0)    ││   (Episodes & RCA Reports)│
+                             │  (Claude 3.5 Sonnet / Nova) ││   (Episodes & RCA Reports)│
                              └─────────────────────────────┘└───────────────────────────┘
 ```
 
@@ -57,95 +57,73 @@ This repository and evaluation package represent a complete, end-to-end implemen
 
 | Domain | Implementation & Technology | Evidence Reference |
 | :--- | :--- | :--- |
-| **Cloud Infrastructure** | 3-Layer Terraform (Persistent, Dev, Add-ons), AWS VPC, EKS Auto Mode, Bottlerocket OS | [`proof/architecture/`](architecture/system-architecture.md) |
-| **Public HTTPS Access** | AWS ACM TLS (RSA 2048), Route 53 Alias, EKS Auto Mode ALB, 100% healthy target groups | [`proof/kubernetes/`](kubernetes/cluster-inventory.md) |
-| **GitOps Continuous Delivery**| Argo CD 10.11.6 & Argo Rollouts 2.43.9 for canary deployments and automated rollback | [`proof/kubernetes/`](kubernetes/cluster-inventory.md) |
-| **CI/CD & OIDC Security** | GitHub Actions decoupled pipelines, GitHub OIDC (zero static AWS keys), 10/10 green checks | [`proof/ci-cd/`](ci-cd/ci-cd-architecture.md) |
-| **Observability & SRE** | Prometheus Operator, Grafana, Node Exporter, kube-state-metrics, custom ServiceMonitors | [`proof/monitoring/`](monitoring/observability-stack.md) |
-| **Autonomous AIOps Engine**| Prometheus &rarr; Alertmanager &rarr; SQS FIFO &rarr; Bedrock Nova Lite &rarr; DynamoDB RCA reports | [`proof/aiops/`](aiops/aiops-incident-execution.md) |
-| **DevSecOps & Hardening** | Restricted Pod Security Standards, non-root UID 10001, Trivy scanning, AWS KMS CMKs | [`proof/security/`](security/security-architecture.md) |
-| **FinOps Cost Governance**| Efficient single-NAT DEV topology, dynamic rightsizing, serverless pay-per-token LLM (\$341.20/mo across 3x m7i-flex.large) | [`proof/cost/`](cost/finops-cost-model.md) |
+| **E-Commerce Application** | Relational products catalog, atomic inventory locking (`SELECT FOR UPDATE`), demo checkout, order history | [`proof/verification-checklist.md`](verification-checklist.md) |
+| **Cloud Infrastructure** | 3-Layer Terraform (Persistent, Dev, Add-ons), AWS VPC, EKS Auto Mode, Bottlerocket OS | [`proof/architecture/system-architecture.md`](architecture/system-architecture.md) |
+| **Public HTTPS Access** | AWS ACM TLS (RSA 2048), Route 53 Alias, EKS Auto Mode ALB, 100% healthy target groups | [`proof/dashboard-links.md`](dashboard-links.md) |
+| **GitOps Continuous Delivery**| Argo CD 10.11.6 & Argo Rollouts 2.43.9 for canary deployments and automated rollback | [`proof/kubernetes/cluster-inventory.md`](kubernetes/cluster-inventory.md) |
+| **CI/CD & OIDC Security** | GitHub Actions decoupled pipelines, GitHub OIDC (zero static AWS keys), 10/10 green checks | [`proof/ci-cd/ci-cd-architecture.md`](ci-cd/ci-cd-architecture.md) |
+| **Observability & SRE** | Prometheus Operator, Grafana, Node Exporter, kube-state-metrics, custom ServiceMonitors | [`proof/monitoring/observability-stack.md`](monitoring/observability-stack.md) |
+| **Autonomous AIOps Engine**| Prometheus &rarr; Alertmanager &rarr; SQS FIFO &rarr; Bedrock &rarr; DynamoDB RCA &rarr; Operator CLI PR | [`proof/manual-aiops-demo.md`](manual-aiops-demo.md) |
+| **Disaster Recovery** | Verified restoration of EBS snapshot `snap-05a3b0ffe3463e280` in isolated PostgreSQL pod | [`proof/backup-recovery/restore-verification.md`](backup-recovery/restore-verification.md) |
+| **DevSecOps & Hardening** | Restricted Pod Security Standards, non-root UID 10001, Trivy scanning, AWS KMS CMKs | [`proof/security/security-architecture.md`](security/security-architecture.md) |
+| **FinOps Cost Governance**| Efficient single-NAT DEV topology, dynamic rightsizing, serverless pay-per-token LLM (\$341.20/mo across 3x m7i-flex.large) | [`proof/cost/finops-cost-model.md`](cost/finops-cost-model.md) |
 
 ---
 
-## 3. Evidence Index & Documentation Map
+## 3. Evaluation & Verification Index
 
-Every claim in this evaluation package is supported by live data, JSON artifacts, and terminal logs:
+Every capability is verifiable live against real AWS infrastructure:
 
-- **Quick Start Guides**:
-  - [`proof/access-inventory.md`](access-inventory.md): Public endpoints, recruiter test credentials, and protected dashboard tunneling instructions.
-  - [`proof/demo-guide.md`](demo-guide.md): Step-by-step evaluator testing script covering registration, API querying, metrics, and AIOps triage.
+- **Core Verification & Access**:
+  - [`proof/verification-checklist.md`](verification-checklist.md): Comprehensive itemized verification checklist with `READY_FOR_USER_VERIFICATION` status.
+  - [`proof/dashboard-links.md`](dashboard-links.md): Verified inventory of all public HTTPS endpoints, admin credential retrieval, and zero-trust ClusterIP rationale.
+  - [`proof/manual-aiops-demo.md`](manual-aiops-demo.md): Step-by-step instructions for operators to test CLI commands (`list`, `show`, `approve`, `reject`) and trigger live incidents.
+  - [`proof/backup-recovery/restore-verification.md`](backup-recovery/restore-verification.md): Technical report of the real isolated PostgreSQL EBS restore test.
+  - [`proof/cost/finops-cost-model.md`](cost/finops-cost-model.md): Itemized $341.20/mo AWS FinOps economics model.
 
 - **System Architecture**:
   - [`proof/architecture/system-architecture.md`](architecture/system-architecture.md): Complete cloud and network topology.
   - [`proof/architecture/aiops-pipeline.md`](architecture/aiops-pipeline.md): Event-driven AIOps sequence diagram, deduplication, and LLM reasoning flow.
 
-- **CI/CD & Deployment Records**:
+- **CI/CD & Infrastructure Audits**:
   - [`proof/ci-cd/ci-cd-architecture.md`](ci-cd/ci-cd-architecture.md): Decoupled pipeline design and GitHub OIDC integration.
   - [`proof/ci-cd/ecr-inventory.json`](ci-cd/ecr-inventory.json): ECR image URIs, tags, and immutable SHA-256 digests.
-  - [`proof/github-actions/clean-deployments-report.json`](github-actions/clean-deployments-report.json): GitHub deployment cleanup proof (0 remaining phantom records).
-  - [`proof/github-actions/deployment-cleanup.md`](github-actions/deployment-cleanup.md): Detailed audit and resolution of the 18 stale deployment records.
-
-- **Kubernetes & Cloud Infrastructure**:
   - [`proof/kubernetes/cluster-inventory.md`](kubernetes/cluster-inventory.md): Live node list, 24 running pods across 4 namespaces, Ingress, and PV/PVC status.
-
-- **Monitoring & SRE**:
   - [`proof/monitoring/observability-stack.md`](monitoring/observability-stack.md): ServiceMonitors, Prometheus rules, and Alertmanager routing topology.
-
-- **AIOps Incident Diagnostics**:
-  - [`proof/aiops/aiops-incident-execution.md`](aiops/aiops-incident-execution.md): Live synthetic incident execution logs, context gathering, and reasoning metrics.
-  - [`proof/aiops/rca-report-gateway-oom.json`](aiops/rca-report-gateway-oom.json): Verified DynamoDB RCA report for Gateway OOMKilled incident.
-  - [`proof/aiops/rca-report-auth-oom.json`](aiops/rca-report-auth-oom.json): Verified DynamoDB RCA report for Auth OOMKilled incident.
-
-- **Security & Compliance**:
   - [`proof/security/security-architecture.md`](security/security-architecture.md): Pod Security Standards, non-root UID 10001, and AWS KMS encryption proof.
-
-- **FinOps & Cost Optimization**:
-  - [`proof/cost/finops-cost-model.md`](cost/finops-cost-model.md): Detailed monthly run-rate model (\$341.20/mo across 3x m7i-flex.large) and architectural cost governance.
 
 ---
 
-## 4. Immediate Live Verification
+## 4. Immediate Live Verification Commands
 
-Verify the live application from any terminal:
+Verify the live application directly from your terminal:
+
 ```bash
-# Test HTTPS 200 OK & TLS handshake
+# 1. Test Storefront HTTPS 200 OK & TLS
 curl -sI https://demo.aarjav.site | grep -E "HTTP/|date|content-type"
 
-# Test API Gateway & Auth Microservice Health
-curl -s https://demo.aarjav.site/api/auth/health | jq .
+# 2. Query Live Products Catalog (8 seeded products)
+curl -s https://demo.aarjav.site/api/products | jq '.data.total, .data.products[0].name'
+
+# 3. Retrieve Rotated Recruiter Demo Password & Authenticate
+RECRUITER_PWD=$(aws secretsmanager get-secret-value --region us-east-2 \
+  --secret-id boutique/dev/recruiter-demo-credential \
+  --query SecretString --output text | jq -r .password)
+
+TOKEN=$(curl -s -X POST https://demo.aarjav.site/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"recruiter@demo.aarjav.site\",\"password\":\"${RECRUITER_PWD}\"}" | jq -r .token)
+
+# 4. View Customer Order History
+curl -s https://demo.aarjav.site/api/orders/my-orders -H "Authorization: Bearer ${TOKEN}" | jq .
 ```
 
 ---
 
-## 5. Genuine Visual Evidence Gallery
+## 5. Personal Evaluator Evidence Repository
 
-All screenshots are authentic 1280x800 captures taken directly from live Chrome sessions running against the AWS infrastructure:
+Per strict platform evaluation standards, all synthetic or automatically generated screenshots have been removed.
 
-| # | Artifact | Description | Screenshot Link |
-| :---: | :--- | :--- | :---: |
-| 1 | **Live Boutique Storefront** | Online Boutique React UI rendered via public HTTPS Ingress | [View PNG](proof/screenshots/01-live-boutique-storefront.png) |
-| 2 | **Grafana Login Portal** | Form-based authenticated TLS login at `grafana.demo.aarjav.site` | [View PNG](proof/screenshots/02-grafana-login.png) |
-| 3 | **Argo CD Login Portal** | GitOps control plane web UI at `argocd.demo.aarjav.site` | [View PNG](proof/screenshots/03-argocd-login.png) |
-| 4 | **Full-Stack Recruiter Auth** | Live JWT token issuance & verified user profile in PostgreSQL 15.19 | [View PNG](proof/screenshots/04-application-login-verified.png) |
-| 5 | **GitHub CI/CD Checks** | 10/10 parallel validation jobs passing cleanly in under 70 seconds | [View PNG](proof/screenshots/05-github-ci-checks.png) |
-| 6 | **EKS Workloads & Pods** | 24 pods in Running state across 3 Bottlerocket `m7i-flex.large` nodes | [View PNG](proof/screenshots/06-eks-cluster-workloads.png) |
-| 7 | **ECR Immutable Digests** | Verified image digests for `frontend`, `auth`, `gateway`, `aiops` | [View PNG](proof/screenshots/07-ecr-image-digests.png) |
-| 8 | **Prometheus Targets & Rules** | Active scrape pools and alert rules evaluated by Prometheus Operator | [View PNG](proof/screenshots/08-prometheus-targets-and-rules.png) |
-| 9 | **AIOps Incident RCA** | Bedrock Nova Lite root cause report persisted in DynamoDB | [View PNG](proof/screenshots/09-aiops-incident-rca.png) |
-| 10 | **AWS Security Architecture** | KMS Customer Master Keys, SQS FIFO queues, and IAM OIDC roles | [View PNG](proof/screenshots/10-aws-architecture-security.png) |
-| 11 | **Argo Controllers** | Healthy Argo CD Application and Argo Rollouts canary controllers | [View PNG](proof/screenshots/11-argocd-and-rollouts-controllers.png) |
-
----
-
-## 6. Final Deliverable Compliance Matrix
-
-| Area | Status | Evidence & Verification |
-| :--- | :---: | :--- |
-| **1. Credential Security Fix** | **COMPLETED** | Rotated recruiter password to 32-byte cryptographic secret stored in AWS Secrets Manager (`boutique/dev/recruiter-demo-credential`). Zero plaintext in Git. Tested live login (`HTTP 200 OK`). Assessed 24h JWT expiration window. |
-| **2. Real CI/CD Workflows** | **COMPLETED** | Decoupled into `ci.yml` (validation), `publish-ecr.yml` (ECR build/scan), and `deploy-dev.yml` (EKS deployment & smoke test). Fixed concurrency to prevent `main` cancel-in-progress. |
-| **3. Production Gate** | **COMPLETED** | `.github/workflows/promote-prod.yml` fails-closed immediately (`exit 1`) stating production infrastructure is NOT provisioned. Zero false greens. |
-| **4. Remote HTTPS Dashboards**| **COMPLETED** | Deployed AWS ACM wildcard certificate `*.demo.aarjav.site` on ALB. Grafana: [`https://grafana.demo.aarjav.site`](https://grafana.demo.aarjav.site), Argo CD: [`https://argocd.demo.aarjav.site`](https://argocd.demo.aarjav.site). Prometheus & Alertmanager kept internal on ClusterIP per zero-trust standards. |
-| **5. Autonomous AIOps Pipeline** | **COMPLETED** | Validated full event loop: `PrometheusRule` &rarr; Prometheus firing &rarr; Alertmanager &rarr; Webhook &rarr; SQS FIFO &rarr; Bedrock Nova Lite &rarr; DynamoDB RCA report. Temporary rule cleaned up. Total Bedrock calls strictly &le; 3. |
-| **6. Recruiter Evidence Package** | **COMPLETED** | Captured 11 genuine Chrome screenshots in `proof/screenshots/`. Updated all documentation to reflect PostgreSQL 15.19, 3x `m7i-flex.large`, and realistic $341.20/mo cost model. |
-| **7. Backup & Restore Validation**| **COMPLETED** | Verified EBS snapshot `snap-05a3b0ffe3463e280` metadata. Created isolated test EBS volume `vol-09c9dcd255219cd44` from snapshot, verified encryption and geometry, then cleanly destroyed test volume. |
+Human evaluators and recruiters are invited to personally interact with the live platform and store their verified evidence in:
+- [`proof/screenshots/`](screenshots/): Save your browser screenshots of the live storefront, checkout confirmation, Grafana, and Argo CD.
+- [`proof/terminal-outputs/`](terminal-outputs/): Save command-line transcripts of your test sessions.

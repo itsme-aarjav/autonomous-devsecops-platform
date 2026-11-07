@@ -135,6 +135,7 @@ class GitOpsRemediationEngine:
         is_simulation: bool = False,
         write_to_working_tree: bool = False,
         commit_to_main: bool = False,
+        create_pr: bool = False,
     ) -> RemediationProposal:
         """
         Applies a previously generated and policy-approved GitOps patch directly to 'main'.
@@ -229,7 +230,160 @@ class GitOpsRemediationEngine:
                     target_file.write_text(content, encoding="utf-8")
 
             # 3. Execution & Atomic State Transitions
-            if commit_to_main:
+            if create_pr:
+                if is_simulation:
+                    sim_proposal = proposal.model_copy(deep=True)
+                    sim_proposal.status = RemediationStatus.PR_CREATED
+                    sim_proposal.is_approved_by_human = False
+                    sim_proposal.is_simulated_approval = True
+                    sim_proposal.approval_mode = "SIMULATED"
+                    sim_proposal.approved_by = verified_identity
+                    sim_proposal.approved_at = datetime.now(timezone.utc)
+                    sim_proposal.github_branch = f"fix/aiops-proposal-{proposal.proposal_id[:8]}"
+                    sim_proposal.github_pr_number = 999
+                    sim_proposal.github_pr_url = "https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/999"
+                    sim_proposal.applied_commit_sha = "simulated-pr-commit-sha"
+
+                    transitioned = self.store.atomic_transition_status(
+                        proposal_id=proposal.proposal_id,
+                        expected_statuses=[
+                            RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                            RemediationStatus.POLICY_APPROVED.value,
+                        ],
+                        new_status=RemediationStatus.PR_CREATED.value,
+                        updated_proposal=sim_proposal,
+                    )
+                    if not transitioned:
+                        fresh = self.store.get_proposal(proposal.proposal_id)
+                        raise PermissionError(
+                            f"Cannot create PR for proposal '{proposal.proposal_id}': status modified to '{fresh.status.value if fresh else 'UNKNOWN'}'."
+                        )
+                    logger.info(
+                        "Remediation proposal %s PR created in SIMULATION mode: branch=%s, pr=%s",
+                        proposal.proposal_id,
+                        sim_proposal.github_branch,
+                        sim_proposal.github_pr_url,
+                    )
+                    return sim_proposal
+
+                if not self.github_provider:
+                    raise RuntimeError(
+                        f"Cannot create remediation PR for proposal '{proposal.proposal_id}': no GitHub provider or credentials configured."
+                    )
+
+                if proposal.status == RemediationStatus.PR_CREATED and proposal.github_pr_url:
+                    logger.info("Remediation proposal %s PR already created at %s", proposal_id, proposal.github_pr_url)
+                    return proposal
+
+                # Atomic claim to APPLICATION_IN_PROGRESS
+                claimed_proposal = proposal.model_copy(deep=True)
+                claimed_proposal.status = RemediationStatus.APPLICATION_IN_PROGRESS
+                claimed_proposal.approved_by = verified_identity
+                claimed_proposal.is_approved_by_human = is_authenticated
+                claimed_proposal.is_simulated_approval = is_simulated
+                claimed_proposal.approval_mode = "AUTHENTICATED"
+                claimed_proposal.approved_at = datetime.now(timezone.utc)
+
+                allowed_pre_claim = [
+                    RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                    RemediationStatus.POLICY_APPROVED.value,
+                ]
+                claimed = self.store.atomic_transition_status(
+                    proposal_id=proposal.proposal_id,
+                    expected_statuses=allowed_pre_claim,
+                    new_status=RemediationStatus.APPLICATION_IN_PROGRESS.value,
+                    updated_proposal=claimed_proposal,
+                )
+                if not claimed:
+                    fresh = self.store.get_proposal(proposal.proposal_id)
+                    fresh_status = fresh.status.value if fresh else "UNKNOWN"
+                    raise PermissionError(
+                        f"Concurrent state conflict: proposal '{proposal.proposal_id}' status is now '{fresh_status}'."
+                    )
+
+                pr_title = f"fix(gitops): remediate {proposal.workload} - {proposal.action_type.value}"
+                pr_body = (
+                    f"## AIOps Autonomous Remediation Proposal\n\n"
+                    f"- **Proposal ID:** `{proposal.proposal_id}`\n"
+                    f"- **Incident ID:** `{proposal.incident_id}`\n"
+                    f"- **Episode ID:** `{proposal.episode_id}`\n"
+                    f"- **Workload:** `{proposal.workload}` (`{proposal.namespace}`)\n"
+                    f"- **Target Manifest:** `{proposal.target_manifest}`\n"
+                    f"- **Approved By:** `{verified_identity}`\n"
+                    f"- **Approval Mode:** AUTHENTICATED\n"
+                    f"- **Confidence Score:** {proposal.confidence_score * 100:.1f}%\n\n"
+                    f"### Justification\n{proposal.justification}\n\n"
+                    f"### Policy Review\n- **Decision:** {proposal.policy_decision.value}\n- **Reason:** {proposal.policy_reason}\n\n"
+                    f"### Manifest Changes\n```diff\n{rendered.diff.strip()}\n```\n\n"
+                    f"### Review and Merge Instructions\n"
+                    f"1. Review the git diff above to verify it complies with workload limits.\n"
+                    f"2. Merge this Pull Request into `main`.\n"
+                    f"3. GitHub Actions / Argo CD will detect the commit on `main` and synchronize the manifest to EKS.\n"
+                    f"4. Verify pod health in the `{proposal.namespace}` namespace.\n"
+                )
+                commit_msg = (
+                    f"fix(gitops): apply approved {proposal.action_type.value} for {proposal.workload}\n\n"
+                    f"Proposal-ID: {proposal.proposal_id}\n"
+                    f"Incident: {proposal.incident_id}\n"
+                    f"Episode: {proposal.episode_id}\n"
+                    f"Approved-by: {verified_identity}\n"
+                    f"Mode: AUTHENTICATED\n"
+                    f"Action: {rendered.summary}"
+                )
+
+                try:
+                    pr_info = self.github_provider.create_remediation_pr(
+                        proposal_id=proposal.proposal_id,
+                        files=rendered.modified_files,
+                        commit_message=commit_msg,
+                        pr_title=pr_title,
+                        pr_body=pr_body,
+                    )
+                except Exception as pr_err:
+                    try:
+                        revert_proposal = claimed_proposal.model_copy(deep=True)
+                        revert_proposal.status = RemediationStatus.PENDING_HUMAN_APPROVAL
+                        self.store.atomic_transition_status(
+                            proposal_id=proposal.proposal_id,
+                            expected_statuses=[RemediationStatus.APPLICATION_IN_PROGRESS.value],
+                            new_status=RemediationStatus.PENDING_HUMAN_APPROVAL.value,
+                            updated_proposal=revert_proposal,
+                        )
+                    except Exception as rev_err:
+                        logger.error("Failed to release claim on PR failure for %s: %s", proposal.proposal_id, rev_err)
+                    raise RuntimeError(f"GitHub PR creation failed for proposal '{proposal.proposal_id}': {pr_err}") from pr_err
+
+                final_proposal = claimed_proposal.model_copy(deep=True)
+                final_proposal.status = RemediationStatus.PR_CREATED
+                final_proposal.github_branch = pr_info.get("branch")
+                final_proposal.github_pr_number = pr_info.get("pr_number")
+                final_proposal.github_pr_url = pr_info.get("pr_url")
+                final_proposal.applied_commit_sha = pr_info.get("commit_sha")
+
+                finalized = self.store.atomic_transition_status(
+                    proposal_id=proposal.proposal_id,
+                    expected_statuses=[RemediationStatus.APPLICATION_IN_PROGRESS.value],
+                    new_status=RemediationStatus.PR_CREATED.value,
+                    updated_proposal=final_proposal,
+                )
+                if not finalized:
+                    fresh = self.store.get_proposal(proposal.proposal_id)
+                    if fresh and fresh.status == RemediationStatus.PR_CREATED:
+                        return fresh
+                    raise RuntimeError(
+                        f"CRITICAL: PR '{final_proposal.github_pr_url}' was created on GitHub, but atomic status transition "
+                        f"to PR_CREATED failed. Manual reconciliation required."
+                    )
+                logger.info(
+                    "Remediation proposal %s PR created: url=%s, branch=%s, commit=%s",
+                    proposal.proposal_id,
+                    final_proposal.github_pr_url,
+                    final_proposal.github_branch,
+                    final_proposal.applied_commit_sha,
+                )
+                return final_proposal
+
+            elif commit_to_main:
                 if not self.github_provider:
                     raise RuntimeError(
                         f"Cannot commit remediation proposal '{proposal.proposal_id}' to main: no GitHub provider or credentials configured."

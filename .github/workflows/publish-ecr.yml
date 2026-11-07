@@ -125,3 +125,4 @@ jobs:
 
           echo "Successfully published ${{ matrix.service }} to ECR with immutable digest: ${DIGEST}"
           echo "Notice: This workflow ONLY publishes artifacts to ECR. To deploy and create a GitHub deployment status, run the 'Deploy DEV' workflow."
+

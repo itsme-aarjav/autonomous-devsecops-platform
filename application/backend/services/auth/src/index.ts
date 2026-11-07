@@ -3,7 +3,10 @@ import cors from 'cors';
 import helmet from 'helmet';
 import * as dotenv from 'dotenv';
 import { authRoutes } from './routes/auth';
+import { productRoutes } from './routes/products';
+import { orderRoutes } from './routes/orders';
 import { connectDB } from './database/connection';
+import { runCommerceMigration } from './database/commerce';
 import { metricsMiddleware, setupMetrics } from './metrics';
 import { getValidatedJwtSecret } from './config/jwt';
 
@@ -20,6 +23,8 @@ setupMetrics(app, { serviceName: 'auth', serviceVersion: '1.0.0' });
 
 app.use(metricsMiddleware);
 
+app.use('/products', productRoutes);
+app.use('/orders', orderRoutes);
 app.use('', authRoutes);
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -32,8 +37,9 @@ const startServer = async () => {
     // Fail-fast configuration validation: abort startup before listening if invalid
     getValidatedJwtSecret();
     await connectDB();
+    await runCommerceMigration();
     app.listen(PORT, () => {
-      console.log(`Auth service running on port ${PORT}`);
+      console.log(`Boutique core backend service running on port ${PORT}`);
     });
   } catch (error) {
     console.error('Failed to start auth service:', error);

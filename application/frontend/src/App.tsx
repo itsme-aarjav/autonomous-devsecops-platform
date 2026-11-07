@@ -10,6 +10,7 @@ import Home from './pages/Home/Home';
 import Products from './pages/Products/Products';
 import ProductDetail from './pages/ProductDetail/ProductDetail';
 import Cart from './pages/Cart/Cart';
+import Checkout from './pages/Checkout/Checkout';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Profile from './pages/Profile/Profile';
@@ -296,15 +297,9 @@ function App() {
                 <Route
                   path="checkout"
                   element={
-                    <Container maxWidth="sm" sx={{ py: 8, textAlign: 'center' }}>
-                      <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
-                        <strong>Checkout Unavailable</strong><br />
-                        The orders and checkout backend services have been retired as part of the 3-tier architecture rationalization. Order transactions cannot be completed.
-                      </Alert>
-                      <Button variant="contained" href="/cart">
-                        Return to Cart
-                      </Button>
-                    </Container>
+                    <ProtectedRoute>
+                      <Checkout />
+                    </ProtectedRoute>
                   }
                 />
                 <Route path="login" element={<Login />} />

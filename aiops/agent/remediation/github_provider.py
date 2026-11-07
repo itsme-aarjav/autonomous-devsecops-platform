@@ -61,6 +61,60 @@ class BaseGitHubProvider(ABC):
         """Commits multiple modified files to the specified branch. Returns new commit SHA."""
         pass
 
+    def create_branch(self, branch_name: str, base_sha: str) -> str:
+        """Creates a new git branch from base_sha."""
+        return base_sha
+
+    def create_pull_request(
+        self,
+        title: str,
+        head_branch: str,
+        base_branch: str,
+        body: str,
+    ) -> Dict[str, Any]:
+        """Creates a pull request."""
+        return {"number": 1, "html_url": f"https://github.com/pulls/1"}
+
+    def create_remediation_pr(
+        self,
+        proposal_id: str,
+        files: Dict[str, str],
+        commit_message: str,
+        pr_title: str,
+        pr_body: str,
+    ) -> Dict[str, Any]:
+        """
+        Creates a dedicated remediation branch, commits changes to it,
+        and opens a Pull Request against the default branch for human review.
+        """
+        default_branch = self.get_default_branch()
+        base_sha = self.get_branch_head_sha(default_branch)
+        branch_name = f"fix/aiops-proposal-{proposal_id[:8]}"
+
+        if not self.branch_exists(branch_name):
+            self.create_branch(branch_name, base_sha)
+
+        commit_sha = self.commit_files(
+            branch_name=branch_name,
+            files=files,
+            commit_message=commit_message,
+            expected_parent_sha=base_sha,
+        )
+
+        pr_data = self.create_pull_request(
+            title=pr_title,
+            head_branch=branch_name,
+            base_branch=default_branch,
+            body=pr_body,
+        )
+
+        return {
+            "pr_number": pr_data.get("number"),
+            "pr_url": pr_data.get("html_url", ""),
+            "branch": branch_name,
+            "commit_sha": commit_sha,
+        }
+
     def commit_to_main(
         self,
         files: Dict[str, str],
@@ -79,6 +133,30 @@ class BaseGitHubProvider(ABC):
     def get_file_content(self, path: str, ref: Optional[str] = None) -> Optional[str]:
         """Fetches raw text content of a file from GitHub repository at the specified ref. Returns None if unavailable."""
         return None
+
+    def create_branch(self, branch_name: str, base_sha: str) -> str:
+        """Creates a new git branch pointer at base_sha via GitHub Refs API."""
+        resp = self._request("POST", f"/repos/{self.repository}/git/refs", {
+            "ref": f"refs/heads/{branch_name}",
+            "sha": base_sha,
+        })
+        return resp.get("object", {}).get("sha", base_sha)
+
+    def create_pull_request(
+        self,
+        title: str,
+        head_branch: str,
+        base_branch: str,
+        body: str,
+    ) -> Dict[str, Any]:
+        """Creates a Pull Request on GitHub for reviewed human merge."""
+        return self._request("POST", f"/repos/{self.repository}/pulls", {
+            "title": title,
+            "head": head_branch,
+            "base": base_branch,
+            "body": body,
+            "maintainer_can_modify": True,
+        })
 
     def find_commit_for_proposal(
         self,
@@ -208,6 +286,30 @@ class GitHubApiProvider(BaseGitHubProvider):
 
         self._request("PATCH", f"/repos/{self.repository}/git/refs/heads/{branch_name}", {"sha": new_commit_sha, "force": False})
         return new_commit_sha
+
+    def create_branch(self, branch_name: str, base_sha: str) -> str:
+        """Creates a new git branch pointer at base_sha via GitHub Refs API."""
+        resp = self._request("POST", f"/repos/{self.repository}/git/refs", {
+            "ref": f"refs/heads/{branch_name}",
+            "sha": base_sha,
+        })
+        return resp.get("object", {}).get("sha", base_sha)
+
+    def create_pull_request(
+        self,
+        title: str,
+        head_branch: str,
+        base_branch: str,
+        body: str,
+    ) -> Dict[str, Any]:
+        """Creates a Pull Request on GitHub for reviewed human merge."""
+        return self._request("POST", f"/repos/{self.repository}/pulls", {
+            "title": title,
+            "head": head_branch,
+            "base": base_branch,
+            "body": body,
+            "maintainer_can_modify": True,
+        })
 
     def find_commit_for_proposal(
         self,

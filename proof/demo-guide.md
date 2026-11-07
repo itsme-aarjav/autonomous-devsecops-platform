@@ -7,11 +7,12 @@ Welcome to the **Autonomous DevSecOps & Cloud Operations Platform**. This guide 
 ## Quick Verification Checklist
 
 - [x] **Public HTTPS Web UI**: Accessible with valid TLS at [`https://demo.aarjav.site`](https://demo.aarjav.site)
-- [x] **Microservices API Gateway & Auth**: Live JWT authentication backed by PostgreSQL 15.19
+- [x] **E-Commerce Microservices**: Product catalog, real-time inventory management, transactional orders backed by PostgreSQL 15.19
+- [x] **Microservices API Gateway & Auth**: Live JWT authentication and role-based access control
 - [x] **Zero-Trust CI/CD Pipeline**: GitHub Actions with OpenID Connect (OIDC) & zero static AWS keys
 - [x] **GitOps Continuous Delivery**: Argo CD & Argo Rollouts managing canary deployments on EKS ([`https://argocd.demo.aarjav.site`](https://argocd.demo.aarjav.site))
 - [x] **Observability Stack**: Prometheus Operator, Grafana ([`https://grafana.demo.aarjav.site`](https://grafana.demo.aarjav.site)), Node Exporter, kube-state-metrics
-- [x] **Autonomous AIOps Engine**: Event-driven incident triage using SQS FIFO & Amazon Bedrock (Nova Lite)
+- [x] **Autonomous AIOps Engine**: Event-driven incident triage using SQS FIFO, Amazon Bedrock, and Human-in-the-Loop PR Remediation
 
 ---
 
@@ -28,7 +29,79 @@ Welcome to the **Autonomous DevSecOps & Cloud Operations Platform**. This guide 
 
 ---
 
-## Walkthrough Step 2: Full-Stack Authentication & API Flow
+## Walkthrough Step 2: E-Commerce Catalog, Inventory & Transactional Orders
+
+The platform features a complete PostgreSQL 15.19 e-commerce backend with atomic stock deduction, ACID transaction guarantees, and multi-tenant authorization.
+
+### A. Inspect Live Product Catalog
+Query the public catalog via the API gateway:
+```bash
+curl -s https://demo.aarjav.site/api/products | jq .
+```
+**Expected Response**:
+Returns 8 luxury boutique products (e.g., *Cashmere Blend Overcoat*, *Merino Wool Knit Sweater*, *Italian Leather Weekender*) with current real-time inventory counts and image asset paths.
+
+### B. Verify Static Image Assets
+Verify that product image assets load over HTTPS with valid content headers:
+```bash
+curl -I https://demo.aarjav.site/product-images/cashmere-coat.jpg
+```
+**Expected Response**:
+```
+HTTP/2 200
+content-type: image/jpeg
+```
+
+### C. Place an Authenticated Order (Atomic Inventory Deduction)
+Authenticate as the recruiter account, retrieve a JWT Bearer token, and place an order:
+```bash
+RECRUITER_PWD=$(aws secretsmanager get-secret-value --region us-east-2 \
+  --secret-id boutique/dev/recruiter-demo-credential \
+  --query SecretString --output text | jq -r .password)
+
+TOKEN=$(curl -s -X POST https://demo.aarjav.site/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"recruiter@demo.aarjav.site\",\"password\":\"${RECRUITER_PWD}\"}" | jq -r .token)
+
+# Place an order for 1x Cashmere Blend Overcoat (UUID: 10000000-0000-0000-0000-000000000001)
+curl -s -X POST https://demo.aarjav.site/api/orders \
+  -H "Authorization: Bearer ${TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shippingAddress": {
+      "fullName": "Demo Recruiter",
+      "addressLine1": "100 Cloud Operations Way",
+      "city": "Columbus",
+      "state": "OH",
+      "postalCode": "43215",
+      "country": "US"
+    },
+    "items": [
+      { "productId": "10000000-0000-0000-0000-000000000001", "quantity": 1 }
+    ]
+  }' | jq .
+```
+**Expected Response**:
+Order confirmation JSON with order ID, `status: "confirmed"`, calculated subtotal, 8% tax, order total, and order item breakdown.
+
+### D. Verify Inventory Decrement & ACID Protection
+Query product `10000000-0000-0000-0000-000000000001` again. Its `stock` count will have atomically decremented by 1.
+
+Attempting to order more units than available inventory returns an immediate `400 Bad Request`:
+```json
+{"error": "Insufficient inventory for Cashmere Blend Overcoat. Available: X, requested: 999"}
+```
+
+### E. Verify Customer Order Ownership & Authorization
+Query order history for the authenticated recruiter:
+```bash
+curl -s -H "Authorization: Bearer ${TOKEN}" https://demo.aarjav.site/api/orders/my-orders | jq .
+```
+Accessing an order with an unauthorized or unauthenticated token returns `401 Unauthorized` or `403 Forbidden`.
+
+---
+
+## Walkthrough Step 3: Full-Stack Authentication & API Flow
 
 The platform includes a dedicated TypeScript authentication microservice communicating with PostgreSQL and an API Gateway reverse-proxying API traffic.
 
@@ -41,7 +114,7 @@ curl -i https://demo.aarjav.site/api/auth/health
 HTTP/2 200
 content-type: application/json; charset=utf-8
 
-{"status":"auth is healthy","timestamp":"2026-11-07T..."}
+{"status":"auth is healthy","timestamp":"2026-11-08T..."}
 ```
 
 ### B. Authenticate as Recruiter Demo Account
@@ -89,7 +162,7 @@ curl -s -H "Authorization: Bearer ${TOKEN}" https://demo.aarjav.site/api/auth/me
 
 ---
 
-## Walkthrough Step 3: Observability & Telemetry
+## Walkthrough Step 4: Observability & Telemetry
 
 The platform runs a production-grade Prometheus and Grafana stack on Kubernetes, secured behind AWS ACM TLS certificates and form-based authentication.
 
@@ -107,7 +180,7 @@ https://grafana.demo.aarjav.site
 - **Recommended Dashboards**:
   - Navigate to **Dashboards** &rarr; **Kubernetes / Compute Resources / Namespace (Pods)**.
   - Select namespace `boutique` to view CPU, memory, and network throughput across all active microservices.
-- **Evidence Screenshot**: Refer to [`proof/screenshots/02-grafana-login.png`](screenshots/02-grafana-login.png) for the live TLS login prompt.
+- **Evidence Tip**: Capture a screenshot of the live Grafana dashboard and save to `proof/screenshots/04-grafana-dashboard.png`.
 
 ### B. Argo CD GitOps Continuous Delivery
 Navigate to the remote Argo CD interface:
@@ -121,7 +194,7 @@ https://argocd.demo.aarjav.site
     kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
     ```
 - **Live Status**: Inspect the `boutique-dev` application and healthy Argo Rollouts canary controllers.
-- **Evidence Screenshot**: Refer to [`proof/screenshots/03-argocd-login.png`](screenshots/03-argocd-login.png) and [`proof/screenshots/11-argocd-and-rollouts-controllers.png`](screenshots/11-argocd-and-rollouts-controllers.png).
+- **Evidence Tip**: Capture a screenshot of the Argo CD application topology and save to `proof/screenshots/05-argocd-ui.png`.
 
 ### C. Zero-Trust Telemetry Engine (Prometheus & Alertmanager)
 Prometheus and Alertmanager do not feature native user authentication. In compliance with strict zero-trust standards, they are intentionally kept internal on Kubernetes `ClusterIP` to prevent exposing unauthenticated administrative endpoints:
@@ -134,13 +207,12 @@ kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:909
 kubectl port-forward svc/kube-prometheus-stack-alertmanager -n monitoring 9093:9093
 # Open http://localhost:9093 to view routing trees and receivers
 ```
-- **Evidence Screenshot**: Refer to [`proof/screenshots/08-prometheus-targets-and-rules.png`](screenshots/08-prometheus-targets-and-rules.png).
 
 ---
 
-## Walkthrough Step 4: Autonomous AIOps Reasoning Engine
+## Walkthrough Step 5: Autonomous AIOps Reasoning & Human-in-the-Loop PR
 
-The highlight of the platform is an **autonomous, event-driven site reliability agent** that triages alerts and synthesizes root-cause analysis (RCA) using generative AI.
+The platform features an **autonomous, event-driven site reliability agent** that triages alerts, synthesizes root-cause analysis (RCA) using Amazon Bedrock, and opens a reviewed GitHub Pull Request for human operator approval.
 
 ### Architecture Flow:
 1. **Prometheus Alert**: Evaluates metrics against SLO threshold rules (e.g. `PodOOMKilled`, `ContainerRestartCrashLoop`).
@@ -151,22 +223,25 @@ The highlight of the platform is an **autonomous, event-driven site reliability 
    - Scrapes Prometheus instant metrics (memory usage bytes, memory limit, host memory pressure).
 5. **Amazon Bedrock Reasoning (Nova Lite)**:
    - Formulates a structured system prompt containing live diagnostic metrics, workload manifests, and host logs.
-   - Generates an expert Root Cause Analysis (RCA) report with confidence scoring, blast radius analysis, and non-destructive remediation proposals in under 4 seconds.
+   - Generates an expert Root Cause Analysis (RCA) report with confidence scoring, blast radius analysis, and non-destructive remediation proposals.
 6. **Persistence**: Stores the incident episode in DynamoDB (`boutique-aiops-episodes`) and the structured RCA report in DynamoDB (`boutique-aiops-rca-reports`).
+7. **Human-in-the-Loop PR Remediation**:
+   - The operator inspects proposals via `python aiops/operator_cli.py list` or `show <id>`.
+   - On approval, the agent **never modifies main directly**. It creates a dedicated branch (`fix/aiops-proposal-...`) and opens a detailed GitHub Pull Request with rollback instructions and verification steps.
 
 ### Inspecting Verified Incident Records:
-To inspect the actual DynamoDB RCA reports generated during live testing:
+To inspect DynamoDB RCA reports:
 ```bash
 aws dynamodb scan --region us-east-2 \
   --table-name boutique-aiops-rca-reports \
   --query 'Items[?attribute_exists(summary)].{Incident:incident_id.S, Category:category.S, Confidence:confidence_score.N, RootCause:root_cause.S, Recommendations:recommended_actions.L[*].S}' \
   --output table
 ```
-- **Evidence Screenshot**: Refer to [`proof/screenshots/09-aiops-incident-rca.png`](screenshots/09-aiops-incident-rca.png) and [`proof/screenshots/10-aws-architecture-security.png`](screenshots/10-aws-architecture-security.png).
+- **Live Demo Instructions**: Refer to [`proof/manual-aiops-demo.md`](manual-aiops-demo.md) for the operator command sequence.
 
 ---
 
-## Walkthrough Step 5: GitOps & CI/CD Pipeline
+## Walkthrough Step 6: GitOps & CI/CD Pipeline
 
 The platform uses decoupled, single-responsibility GitHub Actions workflows:
 
@@ -184,5 +259,3 @@ The platform uses decoupled, single-responsibility GitHub Actions workflows:
    - Executes live post-deployment HTTP smoke tests against `https://demo.aarjav.site`.
 4. **`promote-prod.yml` (Production Gate - Fails Closed)**:
    - Strictly fails-closed (`exit 1`) with an explicit alert indicating production infrastructure is NOT provisioned. Never reports false green.
-
-- **Evidence Screenshot**: Refer to [`proof/screenshots/05-github-ci-checks.png`](screenshots/05-github-ci-checks.png), [`proof/screenshots/06-eks-cluster-workloads.png`](screenshots/06-eks-cluster-workloads.png), and [`proof/screenshots/07-ecr-image-digests.png`](screenshots/07-ecr-image-digests.png).

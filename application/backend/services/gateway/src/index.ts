@@ -28,6 +28,7 @@ app.use(gatewaySecurityMiddleware);
 
 const services = {
   auth: process.env.AUTH_SERVICE_URL || 'http://localhost:3002',
+  commerce: process.env.COMMERCE_SERVICE_URL || process.env.AUTH_SERVICE_URL || 'http://localhost:3002',
 };
 
 function createSecureProxy(target: string, pathRewrite: Record<string, string>) {
@@ -54,6 +55,8 @@ function createSecureProxy(target: string, pathRewrite: Record<string, string>) 
 }
 
 app.use('/api/auth', createSecureProxy(services.auth, { '^/api/auth': '' }));
+app.use('/api/products', createSecureProxy(services.commerce, { '^/api/products': '/products' }));
+app.use('/api/orders', createSecureProxy(services.commerce, { '^/api/orders': '/orders' }));
 
 app.use((req, res) => {
   res.status(404).json({ error: 'Service not found' });

@@ -82,6 +82,8 @@ class MockGitHubProvider(BaseGitHubProvider):
     def __init__(self, default_branch="main"):
         self.default_branch = default_branch
         self.commits = {}
+        self.branches = {default_branch}
+        self.pull_requests = []
         self.head_sha = "initial-head-sha-00000000000000000000"
         self.fail_commit = False
 
@@ -92,7 +94,24 @@ class MockGitHubProvider(BaseGitHubProvider):
         return self.head_sha
 
     def branch_exists(self, branch: str) -> bool:
-        return branch == self.default_branch
+        return branch in self.branches
+
+    def create_branch(self, branch_name: str, base_sha: str) -> str:
+        self.branches.add(branch_name)
+        return base_sha
+
+    def create_pull_request(self, title: str, head_branch: str, base_branch: str, body: str):
+        pr_number = len(self.pull_requests) + 1
+        pr = {
+            "number": pr_number,
+            "html_url": f"https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/{pr_number}",
+            "title": title,
+            "head": head_branch,
+            "base": base_branch,
+            "body": body,
+        }
+        self.pull_requests.append(pr)
+        return pr
 
     def commit_files(self, branch_name: str, files, commit_message: str, expected_parent_sha: str = None) -> str:
         if self.fail_commit:
@@ -793,6 +812,34 @@ class TestApprovalSafetyIntegration(unittest.TestCase):
             commit_to_main=True,
         )
         self.assertEqual(applied.status, RemediationStatus.APPLIED_TO_MAIN)
+
+    # -----------------------------------------------------------------------
+    # 21. Human Approval Creates Pull Request Workflow
+    # -----------------------------------------------------------------------
+    def test_human_approval_creates_pull_request(self):
+        """Authenticated human approval creates a reviewed Pull Request instead of direct-main commit."""
+        prop = _create_test_proposal("prop-pr-01")
+        self.store.save_proposal(prop)
+
+        result = self.engine.apply_approved_remediation(
+            proposal_id="prop-pr-01",
+            approval_token="token-secret-1234567890abcdef",
+            create_pr=True,
+            commit_to_main=False,
+        )
+
+        self.assertEqual(result.status, RemediationStatus.PR_CREATED)
+        self.assertTrue(result.is_approved_by_human)
+        self.assertEqual(result.approved_by, "arn:aws:iam::592668326948:user/terra-admin")
+        self.assertEqual(result.github_branch, "fix/aiops-proposal-prop-pr-")
+        self.assertEqual(result.github_pr_number, 1)
+        self.assertIn("pull/1", result.github_pr_url)
+        self.assertIsNotNone(result.applied_commit_sha)
+
+        # Confirm proposal persisted in store has PR_CREATED status
+        persisted = self.store.get_proposal("prop-pr-01")
+        self.assertEqual(persisted.status, RemediationStatus.PR_CREATED)
+        self.assertEqual(persisted.github_pr_number, 1)
 
 
 if __name__ == "__main__":

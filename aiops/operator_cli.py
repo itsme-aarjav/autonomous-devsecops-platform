@@ -387,14 +387,20 @@ def cmd_approve(args, store):
 
     if is_simulation:
         should_commit = False
+        should_pr = True
         operator_id = getattr(args, "operator", None) or os.getenv("AIOPS_OPERATOR_ID", "simulation-operator")
         approval_token = None
         authenticator = None
         github_provider = None
         print(f"[NOTICE] Running in SIMULATION mode with operator '{operator_id}'.")
     else:
-        # In real mode, approval always commits to main via CAS
-        should_commit = True
+        # In real mode, approval proceeds via reviewed GitHub Pull Request (NEVER unreviewed direct main mutation)
+        if explicit_commit:
+            should_commit = True
+            should_pr = False
+        else:
+            should_commit = False
+            should_pr = True
         operator_id = None
         authenticator = _resolve_authenticator(is_simulation=False)
         approval_token = _resolve_approval_token(authenticator)
@@ -419,9 +425,25 @@ def cmd_approve(args, store):
         approval_token=approval_token,
         is_simulation=is_simulation,
         commit_to_main=should_commit,
+        create_pr=should_pr,
         write_to_working_tree=False,
     )
-    if result.status == RemediationStatus.APPLIED_TO_MAIN:
+    if result.status == RemediationStatus.PR_CREATED:
+        print(f"[SUCCESS] Remediation Pull Request created successfully for human review!")
+        print(f"          Approved by : {result.approved_by}")
+        print(f"          Mode        : {result.approval_mode}")
+        if result.approved_at:
+            print(f"          Timestamp   : {result.approved_at.strftime('%Y-%m-%d %H:%M:%SZ')}")
+        print(f"          Branch      : {result.github_branch}")
+        print(f"          PR Number   : #{result.github_pr_number}")
+        print(f"          PR URL      : {result.github_pr_url}")
+        if result.applied_commit_sha:
+            print(f"          Commit SHA  : {result.applied_commit_sha}")
+        print(f"\n[NEXT STEPS FOR OPERATOR]")
+        print(f"  1. Review the Pull Request at: {result.github_pr_url}")
+        print(f"  2. Inspect the diff and merge into 'main' to trigger Argo CD / GitOps rollout.")
+        print(f"  3. Verify the deployment in EKS namespace '{result.namespace}'.")
+    elif result.status == RemediationStatus.APPLIED_TO_MAIN:
         print(f"[SUCCESS] Proposal applied directly to main.")
         print(f"          Approved by : {result.approved_by}")
         print(f"          Mode        : {result.approval_mode}")
@@ -617,7 +639,7 @@ Environment variables (required, never CLI args):
     p_show.add_argument("proposal_id", help="Proposal ID (or prefix)")
     p_show.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline fixtures only)")
 
-    p_approve = sub.add_parser("approve", help="Approve and apply a proposal to main")
+    p_approve = sub.add_parser("approve", help="Approve and create a remediation Pull Request for human review")
     p_approve.add_argument("proposal_id", help="Proposal ID")
     p_approve.add_argument("--commit", action="store_true", default=False, help="Commit directly to GitHub main via API (CAS protected)")
     p_approve.add_argument("--simulate", action="store_true", default=False, help="Run in simulation mode (offline/testing only)")

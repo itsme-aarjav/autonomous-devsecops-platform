@@ -88,6 +88,19 @@ jobs:
           done
           echo "All 4 microservice container digests verified in ECR."
 
+      - name: Verify Kubernetes Workload Rollouts and Pod Health
+        run: |
+          echo "Configuring kubectl for EKS cluster boutique-dev-eks..."
+          aws eks update-kubeconfig --region us-east-2 --name boutique-dev-eks || true
+          if kubectl get nodes >/dev/null 2>&1; then
+            echo "Verifying workload rollouts in namespace 'boutique'..."
+            kubectl rollout status deployment/auth -n boutique --timeout=90s
+            kubectl rollout status deployment/gateway -n boutique --timeout=90s
+            kubectl get pods -n boutique -o wide
+          else
+            echo "Direct Kubernetes API access not permitted from runner IP; relying on GitOps reconciliation and authoritative smoke tests."
+          fi
+
       - name: Execute Live DEV Application Smoke Tests
         id: smoke_tests
         run: |
@@ -110,7 +123,24 @@ jobs:
             exit 1
           fi
 
-          # Smoke Test 3: HTTP to HTTPS 301 Redirect Check
+          # Smoke Test 3: Products Catalog API
+          PRODUCTS_JSON=$(curl -s --max-time 15 https://demo.aarjav.site/api/products)
+          PROD_COUNT=$(echo "$PRODUCTS_JSON" | jq -r '.data.total // .data.products | length' 2>/dev/null || echo "0")
+          echo "Products Catalog Count: ${PROD_COUNT}"
+          if [ "$PROD_COUNT" -lt 8 ]; then
+            echo "Error: Expected at least 8 seeded products, got: ${PROD_COUNT}" >&2
+            exit 1
+          fi
+
+          # Smoke Test 4: Product Asset Loading
+          IMG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://demo.aarjav.site/product-images/cashmere-coat.jpg)
+          echo "Product Image HTTP Status: ${IMG_STATUS}"
+          if [ "$IMG_STATUS" != "200" ]; then
+            echo "Error: Expected 200 for product image, got ${IMG_STATUS}" >&2
+            exit 1
+          fi
+
+          # Smoke Test 5: HTTP to HTTPS 301 Redirect Check
           REDIRECT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 http://demo.aarjav.site)
           echo "HTTP Redirect Status: ${REDIRECT_STATUS}"
           if [ "$REDIRECT_STATUS" != "301" ]; then

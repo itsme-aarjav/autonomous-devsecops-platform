@@ -101,7 +101,25 @@ export const productService = {
   getByCategory: async (category: string): Promise<Product[]> => {
     try {
       const response = await apiClient.get(`/products?category=${category}`);
-      return response.data;
+      const apiResponse = response.data;
+      const list = apiResponse.data?.products || (Array.isArray(apiResponse) ? apiResponse : []);
+      return list.map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: parseFloat(product.price),
+        originalPrice: product.compare_price ? parseFloat(product.compare_price) : undefined,
+        imageUrl: getImageUrl(product),
+        category: product.category,
+        brand: product.brand,
+        inventory: product.inventory_quantity || product.inventory || 0,
+        rating: product.rating,
+        reviewCount: product.reviewCount || 25,
+        isNew: product.is_featured,
+        discountPercentage: product.discountPercentage,
+        createdAt: product.created_at,
+        updatedAt: product.updated_at,
+      }));
     } catch (error) {
       return [];
     }
@@ -110,7 +128,25 @@ export const productService = {
   search: async (query: string): Promise<Product[]> => {
     try {
       const response = await apiClient.get(`/products/search?q=${query}`);
-      return response.data;
+      const apiResponse = response.data;
+      const list = apiResponse.data?.products || (Array.isArray(apiResponse) ? apiResponse : []);
+      return list.map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: parseFloat(product.price),
+        originalPrice: product.compare_price ? parseFloat(product.compare_price) : undefined,
+        imageUrl: getImageUrl(product),
+        category: product.category,
+        brand: product.brand,
+        inventory: product.inventory_quantity || product.inventory || 0,
+        rating: product.rating,
+        reviewCount: product.reviewCount || 25,
+        isNew: product.is_featured,
+        discountPercentage: product.discountPercentage,
+        createdAt: product.created_at,
+        updatedAt: product.updated_at,
+      }));
     } catch (error) {
       return [];
     }
