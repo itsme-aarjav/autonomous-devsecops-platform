@@ -49,7 +49,7 @@ resource "helm_release" "argocd" {
   namespace  = kubernetes_namespace_v1.argocd.metadata[0].name
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-cd"
-  version    = "6.7.0"
+  version    = "10.11.6"
 
   create_namespace = false
   cleanup_on_fail  = true
@@ -70,10 +70,16 @@ resource "helm_release" "argocd" {
             effect   = "NoSchedule"
           }
         ]
+        networkPolicy = {
+          create = true
+        }
       }
       server = {
         service = {
           type = "ClusterIP"
+        }
+        ingress = {
+          enabled = false
         }
         resources = {
           requests = {
@@ -111,6 +117,42 @@ resource "helm_release" "argocd" {
         }
       }
       redis = {
+        resources = {
+          requests = {
+            cpu    = "50m"
+            memory = "64Mi"
+          }
+          limits = {
+            cpu    = "100m"
+            memory = "128Mi"
+          }
+        }
+      }
+      dex = {
+        resources = {
+          requests = {
+            cpu    = "50m"
+            memory = "64Mi"
+          }
+          limits = {
+            cpu    = "100m"
+            memory = "128Mi"
+          }
+        }
+      }
+      applicationSet = {
+        resources = {
+          requests = {
+            cpu    = "50m"
+            memory = "64Mi"
+          }
+          limits = {
+            cpu    = "100m"
+            memory = "128Mi"
+          }
+        }
+      }
+      notifications = {
         resources = {
           requests = {
             cpu    = "50m"
