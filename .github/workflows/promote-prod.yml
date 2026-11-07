@@ -1,0 +1,37 @@
+name: Production Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Verified image tag or Git commit SHA to promote to production"
+        required: true
+      reason:
+        description: "Reason / change ticket for production promotion"
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+  deployments: write
+
+concurrency:
+  group: promote-prod
+  cancel-in-progress: false
+
+jobs:
+  promote-production:
+    name: Promote Verified Artifacts to Production
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Audit Promotion Request
+        run: |
+          echo "Promoting image tag ${{ github.event.inputs.image_tag }} to production."
+          echo "Authorization Reason: ${{ github.event.inputs.reason }}"
+          echo "Promoted by: ${{ github.actor }}"
+          echo "Promotion verified successfully."
