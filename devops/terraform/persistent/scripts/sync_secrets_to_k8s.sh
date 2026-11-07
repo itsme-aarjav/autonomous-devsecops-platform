@@ -43,6 +43,8 @@ DB_SECRET_NAME="boutique/database/credentials"
 WEBHOOK_SECRET_NAME="boutique/aiops/webhook-token"
 GITHUB_SECRET_NAME="boutique/aiops/github-token"
 
+AUTHORIZED="${AUTHORIZE_SECRET_SYNC:-false}"
+
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
@@ -53,6 +55,7 @@ Options:
   -n, --namespace <ns>              Target boutique namespace (default: ${DEFAULT_NAMESPACE})
   -m, --monitoring-namespace <ns>   Target monitoring namespace (default: ${DEFAULT_MONITORING_NAMESPACE})
   -r, --region <region>             AWS region (default: ${DEFAULT_REGION})
+  -a, --authorized                  Explicit human authorization to read Secrets Manager
   -h, --help                        Show this help message
 EOF
   exit 0
@@ -72,6 +75,10 @@ while [[ $# -gt 0 ]]; do
       REGION="$2"
       shift 2
       ;;
+    -a|--authorized)
+      AUTHORIZED="true"
+      shift
+      ;;
     -h|--help)
       usage
       ;;
@@ -82,10 +89,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$AUTHORIZED" != "true" ]]; then
+  echo "[ERROR] Explicit human authorization required to synchronize secrets from AWS Secrets Manager." >&2
+  echo "        Pass --authorized or set AUTHORIZE_SECRET_SYNC=true to proceed under Stage 3B.3 approval." >&2
+  exit 1
+fi
+
 # ------------------------------------------------------------------------------
 # 1. Prerequisite Validation
 # ------------------------------------------------------------------------------
-for tool in aws jq kubectl; do
+for tool in aws jq kubectl python3; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "[ERROR] Required prerequisite '$tool' is not installed or not in PATH." >&2
     exit 1
@@ -295,15 +308,21 @@ if [[ "${#VAL_DB_PASS}" -lt "$MIN_SECRET_LENGTH" ]]; then
   exit 1
 fi
 
-# Formulate standard in-cluster connection string for the boutique database
-VAL_DB_URL="postgresql://${VAL_DB_USER}:${VAL_DB_PASS}@postgres.${NAMESPACE}.svc.cluster.local:5432/auth_db"
-
 FILE_DB_PASS="${TMP_DIR}/POSTGRES_PASSWORD"
-FILE_DB_URL="${TMP_DIR}/AUTH_DB_URL"
 printf "%s" "$VAL_DB_PASS" > "$FILE_DB_PASS"
+chmod 600 "$FILE_DB_PASS"
+
+# URL-encode credentials safely via stdin to prevent secret exposure in process tables (/proc)
+ENCODED_USER=$(printf "%s" "$VAL_DB_USER" | python3 -c "import urllib.parse, sys; sys.stdout.write(urllib.parse.quote_plus(sys.stdin.read()))")
+ENCODED_PASS=$(python3 -c "import urllib.parse, sys; sys.stdout.write(urllib.parse.quote_plus(sys.stdin.read()))" < "$FILE_DB_PASS")
+
+# Formulate standard in-cluster connection string referencing actual boutique-postgres Service
+VAL_DB_URL="postgresql://${ENCODED_USER}:${ENCODED_PASS}@boutique-postgres.${NAMESPACE}.svc.cluster.local:5432/auth_db"
+
+FILE_DB_URL="${TMP_DIR}/AUTH_DB_URL"
 printf "%s" "$VAL_DB_URL" > "$FILE_DB_URL"
-chmod 600 "$FILE_DB_PASS" "$FILE_DB_URL"
-unset VAL_DB_PASS VAL_DB_URL VAL_DB_USER
+chmod 600 "$FILE_DB_URL"
+unset VAL_DB_PASS VAL_DB_URL VAL_DB_USER ENCODED_USER ENCODED_PASS
 
 kubectl create secret generic boutique-secrets \
   --namespace "$NAMESPACE" \
@@ -319,7 +338,8 @@ echo "    [OK] Synchronized Kubernetes Secret 'boutique-secrets' (keys: POSTGRES
 echo "==> Fetching '${WEBHOOK_SECRET_NAME}' from AWS Secrets Manager..."
 RAW_WEBHOOK=$(fetch_secret_payload "$WEBHOOK_SECRET_NAME")
 if [[ -z "$RAW_WEBHOOK" || "$RAW_WEBHOOK" == "None" ]]; then
-  echo "[ERROR] Failed to retrieve '${WEBHOOK_SECRET_NAME}' or payload is empty." >&2
+  echo "[ERROR] Failed to retrieve '${WEBHOOK_SECRET_NAME}' or Secrets Manager container is unseeded (no version exists)." >&2
+  echo "        Please seed the webhook token in Secrets Manager before synchronizing to Kubernetes." >&2
   exit 1
 fi
 

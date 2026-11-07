@@ -29,5 +29,9 @@ module "argocd" {
   region            = var.region
   vpc_id            = data.terraform_remote_state.dev.outputs.vpc_id
   oidc_provider_arn = data.terraform_remote_state.dev.outputs.oidc_provider_arn
+
+  enable_argocd        = var.enable_argocd
+  enable_monitoring    = var.enable_monitoring
+  enable_argo_rollouts = var.enable_argo_rollouts
 }
 

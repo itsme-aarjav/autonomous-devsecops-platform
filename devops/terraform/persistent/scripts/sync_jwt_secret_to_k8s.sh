@@ -20,6 +20,9 @@ MIN_SECRET_LENGTH=32
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$DEFAULT_REGION}}"
 SECRET_NAME="$DEFAULT_SECRET_NAME"
 NAMESPACE="$DEFAULT_NAMESPACE"
+AUTHORIZED="${AUTHORIZE_SECRET_SYNC:-false}"
+EXPECTED_ACCOUNT="592668326948"
+EXPECTED_REGION="us-east-2"
 
 usage() {
   cat <<EOF
@@ -31,6 +34,7 @@ Options:
   -n, --namespace <ns>    Target Kubernetes namespace (default: ${DEFAULT_NAMESPACE})
   -s, --secret-name <name> AWS Secrets Manager secret name (default: ${DEFAULT_SECRET_NAME})
   -r, --region <region>   AWS region (default: ${DEFAULT_REGION})
+  -a, --authorized        Explicit human authorization to read Secrets Manager
   -h, --help              Show this help message
 EOF
   exit 0
@@ -50,6 +54,10 @@ while [[ $# -gt 0 ]]; do
       REGION="$2"
       shift 2
       ;;
+    -a|--authorized)
+      AUTHORIZED="true"
+      shift
+      ;;
     -h|--help)
       usage
       ;;
@@ -60,8 +68,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ "$AUTHORIZED" != "true" ]]; then
+  echo "[ERROR] Explicit human authorization required to synchronize secrets from AWS Secrets Manager." >&2
+  echo "        Pass --authorized or set AUTHORIZE_SECRET_SYNC=true to proceed under Stage 3B.3 approval." >&2
+  exit 1
+fi
+
 # ------------------------------------------------------------------------------
-# 1. Prerequisite Validation
+# 1. Prerequisite Validation & Pre-flight Identity Check
 # ------------------------------------------------------------------------------
 for tool in aws jq kubectl; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -69,6 +83,17 @@ for tool in aws jq kubectl; do
     exit 1
   fi
 done
+
+ACTUAL_ACCOUNT=$(aws sts get-caller-identity --query Account --output text 2>/dev/null || echo "")
+if [[ "$ACTUAL_ACCOUNT" != "$EXPECTED_ACCOUNT" ]]; then
+  echo "[ERROR] AWS account mismatch. Expected: ${EXPECTED_ACCOUNT}, Got: '${ACTUAL_ACCOUNT}'. Aborting." >&2
+  exit 1
+fi
+
+if [[ "$REGION" != "$EXPECTED_REGION" ]]; then
+  echo "[ERROR] Region mismatch. Expected: ${EXPECTED_REGION}, Got: '${REGION}'. Aborting." >&2
+  exit 1
+fi
 
 # ------------------------------------------------------------------------------
 # 2. Retrieve Secret from AWS Secrets Manager

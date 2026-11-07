@@ -28,13 +28,23 @@ resource "kubernetes_namespace_v1" "monitoring" {
   }
 }
 
+resource "kubernetes_namespace_v1" "boutique" {
+  metadata {
+    name = "boutique"
+    labels = {
+      "app.kubernetes.io/part-of" = "boutique"
+    }
+  }
+}
+
 # NOTE: AWS Load Balancer Controller Helm release and ServiceAccount are REMOVED.
 # EKS Auto Mode manages Application Load Balancer lifecycle natively via
 # kubernetes_network_config.elastic_load_balancing.enabled = true and
 # eks.amazonaws.com/alb IngressClass.
 
-# ArgoCD Helm Release
+# ArgoCD Helm Release (Stage 3B.2)
 resource "helm_release" "argocd" {
+  count      = var.enable_argocd ? 1 : 0
   name       = "argocd"
   namespace  = kubernetes_namespace_v1.argocd.metadata[0].name
   repository = "https://argoproj.github.io/argo-helm"
@@ -118,8 +128,9 @@ resource "helm_release" "argocd" {
   depends_on = [kubernetes_namespace_v1.argocd]
 }
 
-# Kube-Prometheus-Stack Monitoring Release
+# Kube-Prometheus-Stack Monitoring Release (Stage 3B.4)
 resource "helm_release" "monitoring" {
+  count      = var.enable_monitoring ? 1 : 0
   name       = "kube-prometheus-stack"
   namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
   repository = "https://prometheus-community.github.io/helm-charts"
@@ -348,7 +359,7 @@ resource "helm_release" "monitoring" {
 }
 
 # ------------------------------------------------------------------------------
-# Argo Rollouts Controller & CRDs Release
+# Argo Rollouts Controller & CRDs Release (Stage 3B.4)
 # ------------------------------------------------------------------------------
 resource "kubernetes_namespace_v1" "argo_rollouts" {
   metadata {
@@ -360,6 +371,7 @@ resource "kubernetes_namespace_v1" "argo_rollouts" {
 }
 
 resource "helm_release" "argo_rollouts" {
+  count      = var.enable_argo_rollouts ? 1 : 0
   name       = "argo-rollouts"
   namespace  = kubernetes_namespace_v1.argo_rollouts.metadata[0].name
   repository = "https://argoproj.github.io/argo-helm"
