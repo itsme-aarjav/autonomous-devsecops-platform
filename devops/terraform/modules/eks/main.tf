@@ -154,24 +154,9 @@ resource "aws_ec2_tag" "cluster_sg_karpenter_discovery" {
   value       = var.cluster_name
 }
 
-# Register Auto Mode node IAM role with cluster access
-resource "aws_eks_access_entry" "node_access_entry" {
-  cluster_name  = aws_eks_cluster.eks.name
-  principal_arn = aws_iam_role.eks_node_role.arn
-  type          = "EC2"
-}
-
-resource "aws_eks_access_policy_association" "node_access_policy" {
-  cluster_name  = aws_eks_cluster.eks.name
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAutoNodePolicy"
-  principal_arn = aws_iam_role.eks_node_role.arn
-
-  access_scope {
-    type = "cluster"
-  }
-
-  depends_on = [aws_eks_access_entry.node_access_entry]
-}
+# EKS Auto Mode natively owns and automatically provisions the node role's access entry
+# (type: EC2) and its associated AmazonEKSAutoNodePolicy at cluster creation via compute_config.
+# No explicit aws_eks_access_entry or aws_eks_access_policy_association is required.
 
 # IAM OIDC provider for IRSA and workload identity
 data "tls_certificate" "eks" {
