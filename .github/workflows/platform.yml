@@ -1,0 +1,613 @@
+name: Platform Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Operation to run"
+        required: false
+        default: pipeline
+        type: choice
+        options:
+          - pipeline
+          - verify
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  validate-terraform:
+    name: Terraform Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.10.0
+
+      - name: Validate Terraform Formatting
+        run: terraform fmt -recursive -check devops/terraform
+
+  validate-ansible:
+    name: Ansible Syntax Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: '3.11'
+
+      - name: Install Ansible Core
+        run: pip install --no-cache-dir ansible-core==2.17.5
+
+      - name: Syntax Check Playbooks
+        run: ansible-playbook -i devops/ansible/inventory.ini devops/ansible/playbooks/*.yml --syntax-check
+
+  validate-kustomize:
+    name: Kustomize Manifest Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build and Validate GitOps Manifests
+        run: |
+          kubectl kustomize devops/gitops/ > /dev/null
+          kubectl kustomize devops/gitops/overlays/dev/ > /dev/null
+
+  validate-shell:
+    name: Shell Script Syntax Validation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate Shell Script Syntax
+        run: |
+          find . -name "*.sh" -not -path "*/node_modules/*" -exec bash -n {} +
+
+  validate-aiops:
+    name: AIOps Unit & Security Regression Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install --no-cache-dir pydantic==2.10.3 pyyaml==6.0.2 requests==2.32.3 boto3==1.35.71
+
+      - name: Run AIOps Unit & Security Tests
+        run: python3 -m unittest discover -s aiops/tests -p "test_*.py" -v
+
+  scan-trivy-fs:
+    name: Trivy Filesystem Scan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Run Trivy Vulnerability Scanner (FS)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+  block-production:
+    name: Production Not Provisioned (Fail Closed)
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'production'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Block Production Deployment
+        run: |
+          echo "Production infrastructure is not provisioned. No production deployment is allowed." >&2
+          exit 1
+
+  build-scan-publish-containers:
+    name: Build, Scan & Publish (${{ matrix.service }})
+    if: github.event_name != 'workflow_dispatch' || inputs.operation != 'production'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: boutique-auth
+            build_dir: application/backend/services/auth
+          - service: boutique-gateway
+            build_dir: application/backend/services/gateway
+          - service: boutique-frontend
+            build_dir: application/frontend
+          - service: boutique-aiops-assistant
+            build_dir: aiops
+            dockerfile: aiops/Dockerfile.agent
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build Container Image
+        run: |
+          if [ -n "${{ matrix.dockerfile }}" ]; then
+            docker build -f "${{ matrix.dockerfile }}" -t "${{ matrix.service }}:${{ github.sha }}" "${{ matrix.build_dir }}"
+          else
+            docker build -t "${{ matrix.service }}:${{ github.sha }}" "${{ matrix.build_dir }}"
+          fi
+
+      - name: Verify Non-Root User Execution for Frontend
+        if: matrix.service == 'boutique-frontend'
+        run: |
+          CONTAINER_UID=$(docker run --rm "${{ matrix.service }}:${{ github.sha }}" id -u)
+          echo "Boutique Frontend Container UID: ${CONTAINER_UID}"
+          if [ "${CONTAINER_UID}" != "10001" ]; then
+            echo "Error: Frontend container must run as dedicated non-root UID 10001 (found ${CONTAINER_UID})"
+            exit 1
+          fi
+
+      - name: Scan Microservice Container with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'image'
+          image-ref: '${{ matrix.service }}:${{ github.sha }}'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+      - name: Configure AWS Credentials via GitHub OIDC
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'pipeline')
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-2
+          audience: sts.amazonaws.com
+
+      - name: Login to Amazon ECR
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'pipeline')
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+
+      - name: Publish Verified Image to ECR & Resolve Digest
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'pipeline')
+        run: |
+          REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          TAGGED_IMAGE="${REGISTRY}/${{ matrix.service }}:${{ github.sha }}"
+          TAGGED_DEV="${REGISTRY}/${{ matrix.service }}:dev-latest"
+          docker tag "${{ matrix.service }}:${{ github.sha }}" "${TAGGED_IMAGE}"
+          docker tag "${{ matrix.service }}:${{ github.sha }}" "${TAGGED_DEV}"
+          echo "Pushing immutable image: ${TAGGED_IMAGE}..."
+          docker push "${TAGGED_IMAGE}"
+          docker push "${TAGGED_DEV}"
+
+          DIGEST=$(aws ecr describe-images \
+            --repository-name "${{ matrix.service }}" \
+            --image-ids imageTag="${{ github.sha }}" \
+            --region us-east-2 \
+            --query "imageDetails[0].imageDigest" \
+            --output text)
+
+          if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+            echo "Error: Failed to resolve ECR image digest for ${{ matrix.service }}" >&2
+            exit 1
+          fi
+
+          echo "Successfully published ${{ matrix.service }} to ECR with immutable digest: ${DIGEST}"
+
+  deploy-dev:
+    name: Deploy to DEV (GitOps & EKS)
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.operation != 'production')
+    needs:
+      - validate-terraform
+      - validate-ansible
+      - validate-kustomize
+      - validate-shell
+      - validate-aiops
+      - scan-trivy-fs
+      - build-scan-publish-containers
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      deployments: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Deployment Record
+        id: create_deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DESC="Automated DEV GitOps deployment for release ${{ github.sha }}"
+          DEPLOYMENT_PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg desc "$DESC" \
+            '{ref: $ref, environment: "development", description: $desc, transient_environment: false, production_environment: false, auto_merge: false, required_contexts: []}')
+
+          DEPLOYMENT_JSON=$(echo "$DEPLOYMENT_PAYLOAD" | gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/deployments \
+            --input -)
+
+          DEPLOYMENT_ID=$(echo "$DEPLOYMENT_JSON" | jq -r .id)
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "Created GitHub Deployment ID: $DEPLOYMENT_ID"
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+            -f state="in_progress" \
+            -f environment="development" \
+            -f environment_url="https://demo.aarjav.site" \
+            -f description="Reconciling GitOps overlay manifests and verifying cluster parity for ${{ github.sha }}..."
+
+      - name: Configure AWS Credentials via GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-2
+          audience: sts.amazonaws.com
+
+      - name: Resolve Immutable Container Image Digests in ECR
+        id: resolve_ecr
+        run: |
+          TARGET_TAG="${{ (github.event_name == 'workflow_dispatch' && inputs.operation == 'verify') && 'dev-latest' || github.sha }}"
+          ACCOUNT_ID="592668326948"
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
+          echo "Resolving ECR digests for target image tag: ${TARGET_TAG}"
+
+          declare -A SERVICE_REPOS=(
+            ["boutique-frontend"]="boutique-frontend"
+            ["boutique-gateway"]="boutique-gateway"
+            ["boutique-auth"]="boutique-auth"
+            ["boutique-aiops-assistant"]="boutique-aiops-assistant"
+          )
+
+          mkdir -p /tmp/release_digests
+          for svc in "${!SERVICE_REPOS[@]}"; do
+            repo="${SERVICE_REPOS[$svc]}"
+            DIGEST=$(aws ecr describe-images \
+              --repository-name "${repo}" \
+              --image-ids imageTag="${TARGET_TAG}" \
+              --region us-east-2 \
+              --query "imageDetails[0].imageDigest" \
+              --output text 2>/dev/null || echo "None")
+
+            if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+              echo "Error: Repository ${repo} is missing required image tag '${TARGET_TAG}' in ECR!" >&2
+              exit 1
+            fi
+            var_name="${svc//-/_}"
+            echo "${var_name}=${DIGEST}" >> /tmp/release_digests/digests.env
+            echo "  ✓ ${svc}: ${DIGEST}"
+          done
+          echo "All 4 microservice container digests resolved in ECR."
+
+      - name: Reconcile GitOps Overlay Manifests
+        id: reconcile_gitops
+        run: |
+          source /tmp/release_digests/digests.env
+          ACCOUNT_ID="592668326948"
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
+
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'verify' }}" = "true" ]; then
+            echo "Verify-only mode requested: skipping GitOps overlay modification."
+            echo "expected_revision=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Updating GitOps dev overlay manifests with target ECR digests..."
+          python3 devops/scripts/update_gitops_image.py \
+            --manifest devops/gitops/overlays/dev/frontend.yml \
+            --service boutique-frontend \
+            --image-uri "${REGISTRY}/boutique-frontend@${boutique_frontend}"
+
+          python3 devops/scripts/update_gitops_image.py \
+            --manifest devops/gitops/overlays/dev/gateway.yml \
+            --service boutique-gateway \
+            --image-uri "${REGISTRY}/boutique-gateway@${boutique_gateway}"
+
+          python3 devops/scripts/update_gitops_image.py \
+            --manifest devops/gitops/overlays/dev/auth.yml \
+            --service boutique-auth \
+            --image-uri "${REGISTRY}/boutique-auth@${boutique_auth}"
+
+          python3 devops/scripts/update_gitops_image.py \
+            --manifest devops/gitops/overlays/dev/aiops.yml \
+            --service boutique-aiops-assistant \
+            --image-uri "${REGISTRY}/boutique-aiops-assistant@${boutique_aiops_assistant}"
+
+          echo "Validating updated GitOps overlay with Kustomize..."
+          kubectl kustomize devops/gitops/overlays/dev/ > /dev/null
+
+          if git status --porcelain devops/gitops/overlays/dev | grep -q "devops/gitops/overlays/dev"; then
+            echo "Changes detected in dev overlay manifests. Committing to main [skip ci]..."
+            git checkout main || git checkout -B main origin/main
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add devops/gitops/overlays/dev/
+            git commit -m "chore(gitops): reconcile dev overlays for ${{ github.sha }} [skip ci]"
+            git pull --rebase origin main || true
+            git push origin main
+            EXP_REV=$(git rev-parse HEAD)
+            echo "Pushed updated GitOps manifests. New HEAD revision: ${EXP_REV}"
+            echo "expected_revision=${EXP_REV}" >> "$GITHUB_OUTPUT"
+          else
+            echo "GitOps overlay manifests already pinned to target digests."
+            echo "expected_revision=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify GitOps Parity, Argo CD & EKS Workloads (Strict Fail-Closed)
+        run: |
+          source /tmp/release_digests/digests.env
+          EXPECTED_REVISION="${{ steps.reconcile_gitops.outputs.expected_revision }}"
+          echo "Configuring kubectl for EKS cluster boutique-dev-eks..."
+          aws eks update-kubeconfig --region us-east-2 --name boutique-dev-eks
+
+          echo "Verifying EKS cluster connectivity..."
+          kubectl get nodes -o wide
+
+          echo "================================================================================"
+          echo "VERIFYING GITOPS OVERLAY MANIFEST PARITY"
+          echo "================================================================================"
+          check_gitops_parity() {
+            local svc="$1"
+            local manifest="$2"
+            local expected_digest="$3"
+            local pinned_digest
+            pinned_digest=$(grep -oE "sha256:[a-f0-9]{64}" "$manifest" | head -1 || echo "missing")
+
+            echo "  Checking GitOps overlay: ${svc} (${manifest})"
+            echo "    Target ECR Digest   : ${expected_digest}"
+            echo "    Pinned GitOps Digest: ${pinned_digest}"
+
+            if [ "$pinned_digest" != "$expected_digest" ]; then
+              echo "Error: Release parity mismatch for ${svc}! Overlay manifest '${manifest}' has '${pinned_digest}', but expected '${expected_digest}'." >&2
+              exit 1
+            fi
+            echo "    ✓ GitOps manifest matches target release digest."
+          }
+
+          check_gitops_parity "boutique-frontend" "devops/gitops/overlays/dev/frontend.yml" "$boutique_frontend"
+          check_gitops_parity "boutique-gateway" "devops/gitops/overlays/dev/gateway.yml" "$boutique_gateway"
+          check_gitops_parity "boutique-auth" "devops/gitops/overlays/dev/auth.yml" "$boutique_auth"
+          check_gitops_parity "boutique-aiops-assistant" "devops/gitops/overlays/dev/aiops.yml" "$boutique_aiops_assistant"
+
+          echo "================================================================================"
+          echo "VERIFYING ARGO CD SYNCHRONIZATION (Expected Revision: ${EXPECTED_REVISION})"
+          echo "================================================================================"
+          MAX_WAIT=180
+          ELAPSED=0
+
+          # Trigger Argo CD refresh to evaluate current commit immediately
+          kubectl annotate application boutique -n argocd argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
+
+          while true; do
+            SYNC_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
+            HEALTH_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
+            SYNCED_REVISION=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.revision}' 2>/dev/null || echo "Unknown")
+            echo "  Argo CD status (elapsed ${ELAPSED}s): Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, Revision=${SYNCED_REVISION} (Expected=${EXPECTED_REVISION})"
+
+            if [ "${SYNC_STATUS}" = "Synced" ] && [ "${HEALTH_STATUS}" = "Healthy" ] && [ "${SYNCED_REVISION}" = "${EXPECTED_REVISION}" ]; then
+              echo "  ✓ Argo CD boutique application is Synced and Healthy at exact expected revision ${SYNCED_REVISION}."
+              break
+            fi
+
+            if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
+              echo "Error: Argo CD failed to achieve Synced & Healthy state at revision ${EXPECTED_REVISION} within ${MAX_WAIT}s!" >&2
+              exit 1
+            fi
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+
+          echo "================================================================================"
+          echo "VERIFYING ARGO ROLLOUT & DEPLOYMENT COMPLETION"
+          echo "================================================================================"
+          RO_WAIT=180
+          RO_ELAPSED=0
+          while true; do
+            ro_desired=$(kubectl get rollout frontend -n boutique -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+            ro_current=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
+            ro_ready=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+            ro_phase=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+            ro_completed=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.conditions[?(@.type=="Completed")].status}' 2>/dev/null || echo "False")
+            ro_paused=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.conditions[?(@.type=="Paused")].status}' 2>/dev/null || echo "False")
+
+            echo "  Rollout frontend (elapsed ${RO_ELAPSED}s): Phase=${ro_phase}, Completed=${ro_completed}, Paused=${ro_paused}, Ready=${ro_ready}/${ro_desired}"
+
+            if [ "${ro_phase}" = "Healthy" ] && [ "${ro_completed}" = "True" ] && [ "${ro_paused}" != "True" ] && [ "${ro_ready}" = "${ro_desired}" ]; then
+              echo "  ✓ Frontend Argo Rollout is Healthy, fully Completed, and all ${ro_desired} replicas are Ready."
+              break
+            fi
+
+            if [ "$RO_ELAPSED" -ge "$RO_WAIT" ]; then
+              echo "Error: Frontend rollout failed to complete within ${RO_WAIT}s (Phase=${ro_phase}, Completed=${ro_completed}, Paused=${ro_paused})!" >&2
+              exit 1
+            fi
+            sleep 5
+            RO_ELAPSED=$((RO_ELAPSED + 5))
+          done
+
+          # Verify deployments in namespace boutique
+          kubectl rollout status deployment/auth -n boutique --timeout=120s
+          kubectl rollout status deployment/gateway -n boutique --timeout=120s
+          kubectl rollout status deployment/aiops-assistant -n boutique --timeout=120s
+          kubectl rollout status deployment/boutique-canary -n boutique --timeout=120s
+
+          echo "================================================================================"
+          echo "VERIFYING LIVE POD REPLICAS & IMAGE PARITY (EVERY REPLICA)"
+          echo "================================================================================"
+          check_pod_parity() {
+            local svc="$1"
+            local label_selector="$2"
+            local expected_digest="$3"
+            local expected_replicas="$4"
+
+            echo "  Checking All Live Pod Replicas: ${svc} (selector: ${label_selector}, expected: ${expected_replicas})"
+            echo "    Target ECR Digest: ${expected_digest}"
+
+            local pod_data
+            pod_data=$(kubectl get pods -n boutique -l "$label_selector" -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.containerStatuses[*]}{.imageID}{"\t"}{.ready}{"\n"}{end}{end}' 2>/dev/null || echo "")
+
+            if [ -z "$pod_data" ]; then
+              echo "Error: No pods found for ${svc} matching selector '${label_selector}'!" >&2
+              exit 1
+            fi
+
+            local replica_count=0
+            while IFS=$'\t' read -r pod_name pod_image_id is_ready; do
+              [ -z "$pod_name" ] && continue
+              replica_count=$((replica_count + 1))
+              local pod_digest
+              pod_digest=$(echo "$pod_image_id" | grep -oE "sha256:[a-f0-9]{64}" || echo "invalid")
+
+              echo "    Replica #${replica_count} [${pod_name}]:"
+              echo "      imageID : ${pod_image_id}"
+              echo "      Digest  : ${pod_digest}"
+              echo "      Ready   : ${is_ready}"
+
+              if [ "$pod_digest" != "$expected_digest" ]; then
+                echo "Error: Workload parity mismatch for ${svc} replica '${pod_name}'! Running digest is '${pod_digest}', expected '${expected_digest}'." >&2
+                exit 1
+              fi
+
+              if [ "$is_ready" != "true" ]; then
+                echo "Error: Workload replica '${pod_name}' is not Ready!" >&2
+                exit 1
+              fi
+            done <<< "$pod_data"
+
+            if [ "$replica_count" -ne "$expected_replicas" ]; then
+              echo "Error: Replica count mismatch for ${svc}! Expected ${expected_replicas} pod(s), found ${replica_count}." >&2
+              exit 1
+            fi
+            echo "    ✓ Verified all ${replica_count} replica(s) match target release digest and are Ready."
+          }
+
+          ro_desired=$(kubectl get rollout frontend -n boutique -o jsonpath='{.spec.replicas}')
+          auth_desired=$(kubectl get deployment auth -n boutique -o jsonpath='{.spec.replicas}')
+          gw_desired=$(kubectl get deployment gateway -n boutique -o jsonpath='{.spec.replicas}')
+          aiops_desired=$(kubectl get deployment aiops-assistant -n boutique -o jsonpath='{.spec.replicas}')
+
+          check_pod_parity "boutique-frontend" "app=frontend" "$boutique_frontend" "$ro_desired"
+          check_pod_parity "boutique-gateway" "app=gateway" "$boutique_gateway" "$gw_desired"
+          check_pod_parity "boutique-auth" "app=auth" "$boutique_auth" "$auth_desired"
+          check_pod_parity "boutique-aiops-assistant" "app.kubernetes.io/name=aiops-assistant" "$boutique_aiops_assistant" "$aiops_desired"
+
+          echo "Verifying active pods and restart counts..."
+          kubectl get pods -n boutique -o wide
+          RESTARTS=$(kubectl get pods -n boutique -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.restartCount}{" "}{end}{end}')
+          echo "Container restart counts: ${RESTARTS}"
+          for count in ${RESTARTS}; do
+            if [ "${count}" -gt 5 ]; then
+              echo "Error: Detected high restart count (${count}) in boutique workloads!" >&2
+              exit 1
+            fi
+          done
+          echo "All release-to-GitOps-to-EKS parity gates PASSED successfully."
+
+      - name: Execute Live DEV Application Smoke Tests
+        run: |
+          echo "Executing live smoke tests against https://demo.aarjav.site..."
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://demo.aarjav.site)
+          echo "Frontend HTTP Status: ${HTTP_STATUS}"
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Error: Frontend returned status ${HTTP_STATUS} (expected 200)" >&2
+            exit 1
+          fi
+
+          AUTH_HEALTH=$(curl -s --max-time 15 https://demo.aarjav.site/api/auth/health)
+          echo "Auth Health Response: ${AUTH_HEALTH}"
+          STATUS_FIELD=$(echo "$AUTH_HEALTH" | jq -r .status 2>/dev/null || echo "invalid")
+          if [ "$STATUS_FIELD" != "auth is healthy" ]; then
+            echo "Error: Unexpected auth health response: ${AUTH_HEALTH}" >&2
+            exit 1
+          fi
+
+          PRODUCTS_JSON=$(curl -s --max-time 15 https://demo.aarjav.site/api/products)
+          PROD_COUNT=$(echo "$PRODUCTS_JSON" | jq -r '.data.total // .data.products | length' 2>/dev/null || echo "0")
+          echo "Products Catalog Count: ${PROD_COUNT}"
+          if [ "$PROD_COUNT" -lt 8 ]; then
+            echo "Error: Expected at least 8 seeded products, got: ${PROD_COUNT}" >&2
+            exit 1
+          fi
+
+          IMG_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://demo.aarjav.site/product-images/cashmere-coat.jpg)
+          echo "Product Image HTTP Status: ${IMG_STATUS}"
+          if [ "$IMG_STATUS" != "200" ]; then
+            echo "Error: Expected 200 for product image, got ${IMG_STATUS}" >&2
+            exit 1
+          fi
+
+          REDIRECT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 http://demo.aarjav.site)
+          echo "HTTP Redirect Status: ${REDIRECT_STATUS}"
+          if [ "$REDIRECT_STATUS" != "301" ]; then
+            echo "Error: Expected 301 redirect on plain HTTP, got ${REDIRECT_STATUS}" >&2
+            exit 1
+          fi
+
+          echo "All live application smoke tests PASSED successfully."
+
+      - name: Mark GitHub Deployment Successful
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+              -f state="success" \
+              -f environment="development" \
+              -f environment_url="https://demo.aarjav.site" \
+              -f description="DEV GitOps deployment verified: parity check, Argo CD sync, pod replicas, and live smoke tests PASSED."
+          fi
+
+      - name: Mark GitHub Deployment Failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+              -f state="failure" \
+              -f environment="development" \
+              -f environment_url="https://demo.aarjav.site" \
+              -f description="DEV GitOps deployment FAILED verification."
+          fi
+

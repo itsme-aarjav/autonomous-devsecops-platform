@@ -1,0 +1,22 @@
+# Bootstrap Stage - Post-Creation S3 Remote State Backend Configuration
+# Usage:
+#   1. In a fresh AWS account, run `terraform init`, `terraform plan -out=bootstrap.tfplan`,
+#      and `terraform apply bootstrap.tfplan` using local state.
+#   2. Once the S3 bucket is created, copy this file:
+#        cp backend.tf.example backend.tf
+#   3. Migrate local state into S3:
+#        terraform init -migrate-state
+#   4. In an existing environment where the bucket already exists, copy this file
+#      prior to initialization:
+#        cp backend.tf.example backend.tf
+#        terraform init
+
+terraform {
+  backend "s3" {
+    bucket       = "boutique-aiops-tfstate-us-east-2"
+    key          = "bootstrap/terraform.tfstate"
+    region       = "us-east-2"
+    use_lockfile = true
+    encrypt      = true
+  }
+}

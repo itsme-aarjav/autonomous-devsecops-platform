@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: boutique
+
+resources:
+  - postgres-backup-sa.yml
+  - storageclass.yml
+  - postgres.yml
+  - backup-cronjob.yml
+  - auth.yml
+  - gateway.yml
+  - frontend.yml
+  - aiops.yml
+  - canary.yml
+  - ingress.yaml
+

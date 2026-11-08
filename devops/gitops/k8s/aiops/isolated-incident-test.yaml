@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: boutique-canary-trigger
+  namespace: boutique
+  labels:
+    app: canary
+    app.kubernetes.io/name: canary-trigger
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+    environment: dev
+data:
+  inject-oom: "true"

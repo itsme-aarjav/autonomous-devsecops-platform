@@ -1,0 +1,24 @@
+{
+  "incident_id": "4fa95684e68bc92b122268527af516332dc20b9933ddd25bbda110bbcd3b69b5",
+  "category": "Pod OOMKilled",
+  "confidence_score": 0.85,
+  "created_at": "2026-11-07T16:55:40.512095+00:00",
+  "is_destructive": false,
+  "summary": "The 'auth' container in the 'auth-6dc95d9fb5-wfl9q' pod was terminated due to the host OOM killer under load.",
+  "root_cause": "The 'auth' container in the 'auth-6dc95d9fb5-wfl9q' pod exceeded its memory limit of 256Mi, leading to the host OOM killer terminating the container to free up memory.",
+  "supporting_evidence": [
+    "The 'auth' container in the 'auth-6dc95d9fb5-wfl9q' pod was killed by the host OOM killer.",
+    "The memory limit for the 'auth' container was set to 256Mi, which was exceeded.",
+    "The node hosting the pod had sufficient memory, disk, and PID resources available, indicating the issue was specific to the pod's memory usage."
+  ],
+  "recommended_actions": [
+    "Investigate and address the memory leak or high memory usage in the 'auth' container.",
+    "Consider increasing the memory limit for the 'auth' container if the current limit is too low.",
+    "Monitor the memory usage of the 'auth' container to ensure it does not exceed the allocated limit."
+  ],
+  "risks": [
+    "Potential service disruption if the 'auth' container is frequently terminated by the OOM killer.",
+    "Increased load on the node if the 'auth' container is frequently restarted."
+  ],
+  "ttl": 1796662540
+}

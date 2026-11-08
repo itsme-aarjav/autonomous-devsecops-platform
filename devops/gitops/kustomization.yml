@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: boutique
+
+resources:
+  - namespace.yml
+  - k8s/infrastructure/storageclass.yml
+  - k8s/infrastructure/ingressclass.yml
+  - k8s/infrastructure/nodepool-platform.yml
+  - k8s/infrastructure/nodepool-application.yml
+  - k8s/infrastructure/pdb.yml
+  - k8s/database/statefulset.yml
+  - k8s/database/service.yml
+  - k8s/database/restore-job.yml
+  - k8s/database/networkpolicy.yml
+  - k8s/backend/gateway.yml
+  - k8s/backend/service-monitor.yml
+  - k8s/backend/auth.yml
+  - k8s/frontend/rollout.yaml
+  - k8s/frontend/ingress.yml
+  - k8s/grafana-dashboard.yml
+  - k8s/aiops/
+
+configMapGenerator:
+  - name: boutique-db-dump
+    files:
+      - k8s/database/boutique_full.sql
+
+generatorOptions:
+  disableNameSuffixHash: true

@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth
+  namespace: boutique
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      tolerations:
+        - key: "spot-instance"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: role
+                    operator: In
+                    values:
+                      - stateless-apps
+                  - key: node-lifecycle
+                    operator: In
+                    values:
+                      - spot
+      containers:
+        - name: auth
+          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-auth@sha256:eca658bf3dd8df44e02ee781796d1f47b5507111839449b2e024be3d4157b02a
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          ports:
+            - containerPort: 3002
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3002"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: boutique-jwt
+                  key: JWT_SECRET
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: boutique-secrets
+                  key: AUTH_DB_URL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  namespace: boutique
+spec:
+  selector:
+    app: auth
+  ports:
+    - protocol: TCP
+      port: 3002
+      targetPort: 3002
+  type: ClusterIP
+

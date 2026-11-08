@@ -1,0 +1,39 @@
+{
+  "registry": "592668326948.dkr.ecr.us-east-2.amazonaws.com",
+  "region": "us-east-2",
+  "repositories": [
+    {
+      "repositoryName": "boutique-auth",
+      "tags": [
+        "dev-latest",
+        "dev-v2"
+      ],
+      "imageDigest": "sha256:eca658bf3dd8df44e02ee781796d1f47b5507111839449b2e024be3d4157b02a",
+      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-auth@sha256:eca658bf3dd8df44e02ee781796d1f47b5507111839449b2e024be3d4157b02a"
+    },
+    {
+      "repositoryName": "boutique-gateway",
+      "tags": [
+        "dev-latest"
+      ],
+      "imageDigest": "sha256:172931b44a52a292d4b65f0f3858f8a6f5585866a7d659b694dcf43d531b86f3",
+      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-gateway@sha256:172931b44a52a292d4b65f0f3858f8a6f5585866a7d659b694dcf43d531b86f3"
+    },
+    {
+      "repositoryName": "boutique-frontend",
+      "tags": [
+        "dev-latest"
+      ],
+      "imageDigest": "sha256:d06f66894eb16238c417c482cd7a3fd8910ed5413bb563a9c0ef07c8c9245063",
+      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-frontend@sha256:d06f66894eb16238c417c482cd7a3fd8910ed5413bb563a9c0ef07c8c9245063"
+    },
+    {
+      "repositoryName": "boutique-aiops-assistant",
+      "tags": [
+        "dev-latest"
+      ],
+      "imageDigest": "sha256:29fe36a567996b4d2761dffe25ab96f6b503589d340068d084058e4ad8c00e85",
+      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:29fe36a567996b4d2761dffe25ab96f6b503589d340068d084058e4ad8c00e85"
+    }
+  ]
+}

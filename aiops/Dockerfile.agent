@@ -1,0 +1,50 @@
+# Autonomous AIOps Agent — Production Container Image
+
+# Stage 1: Build Dependencies
+FROM python:3.11-alpine AS builder
+
+WORKDIR /build
+
+RUN apk add --no-cache gcc musl-dev libffi-dev
+
+COPY requirements-agent.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements-agent.txt
+
+# Stage 2: Minimal Production Runtime
+FROM python:3.11-alpine AS runtime
+
+# Upgrade Alpine packages to latest security baseline and remove build/packaging tooling
+RUN apk upgrade --no-cache && \
+    rm -rf /usr/local/lib/python3.11/site-packages/setuptools* \
+           /usr/local/lib/python3.11/site-packages/pip* \
+           /usr/local/lib/python3.11/site-packages/wheel*
+
+# Security: Dedicated non-root UID/GID
+ARG USER_ID=10001
+ARG GROUP_ID=10001
+RUN addgroup -g ${GROUP_ID} appgroup && \
+    adduser -u ${USER_ID} -G appgroup -s /sbin/nologin -D appuser
+
+WORKDIR /app
+
+# Copy installed runtime dependencies from builder
+COPY --from=builder /install /usr/local
+
+# Copy only agent application modules
+COPY --chown=appuser:appgroup agent/ /app/agent/
+COPY --chown=appuser:appgroup node_diagnostics.py /app/node_diagnostics.py
+
+# Ephemeral local storage directory
+RUN mkdir -p /tmp/aiops-investigations && \
+    chown -R appuser:appgroup /tmp/aiops-investigations /app
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    AIOPS_HEALTH_PORT=8080
+
+USER 10001:10001
+
+EXPOSE 8080
+
+ENTRYPOINT ["python3", "-m", "agent.runtime"]

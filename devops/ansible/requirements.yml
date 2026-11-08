@@ -1,0 +1,10 @@
+---
+# Pinned Ansible Collections for Day-2 Operations & Validation Layer
+collections:
+  - name: kubernetes.core
+    version: "5.1.0"
+  - name: amazon.aws
+    version: "8.2.1"
+  - name: community.general
+    version: "9.5.0"
+

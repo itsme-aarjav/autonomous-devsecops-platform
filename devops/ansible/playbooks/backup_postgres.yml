@@ -1,0 +1,135 @@
+---
+# Scheduled PostgreSQL Database Backup Runbook
+# Schedule: Daily at 02:00 AM Asia/Kolkata (20:30 UTC)
+# Purpose: Autonomous scheduled database snapshot, AES-256/KMS encryption, S3 archival, and retention enforcement.
+
+- name: Scheduled PostgreSQL Automated Backup & Archival
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    backup_dir: "/tmp/postgres_backups"
+    s3_backup_bucket: "{{ lookup('env', 'AIOPS_BACKUP_S3_BUCKET') | default('boutique-aiops-backups-592668326948-us-east-2', true) }}"
+    kms_key_arn: "{{ lookup('env', 'AIOPS_BACKUP_KMS_KEY_ARN') | default('arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b', true) }}"
+    aws_region: "{{ lookup('env', 'AWS_DEFAULT_REGION') | default('us-east-2', true) }}"
+    postgres_pod: "boutique-postgres-0"
+    postgres_namespace: "boutique"
+    postgres_db: "auth_db"
+    retention_days: 7
+
+  tasks:
+    - name: Set immutable backup timestamp and filenames
+      ansible.builtin.set_fact:
+        backup_timestamp: "{{ lookup('pipe', 'date -u +%Y%m%d_%H%M%SZ') }}"
+
+    - name: Set derived filename facts
+      ansible.builtin.set_fact:
+        backup_filename: "auth_db_backup_{{ backup_timestamp }}.sql"
+        compressed_filename: "auth_db_backup_{{ backup_timestamp }}.sql.gz"
+    - name: Ensure local backup directory exists
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0700'
+
+    - name: Display backup banner
+      ansible.builtin.debug:
+        msg: "Initiating scheduled PostgreSQL backup at 02:00 AM IST (20:30 UTC, Timestamp: {{ backup_timestamp }})..."
+
+    - name: Verify PostgreSQL pod readiness in Kubernetes
+      ansible.builtin.command: >
+        kubectl get pod {{ postgres_pod }} -n {{ postgres_namespace }} -o jsonpath='{.status.phase}'
+      register: pod_status
+      failed_when: pod_status.stdout != "Running"
+      changed_when: false
+
+    - name: Execute pg_dump of auth_db from PostgreSQL pod
+      ansible.builtin.shell: >
+        set -eo pipefail &&
+        kubectl exec {{ postgres_pod }} -n {{ postgres_namespace }} -- pg_dump -U postgres --clean --if-exists {{ postgres_db }} > {{ backup_dir }}/{{ backup_filename }}
+      register: dump_result
+      changed_when: true
+
+    - name: Verify raw SQL dump file size and non-empty status
+      ansible.builtin.stat:
+        path: "{{ backup_dir }}/{{ backup_filename }}"
+      register: raw_file_stat
+      failed_when: not raw_file_stat.stat.exists or raw_file_stat.stat.size < 500
+
+    - name: Compress backup archive with gzip
+      ansible.builtin.shell: >
+        gzip -9 -c {{ backup_dir }}/{{ backup_filename }} > {{ backup_dir }}/{{ compressed_filename }}
+      register: compress_result
+      changed_when: true
+
+    - name: Validate compressed archive integrity
+      ansible.builtin.command: >
+        gzip -t {{ backup_dir }}/{{ compressed_filename }}
+      changed_when: false
+
+    - name: Record archive file size
+      ansible.builtin.stat:
+        path: "{{ backup_dir }}/{{ compressed_filename }}"
+      register: archive_stat
+
+    - name: Display backup archive details
+      ansible.builtin.debug:
+        msg: "Database dump created and compressed: {{ compressed_filename }} (Size: {{ archive_stat.stat.size }} bytes)"
+
+    - name: Upload backup archive to Amazon S3 with AWS KMS Server-Side Encryption
+      ansible.builtin.command: >
+        aws s3 cp {{ backup_dir }}/{{ compressed_filename }}
+        s3://{{ s3_backup_bucket }}/backups/{{ compressed_filename }}
+        --sse aws:kms
+        --sse-kms-key-id {{ kms_key_arn }}
+        --region {{ aws_region }}
+      register: s3_upload
+      changed_when: true
+
+    - name: Verify backup object exists in Amazon S3
+      ansible.builtin.command: >
+        aws s3api head-object
+        --bucket {{ s3_backup_bucket }}
+        --key backups/{{ compressed_filename }}
+        --region {{ aws_region }}
+      register: s3_head
+      changed_when: false
+
+    - name: Enforce practical retention policy (delete backups older than {{ retention_days }} days)
+      ansible.builtin.shell: >
+        set -eo pipefail &&
+        aws s3 ls s3://{{ s3_backup_bucket }}/backups/ --region {{ aws_region }} | while read -r line; do
+          DATE_STR=$(echo "$line" | awk '{print $1}')
+          TIME_STR=$(echo "$line" | awk '{print $2}')
+          KEY_STR=$(echo "$line" | awk '{print $4}')
+          if [ -n "$KEY_STR" ] && [[ "$KEY_STR" == auth_db_backup_* ]]; then
+            BACKUP_EPOCH=$(date -j -f "%Y-%m-%d %H:%M:%S" "$DATE_STR $TIME_STR" +%s 2>/dev/null || date -d "$DATE_STR $TIME_STR" +%s 2>/dev/null || echo "0")
+            NOW_EPOCH=$(date +%s)
+            DIFF_DAYS=$(( (NOW_EPOCH - BACKUP_EPOCH) / 86400 ))
+            if [ "$DIFF_DAYS" -gt {{ retention_days }} ]; then
+              echo "Pruning expired backup: $KEY_STR (age: $DIFF_DAYS days)"
+              aws s3 rm s3://{{ s3_backup_bucket }}/backups/"$KEY_STR" --region {{ aws_region }}
+            fi
+          fi
+        done
+      register: prune_result
+      changed_when: false
+
+    - name: Generate sanitized recovery instructions
+      ansible.builtin.debug:
+        msg:
+          - "======================================================================"
+          - "SCHEDULED BACKUP COMPLETE (Daily 02:00 AM IST / 20:30 UTC)"
+          - "S3 Destination: s3://{{ s3_backup_bucket }}/backups/{{ compressed_filename }}"
+          - "KMS Master Key : {{ kms_key_arn }}"
+          - "Archive Size   : {{ archive_stat.stat.size }} bytes"
+          - "Integrity      : VERIFIED (gzip CRC32 validated)"
+          - "Retention      : {{ retention_days }} days automated rolling window"
+          - "Restore Command: aws s3 cp s3://{{ s3_backup_bucket }}/backups/{{ compressed_filename }} - | gunzip | kubectl exec -i {{ postgres_pod }} -n {{ postgres_namespace }} -- psql -U postgres {{ postgres_db }}"
+          - "======================================================================"
+
+    - name: Clean up local temporary backup directory
+      ansible.builtin.file:
+        path: "{{ backup_dir }}/{{ backup_filename }}"
+        state: absent

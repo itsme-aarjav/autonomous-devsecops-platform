@@ -1,0 +1,10 @@
+region      = "us-east-2"
+environment = "persistent"
+
+repositories = [
+  "boutique-frontend",
+  "boutique-gateway",
+  "boutique-auth",
+  "boutique-aiops-assistant"
+]
+
