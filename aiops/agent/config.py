@@ -14,7 +14,7 @@ class AgentConfig:
     # Model ID reconciled with boutique-dev-eks-aiops-agent-role IAM authorization policy
     aws_region: str = os.getenv("AWS_REGION", "us-east-2")
     bedrock_model_id: str = os.getenv(
-        "AIOPS_BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+        "AIOPS_BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0"
     )
     bedrock_max_tokens: int = int(os.getenv("AIOPS_BEDROCK_MAX_TOKENS", "2048"))
     bedrock_temperature: float = float(os.getenv("AIOPS_BEDROCK_TEMPERATURE", "0.0"))
