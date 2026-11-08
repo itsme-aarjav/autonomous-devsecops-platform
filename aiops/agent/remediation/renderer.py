@@ -4,6 +4,7 @@ Autonomous AIOps Platform — Allowlisted Manifest Patch Renderer
 
 import re
 import difflib
+from copy import deepcopy
 from pathlib import Path
 from typing import Dict, List, Optional
 import yaml
@@ -129,6 +130,7 @@ class ManifestPatchRenderer:
         """
         try:
             docs = list(yaml.safe_load_all(yaml_content))
+            original_docs = deepcopy(docs)
         except Exception as e:
             raise ManifestRenderError(f"Failed to parse manifest YAML: {str(e)}")
 
@@ -207,8 +209,48 @@ class ManifestPatchRenderer:
         if not matched:
             raise ManifestRenderError(f"Workload {workload} Deployment/Rollout not found in manifest")
 
-        # Dump documents back to YAML
-        return yaml.safe_dump_all(updated_docs, sort_keys=False, default_flow_style=False)
+        nodes = list(yaml.compose_all(yaml_content))
+        if len(nodes) != len(updated_docs):
+            raise ManifestRenderError("YAML document count changed")
+
+        changes = []
+
+        def visit(before, after, node):
+            if before == after:
+                return
+            if isinstance(node, yaml.nodes.MappingNode) and isinstance(before, dict) and isinstance(after, dict):
+                if before.keys() != after.keys():
+                    raise ManifestRenderError("Unsupported YAML field change")
+                for key_node, value_node in node.value:
+                    key = key_node.value
+                    if key not in before:
+                        raise ManifestRenderError("Unsupported YAML mapping")
+                    visit(before[key], after[key], value_node)
+                return
+            if isinstance(node, yaml.nodes.SequenceNode) and isinstance(before, list) and isinstance(after, list):
+                if len(before) != len(after):
+                    raise ManifestRenderError("Unsupported YAML list change")
+                for old, new, value_node in zip(before, after, node.value):
+                    visit(old, new, value_node)
+                return
+            if isinstance(node, yaml.nodes.ScalarNode) and isinstance(after, (str, int, float)) and not isinstance(after, bool):
+                value = str(after)
+                if not re.fullmatch(r"[A-Za-z0-9_./:@+-]+", value):
+                    raise ManifestRenderError("Unsafe YAML scalar")
+                changes.append((node.start_mark.index, node.end_mark.index, value))
+                return
+            raise ManifestRenderError("Unsupported YAML mutation")
+
+        for before, after, node in zip(original_docs, updated_docs, nodes):
+            visit(before, after, node)
+
+        result = yaml_content
+        for start, end, value in sorted(changes, reverse=True):
+            result = result[:start] + value + result[end:]
+
+        if list(yaml.safe_load_all(result)) != updated_docs:
+            raise ManifestRenderError("YAML patch validation failed")
+        return result
 
     def _generate_summary(self, proposal: RemediationProposal) -> str:
         """Constructs a concise human-readable summary of the rendered changes."""
