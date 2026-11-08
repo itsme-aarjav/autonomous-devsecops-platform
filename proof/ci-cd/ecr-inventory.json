@@ -4,31 +4,27 @@
   "repositories": [
     {
       "repositoryName": "boutique-auth",
-      "pushedAt": "2026-11-07T14:10:45Z",
-      "tags": ["dev-f622816"],
-      "imageDigest": "sha256:502bb869c51c564c196c646117da25eea755c4c9ecf36e13cff2f6712cd0ed58",
-      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-auth@sha256:502bb869c51c564c196c646117da25eea755c4c9ecf36e13cff2f6712cd0ed58"
+      "tags": ["dev-latest", "dev-v2"],
+      "imageDigest": "sha256:88cbfe53f6a6ac1e6c57b1fad8e9e830abfb63e163285f35b5292e6023fe32f6",
+      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-auth@sha256:88cbfe53f6a6ac1e6c57b1fad8e9e830abfb63e163285f35b5292e6023fe32f6"
     },
     {
       "repositoryName": "boutique-gateway",
-      "pushedAt": "2026-11-07T14:13:38Z",
-      "tags": ["dev-f622816"],
-      "imageDigest": "sha256:5aa9422e736d988f51b02154597424049f1f72ddc85d282c31c707d646bfc87b",
-      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-gateway@sha256:5aa9422e736d988f51b02154597424049f1f72ddc85d282c31c707d646bfc87b"
+      "tags": ["dev-latest"],
+      "imageDigest": "sha256:172931b44a52a292d4b65f0f3858f8a6f5585866a7d659b694dcf43d531b86f3",
+      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-gateway@sha256:172931b44a52a292d4b65f0f3858f8a6f5585866a7d659b694dcf43d531b86f3"
     },
     {
       "repositoryName": "boutique-frontend",
-      "pushedAt": "2026-11-07T16:32:28Z",
-      "tags": ["dev-latest", "fc98bc488e94cfe6ee638fafb80356d00aa0bdbd"],
-      "imageDigest": "sha256:5d0a6b9866937b4acd22cdd82966cc291d41120c61189e77a01f7a0b7097ccd4",
-      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-frontend@sha256:5d0a6b9866937b4acd22cdd82966cc291d41120c61189e77a01f7a0b7097ccd4"
+      "tags": ["dev-latest"],
+      "imageDigest": "sha256:5d6b3c026269090460dc0ff043f7276824a8173342488fe7eeaf46147f34188a",
+      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-frontend@sha256:5d6b3c026269090460dc0ff043f7276824a8173342488fe7eeaf46147f34188a"
     },
     {
       "repositoryName": "boutique-aiops-assistant",
-      "pushedAt": "2026-11-07T16:48:17Z",
-      "tags": ["dev-latest", "1162c2ff579aded18076cd38f73f2a51c975f4d6"],
-      "imageDigest": "sha256:a5138d28c1410010fb948326357f27d9ab1b046f13eace9a0a9bf118fb76d4b4",
-      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:a5138d28c1410010fb948326357f27d9ab1b046f13eace9a0a9bf118fb76d4b4"
+      "tags": ["dev-latest"],
+      "imageDigest": "sha256:29fe36a567996b4d2761dffe25ab96f6b503589d340068d084058e4ad8c00e85",
+      "uri": "592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:29fe36a567996b4d2761dffe25ab96f6b503589d340068d084058e4ad8c00e85"
     }
   ]
 }

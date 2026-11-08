@@ -31,9 +31,26 @@ The database backup pipeline uses a production two-stage decoupled pod architect
 
 ---
 
-## 2. Security and IAM Policy
+## 2. Security, EKS Pod Identity, and Least-Privilege Architecture
 
-The CronJob uses the `aiops-assistant` ServiceAccount bound to IAM Role `boutique-dev-eks-aiops-agent-role` via IAM Roles for Service Accounts (IRSA).
+### EKS Pod Identity Configuration
+The CronJob currently uses the `aiops-assistant` ServiceAccount bound to IAM Role `boutique-dev-eks-aiops-agent-role` via **EKS Pod Identity**:
+- **Cluster**: `boutique-dev-eks`
+- **Namespace**: `boutique`
+- **ServiceAccount**: `aiops-assistant`
+- **Association ID**: `a-tgutx2xdlqx86wrr9`
+- **Role ARN**: `arn:aws:iam::592668326948:role/boutique-dev-eks-aiops-agent-role`
+
+### Why `aiops-assistant` is Shared in DEV
+In this DEV environment, both the AIOps daemon and the database backup job share this scoped role via EKS Pod Identity to avoid unnecessary duplicate IAM role provisioning and keep resource counts minimal. The role is restricted by inline policies (`boutique-dev-eks-aiops-agent-policy` and `boutique-backup-s3-access`) allowing only Bedrock inference, SQS FIFO message handling, DynamoDB state management, and KMS-encrypted S3 backup bucket access.
+
+### Production Separation Blueprint (Dedicated ServiceAccount)
+For high-security production deployments, separate the backup job into its own dedicated ServiceAccount:
+1. Create a dedicated ServiceAccount: `postgres-backup` in namespace `boutique`.
+2. Provision a dedicated IAM Role: `arn:aws:iam::592668326948:role/boutique-prod-postgres-backup-role` with trust policy allowing `pods.eks.amazonaws.com` (EKS Pod Identity).
+3. Attach ONLY `boutique-backup-s3-access` to the dedicated backup role.
+4. Create an EKS Pod Identity association binding `boutique:postgres-backup` to `boutique-prod-postgres-backup-role`.
+5. Update `devops/gitops/overlays/prod/backup-cronjob.yml` to specify `serviceAccountName: postgres-backup`.
 
 Attached IAM Policy (`boutique-backup-s3-access`):
 ```json

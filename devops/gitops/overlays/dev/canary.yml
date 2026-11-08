@@ -39,12 +39,16 @@ spec:
             - -ec
             - |
               echo "[$(date -u +%FT%TZ)] Starting Boutique Canary Worker..."
-              if [ "$INJECT_OOM" = "true" ]; then
-                echo "[$(date -u +%FT%TZ)] Simulating isolated canary memory exhaustion..."
+              if [ "$INJECT_OOM" = "true" ] || { [ -f /etc/canary-trigger/inject-oom ] && [ "$(cat /etc/canary-trigger/inject-oom 2>/dev/null)" = "true" ]; }; then
+                echo "[$(date -u +%FT%TZ)] Canary trigger detected: simulating memory exhaustion..."
                 awk 'BEGIN{for(i=0;i<5000000;i++) a[i]="oom_test";}'
               fi
               trap "exit 0" TERM INT
               while true; do
+                if [ -f /etc/canary-trigger/inject-oom ] && [ "$(cat /etc/canary-trigger/inject-oom 2>/dev/null)" = "true" ]; then
+                  echo "[$(date -u +%FT%TZ)] Canary trigger detected in loop: simulating memory exhaustion..."
+                  awk 'BEGIN{for(i=0;i<5000000;i++) a[i]="oom_test";}'
+                fi
                 sleep 5
               done
           resources:
@@ -54,9 +58,18 @@ spec:
             limits:
               cpu: 100m
               memory: 128Mi
+          volumeMounts:
+            - name: canary-trigger-volume
+              mountPath: /etc/canary-trigger
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
+      volumes:
+        - name: canary-trigger-volume
+          configMap:
+            name: boutique-canary-trigger
+            optional: true

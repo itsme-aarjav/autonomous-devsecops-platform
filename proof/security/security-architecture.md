@@ -54,3 +54,20 @@ All sensitive data stores are encrypted at rest using dedicated AWS Key Manageme
 | **SQS FIFO Alert Queue** | `arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b` | Telemetry message encryption |
 | **Secrets Manager** | `arn:aws:kms:us-east-2:592668326948:key/bbeb7c58-6210-4ebe-8181-ce9e30b9ac7c` | Webhook tokens and DB credentials |
 | **PostgreSQL Backup Snapshot**| `snap-05a3b0ffe3463e280` | 100% encrypted backup snapshot |
+
+---
+
+## 4. EKS Control Plane Security & Migration Path to Private Cluster
+
+### Current DEV Configuration Rationale
+In the current DEV environment, the EKS cluster endpoint operates with public endpoint access enabled (`0.0.0.0/0`). This configuration is explicitly maintained to accommodate **GitHub-hosted Actions runners** (`ubuntu-24.04`), which execute CI/CD verification and deployment jobs from dynamic IP ranges across Azure datacenters without static egress IPs.
+
+Even with public endpoint access enabled:
+1. **Zero-Trust IAM Authentication**: Every request to the Kubernetes API must carry a valid AWS STS signed bearer token from an authorized IAM principal. Anonymous and unauthenticated requests receive `401 Unauthorized`.
+2. **Deterministic Kubernetes RBAC**: Authenticated IAM roles are mapped to minimal, least-privilege Kubernetes ClusterRoles. There is no anonymous access or cluster-admin sprawl.
+
+### Production Enterprise Migration Path
+For enterprise production environments, the platform architecture prescribes three clear hardening patterns:
+1. **Self-Hosted In-VPC GitHub Runners (ARC)**: Deploy GitHub Actions Runner Controller (ARC) directly within private subnets of the platform VPC. CI/CD runs entirely inside the AWS network perimeter, enabling complete deactivation of the public EKS API endpoint (`endpointPublicAccess: false`, `endpointPrivateAccess: true`).
+2. **Bastion / Client VPN Gateway**: Restrict public access CIDRs (`publicAccessCidrs`) to dedicated corporate VPN egress elastic IPs or AWS Client VPN endpoint CIDRs.
+3. **AWS Verified Access / Cloudflare Zero Trust**: Front administrative endpoints with OIDC-authenticated identity-aware proxies, enforcing multi-factor device posture checks before granting network connectivity.

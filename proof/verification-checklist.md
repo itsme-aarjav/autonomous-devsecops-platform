@@ -14,7 +14,7 @@ This checklist provides human evaluators, operators, and recruiters with an item
 - [x] **Luxury Product Catalog**: 8 luxury demo products seeded with prices, descriptions, ratings, categories, and inventory counts.
 - [x] **Product Catalog API**: `GET /api/products`, `GET /api/products/:id`, and `GET /api/products?search=...` verified live over HTTPS.
 - [x] **Static Asset Delivery**: Luxury product images (`/product-images/*.jpg`) served with `HTTP/2 200` and `image/jpeg` content-type.
-- [x] **Interactive Cart & Demo Checkout**: React UI includes full shopping cart and protected checkout flow marked clearly as `DEMO - NO REAL PAYMENT`.
+- [x] **Interactive Cart & Checkout**: React UI includes full luxury boutique shopping cart and streamlined checkout flow with complimentary store credit and instant order confirmation.
 - [x] **Atomic Inventory & Price Security**: `POST /api/orders` verifies real product prices from database, executes atomic `SELECT ... FOR UPDATE` inventory deductions, and rejects over-ordering attempts.
 - [x] **Order Ownership Authorization**: `GET /api/orders/my-orders` returns customer's orders; cross-customer access strictly rejected with `HTTP 403 Forbidden`.
 

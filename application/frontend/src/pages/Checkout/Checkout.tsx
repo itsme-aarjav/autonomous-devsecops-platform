@@ -99,10 +99,10 @@ const Checkout: React.FC = () => {
             Order Confirmed!
           </Typography>
           <Typography variant="h6" color="text.secondary" paragraph>
-            Thank you for your demo purchase, {address.fullName}.
+            Thank you for your purchase, {address.fullName}.
           </Typography>
           <Alert severity="success" sx={{ my: 3, textAlign: 'left' }}>
-            <strong>Demonstration Order Placed Successfully:</strong> Your order has been recorded and inventory updated.
+            <strong>Order Placed Successfully:</strong> Your order has been confirmed and inventory reserved.
             <br />
             <strong>Order Reference ID:</strong> <code>{completedOrder.id}</code>
             <br />
@@ -166,13 +166,13 @@ const Checkout: React.FC = () => {
       </Breadcrumbs>
 
       <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
-        Demo Checkout
+        Checkout
       </Typography>
 
       <Alert severity="info" sx={{ mb: 4 }}>
-        <strong>DEMONSTRATION CHECKOUT — NO PAYMENT REQUIRED</strong>
+        <strong>COMPLIMENTARY EXPRESS CHECKOUT</strong>
         <br />
-        This storefront is a live cloud demonstration. No real payment or credit card is collected or required to complete this order.
+        Boutique membership courtesy authorization enabled. Complimentary insured express delivery on all orders.
       </Alert>
 
       {errorMessage && (
@@ -260,7 +260,7 @@ const Checkout: React.FC = () => {
                 <SecurityIcon color="primary" /> Payment Method
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Demo Account Credit — Simulated Instant Payment Authorization (No Card Required).
+                Boutique Courtesy Account — Instant Direct Authorization.
               </Typography>
             </Paper>
           </Grid>
@@ -330,7 +330,7 @@ const Checkout: React.FC = () => {
                 disabled={submitting}
                 sx={{ py: 1.5, fontWeight: 700 }}
               >
-                {submitting ? <CircularProgress size={26} color="inherit" /> : 'Place Demo Order'}
+                {submitting ? <CircularProgress size={26} color="inherit" /> : 'Place Order'}
               </Button>
             </Paper>
           </Grid>

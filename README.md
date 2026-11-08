@@ -12,7 +12,7 @@
 
 An enterprise-grade, cloud-native DevSecOps platform featuring a modern **3-Tier Microservices Architecture**, declarative GitOps driven by **Argo CD**, zero-downtime **Canary Progressive Delivery** via **Argo Rollouts**, full-stack telemetry using **Prometheus & Alertmanager**, and an intelligent **AIOps Agent (LangGraph + Amazon Bedrock Nova Lite)** with **Human-Approved GitOps Remediation**:
 1. **Automated Root Cause Diagnosis & Policy Gating**: Deterministic LangGraph + Amazon Bedrock (Nova Lite `amazon.nova-lite-v1:0`) diagnosis bounded by strict allowlist and resource limits.
-2. **Permanent Declarative Fixes**: Authenticated **Cloud Operator Approval CLI** (`hmac.compare_digest` token auth), committing verified patches directly to GitOps manifests on `main` via atomic CAS, followed by automated Argo CD reconciliation.
+2. **Permanent Declarative Fixes**: Authenticated **Cloud Operator Approval CLI** (`hmac.compare_digest` token auth), generating reviewed GitHub Pull Requests with surgical manifest patches for human review, followed by merge and automated Argo CD reconciliation.
 
 ---
 
@@ -86,8 +86,8 @@ flowchart TD
     Policy -->|Approved Proposal| GitOpsRemediation
     GitOpsRemediation -->|Proposes Patch| OperatorCLI
     OperatorCLI -->|Human Approval (hmac)| ApprovalGate
-    ApprovalGate -->|Applies Patch to main| GitRepo
-    GitRepo -.->|Synchronizes| ArgoCD
+    ApprovalGate -->|Opens Reviewed PR| GitRepo
+    GitRepo -.->|Synchronizes on Merge| ArgoCD
     ArgoCD -.->|Deploys to Cluster| Kubernetes
 ```
 
@@ -288,4 +288,4 @@ When an interviewer asks: *"Tell me about your Autonomous DevSecOps Platform pro
 > 
 > *What makes the platform unique is its **Autonomous DevSecOps & Human-Approved GitOps Remediation** workflow:
 > 1. **Autonomous Root Cause Diagnosis (LangGraph + Bedrock)**: Gathers read-only cluster telemetry upon alert receipt, sanitizes sensitive tokens and URIs, performs root cause analysis with Amazon Bedrock Nova Lite, and gates proposals against a strict deterministic policy engine.
-> 2. **Human-Gated GitOps Execution (Cloud Operator CLI + CAS)**: Operators review unified manifest diffs via CloudShell CLI, authenticate with constant-time tokens (`hmac.compare_digest`), and commit verified declarative fixes directly to GitOps manifests on 'main' without drift, triggering automated Argo CD sync."*
+> 2. **Human-Gated GitOps Execution (Cloud Operator CLI + Pull Requests)**: Operators review unified manifest diffs via CloudShell CLI, authenticate with constant-time tokens (`hmac.compare_digest`), and approve verified declarative fixes to open reviewed GitHub Pull Requests for human merge, triggering automated Argo CD sync."*

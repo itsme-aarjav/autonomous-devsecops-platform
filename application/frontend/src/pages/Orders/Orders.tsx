@@ -150,7 +150,7 @@ const Orders: React.FC = () => {
               You haven't placed any orders yet.
             </Typography>
             <Typography variant="body1" color="text.secondary" paragraph sx={{ mb: 4 }}>
-              When you complete a demonstration checkout, your order history will appear here.
+              When you complete a checkout, your order history will appear here.
             </Typography>
             <Button
               variant="contained"

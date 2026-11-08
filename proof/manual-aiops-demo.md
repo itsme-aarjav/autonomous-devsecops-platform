@@ -92,9 +92,13 @@ python3 aiops/operator_cli.py reject sim-prop-002 --simulate --yes --reason "Sca
 > **Production Safety Invariant**: Never disrupt core services (`boutique-auth`, `boutique-gateway`, `boutique-frontend`, `boutique-postgres`) to demonstrate AIOps capabilities. The procedure below uses an isolated canary test pod in namespace `boutique` that safely breaches a 32Mi memory boundary without impacting live storefront customer traffic.
 
 ### Step 1: Launch the Isolated Canary Memory Pressure Test
-Deploy the isolated canary workload under memory pressure into the `boutique` namespace:
+Deploy the isolated canary incident trigger (`ConfigMap/boutique-canary-trigger`) into the `boutique` namespace. This trigger operates out-of-band without modifying the GitOps-managed `Deployment` object, ensuring zero conflict with Argo CD self-healing:
 ```bash
+# 1. Apply trigger ConfigMap (activates memory allocation in canary worker)
 kubectl apply -f devops/gitops/k8s/aiops/isolated-incident-test.yaml
+
+# 2. Restart canary pod to immediately trigger memory stress test
+kubectl rollout restart deployment/boutique-canary -n boutique
 ```
 
 Check the canary pod status:
@@ -155,9 +159,13 @@ Upon typing `APPROVE`:
 - The PR URL is printed to the operator console.
 
 ### Step 6: Restore Canary Baseline State
-Once human approval and Pull Request review is complete, restore the healthy baseline configuration:
+Once human approval and Pull Request review is complete, delete the incident trigger ConfigMap:
 ```bash
-kubectl apply -f devops/gitops/overlays/dev/canary.yml
+# 1. Delete trigger ConfigMap to stop memory stress simulation
+kubectl delete -f devops/gitops/k8s/aiops/isolated-incident-test.yaml
+
+# 2. Restart canary deployment to return to clean baseline operation
+kubectl rollout restart deployment/boutique-canary -n boutique
 ```
 Alternatively, merge the generated PR into `main` and let Argo CD automatically synchronize the updated memory limits to the `boutique-canary` deployment on EKS.
 Verify the boutique namespace has returned to clean running state:
