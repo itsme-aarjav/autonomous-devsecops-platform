@@ -7,9 +7,17 @@ on:
         description: "Target image tag or Git SHA to verify and deploy to DEV"
         required: true
         default: "dev-latest"
+      action:
+        description: "Execution action: 'verify' (validate current DEV deployment) or 'deploy' (promote release to GitOps and sync to DEV)"
+        required: true
+        default: "verify"
+        type: choice
+        options:
+          - verify
+          - deploy
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
   deployments: write
 
@@ -24,15 +32,21 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - name: Create GitHub Deployment Record
         id: create_deployment
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          ACTION="${{ github.event.inputs.action }}"
+          TAG="${{ github.event.inputs.release_tag }}"
+          DESC="DEV ${ACTION} for release ${TAG}"
+
           DEPLOYMENT_PAYLOAD=$(jq -n \
             --arg ref "${{ github.ref }}" \
-            --arg desc "DEV deployment verification for release ${{ github.event.inputs.release_tag }}" \
+            --arg desc "$DESC" \
             '{ref: $ref, environment: "development", description: $desc, transient_environment: false, production_environment: false, auto_merge: false, required_contexts: []}')
 
           DEPLOYMENT_JSON=$(echo "$DEPLOYMENT_PAYLOAD" | gh api \
@@ -45,7 +59,6 @@ jobs:
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
           echo "Created GitHub Deployment ID: $DEPLOYMENT_ID"
 
-          # Set initial status to in_progress
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
@@ -53,7 +66,7 @@ jobs:
             -f state="in_progress" \
             -f environment="development" \
             -f environment_url="https://demo.aarjav.site" \
-            -f description="Verifying live microservices deployment on EKS..."
+            -f description="Executing DEV ${ACTION} for release ${TAG}..."
 
       - name: Configure AWS Credentials via GitHub OIDC
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -62,66 +75,177 @@ jobs:
           aws-region: us-east-2
           audience: sts.amazonaws.com
 
-      - name: Verify Immutable Container Image Digests in ECR
+      - name: Resolve & Verify Immutable Container Image Digests in ECR
+        id: resolve_ecr
         run: |
-          SERVICES=("boutique-frontend" "boutique-gateway" "boutique-auth" "boutique-aiops-assistant")
           TAG="${{ github.event.inputs.release_tag }}"
-          echo "Verifying ECR image availability for release tag: ${TAG}"
+          ACCOUNT_ID="592668326948"
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
+          echo "Resolving ECR digests for target release tag: ${TAG}"
 
-          for svc in "${SERVICES[@]}"; do
+          declare -A SERVICE_REPOS=(
+            ["boutique-frontend"]="boutique-frontend"
+            ["boutique-gateway"]="boutique-gateway"
+            ["boutique-auth"]="boutique-auth"
+            ["boutique-aiops-assistant"]="boutique-aiops-assistant"
+          )
+
+          mkdir -p /tmp/release_digests
+          for svc in "${!SERVICE_REPOS[@]}"; do
+            repo="${SERVICE_REPOS[$svc]}"
             DIGEST=$(aws ecr describe-images \
-              --repository-name "${svc}" \
+              --repository-name "${repo}" \
               --image-ids imageTag="${TAG}" \
               --region us-east-2 \
               --query "imageDetails[0].imageDigest" \
               --output text 2>/dev/null || echo "None")
 
             if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
-              echo "Error: Service ${svc} is missing required image tag '${TAG}' in ECR!" >&2
+              echo "Error: Repository ${repo} is missing required image tag '${TAG}' in ECR!" >&2
               exit 1
             fi
+            echo "${svc}=${DIGEST}" >> /tmp/release_digests/digests.env
             echo "  ✓ ${svc}: ${DIGEST}"
           done
-          echo "All 4 microservice container digests verified in ECR."
+          echo "All 4 microservice container digests resolved in ECR."
 
-      - name: Verify Kubernetes Cluster Connectivity, Release Parity, and Rollouts (Fail Closed)
+      - name: Promote Release via GitOps (Only if action == 'deploy')
+        if: github.event.inputs.action == 'deploy'
         run: |
+          source /tmp/release_digests/digests.env
+          TAG="${{ github.event.inputs.release_tag }}"
+          ACCOUNT_ID="592668326948"
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
+
+          echo "Promoting release '${TAG}' across GitOps overlay manifests..."
+          python3 devops/scripts/update_gitops_image.py \
+            --manifest devops/gitops/overlays/dev/frontend.yml \
+            --service boutique-frontend \
+            --image-uri "${REGISTRY}/boutique-frontend@${boutique_frontend}"
+
+          python3 devops/scripts/update_gitops_image.py \
+            --manifest devops/gitops/overlays/dev/gateway.yml \
+            --service boutique-gateway \
+            --image-uri "${REGISTRY}/boutique-gateway@${boutique_gateway}"
+
+          python3 devops/scripts/update_gitops_image.py \
+            --manifest devops/gitops/overlays/dev/auth.yml \
+            --service boutique-auth \
+            --image-uri "${REGISTRY}/boutique-auth@${boutique_auth}"
+
+          python3 devops/scripts/update_gitops_image.py \
+            --manifest devops/gitops/overlays/dev/aiops.yml \
+            --service boutique-aiops-assistant \
+            --image-uri "${REGISTRY}/boutique-aiops-assistant@${boutique_aiops_assistant}"
+
+          echo "Validating updated GitOps overlay with Kustomize..."
+          kubectl kustomize devops/gitops/overlays/dev/ > /dev/null
+
+          if git status --porcelain | grep -q "devops/gitops/overlays/dev"; then
+            echo "Committing GitOps release promotion to main..."
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add devops/gitops/overlays/dev/
+            git commit -m "chore(gitops): promote release ${TAG} to DEV [skip ci]"
+            git push origin main
+            echo "Pushed GitOps release promotion commit: $(git rev-parse HEAD)"
+          else
+            echo "GitOps overlay manifests are already pinned to target release digests."
+          fi
+
+      - name: Verify Release-to-GitOps-to-EKS Digest Parity and Argo CD Revision (Strict Fail-Closed)
+        run: |
+          source /tmp/release_digests/digests.env
+          TAG="${{ github.event.inputs.release_tag }}"
+          ACTION="${{ github.event.inputs.action }}"
+
           echo "Configuring kubectl for EKS cluster boutique-dev-eks..."
           aws eks update-kubeconfig --region us-east-2 --name boutique-dev-eks
 
           echo "Verifying EKS cluster connectivity (strict fail-closed)..."
           kubectl get nodes -o wide
 
-          echo "Verifying Argo CD GitOps Application Synchronization..."
-          SYNC_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
-          HEALTH_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
-          SYNCED_REVISION=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.revision}' 2>/dev/null || echo "Unknown")
-          echo "Argo CD boutique application status: Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, SyncedRevision=${SYNCED_REVISION}"
-          if [ "${SYNC_STATUS}" != "Synced" ] || [ "${HEALTH_STATUS}" != "Healthy" ]; then
-            echo "Error: Argo CD application 'boutique' is not Synced and Healthy (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS})!" >&2
-            exit 1
-          fi
+          echo "================================================================================"
+          echo "VERIFYING RELEASE-TO-GITOPS-TO-EKS PARITY (Fail-Closed Gate)"
+          echo "================================================================================"
 
-          echo "Verifying desired-versus-running release image parity on live EKS workloads..."
-          AUTH_IMG=$(kubectl get deployment/auth -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
-          GATEWAY_IMG=$(kubectl get deployment/gateway -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
-          AIOPS_IMG=$(kubectl get deployment/aiops-assistant -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
-          FRONTEND_IMG=$(kubectl get rollout/frontend -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
-          CANARY_IMG=$(kubectl get deployment/boutique-canary -n boutique -o jsonpath='{.spec.template.spec.containers[0].image}')
+          # 1. Verify GitOps Overlay Manifest Parity
+          echo "[1/3] Verifying GitOps Overlay Manifest Parity against requested release '${TAG}'..."
+          check_gitops_parity() {
+            local svc="$1"
+            local manifest="$2"
+            local expected_digest="$3"
+            local pinned_digest
+            pinned_digest=$(grep -oE "sha256:[a-f0-9]{64}" "$manifest" | head -1 || echo "missing")
 
-          echo "  ✓ auth deployment image:            ${AUTH_IMG}"
-          echo "  ✓ gateway deployment image:         ${GATEWAY_IMG}"
-          echo "  ✓ aiops-assistant deployment image: ${AIOPS_IMG}"
-          echo "  ✓ frontend rollout image:           ${FRONTEND_IMG}"
-          echo "  ✓ boutique-canary deployment image: ${CANARY_IMG}"
+            echo "  Checking GitOps overlay: ${svc} (${manifest})"
+            echo "    Target ECR Digest   : ${expected_digest}"
+            echo "    Pinned GitOps Digest: ${pinned_digest}"
 
-          # Verify that each workload is pinned to an immutable digest (@sha256:)
-          for img in "${AUTH_IMG}" "${GATEWAY_IMG}" "${AIOPS_IMG}" "${FRONTEND_IMG}"; do
-            if [[ "$img" != *"@sha256:"* ]]; then
-              echo "Error: Workload image '${img}' violates immutable digest pinning policy (@sha256: required)!" >&2
+            if [ "$pinned_digest" != "$expected_digest" ]; then
+              echo "Error: Release parity mismatch for ${svc}! Overlay manifest '${manifest}' has '${pinned_digest}', but target release '${TAG}' is '${expected_digest}'." >&2
+              echo "Never report success for an undeployed requested release." >&2
               exit 1
             fi
+            echo "    ✓ GitOps manifest matches target release digest."
+          }
+
+          check_gitops_parity "boutique-frontend" "devops/gitops/overlays/dev/frontend.yml" "$boutique_frontend"
+          check_gitops_parity "boutique-gateway" "devops/gitops/overlays/dev/gateway.yml" "$boutique_gateway"
+          check_gitops_parity "boutique-auth" "devops/gitops/overlays/dev/auth.yml" "$boutique_auth"
+          check_gitops_parity "boutique-aiops-assistant" "devops/gitops/overlays/dev/aiops.yml" "$boutique_aiops_assistant"
+
+          # 2. Verify Argo CD Application Status & Synced Revision
+          echo "[2/3] Verifying Argo CD GitOps Application Synchronization..."
+          MAX_WAIT=120
+          ELAPSED=0
+          while true; do
+            SYNC_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
+            HEALTH_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
+            SYNCED_REVISION=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.revision}' 2>/dev/null || echo "Unknown")
+            echo "  Argo CD status (elapsed ${ELAPSED}s): Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, Revision=${SYNCED_REVISION}"
+
+            if [ "${SYNC_STATUS}" = "Synced" ] && [ "${HEALTH_STATUS}" = "Healthy" ]; then
+              echo "  ✓ Argo CD boutique application is Synced and Healthy at revision ${SYNCED_REVISION}."
+              break
+            fi
+
+            if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
+              echo "Error: Argo CD application failed to achieve Synced & Healthy state within ${MAX_WAIT}s (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS})!" >&2
+              exit 1
+            fi
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
           done
+
+          # 3. Verify Live EKS Running Pod Image Parity
+          echo "[3/3] Verifying desired-versus-running release image parity on live EKS workloads..."
+          check_pod_parity() {
+            local svc="$1"
+            local label_selector="$2"
+            local expected_digest="$3"
+
+            local pod_image_id
+            pod_image_id=$(kubectl get pods -n boutique -l "$label_selector" -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' 2>/dev/null || echo "missing")
+            local pod_digest
+            pod_digest=$(echo "$pod_image_id" | grep -oE "sha256:[a-f0-9]{64}" || echo "invalid")
+
+            echo "  Checking Live Pod: ${svc} (selector: ${label_selector})"
+            echo "    Target ECR Digest: ${expected_digest}"
+            echo "    Live Pod Digest  : ${pod_digest}"
+
+            if [ "$pod_digest" != "$expected_digest" ]; then
+              echo "Error: Live workload parity mismatch for ${svc}! Running pod is on '${pod_digest}', but requested release '${TAG}' is '${expected_digest}'." >&2
+              echo "The requested release is NOT running on the cluster. Failing closed." >&2
+              exit 1
+            fi
+            echo "    ✓ Live running pod matches target release digest."
+          }
+
+          check_pod_parity "boutique-frontend" "app=frontend" "$boutique_frontend"
+          check_pod_parity "boutique-gateway" "app=gateway" "$boutique_gateway"
+          check_pod_parity "boutique-auth" "app=auth" "$boutique_auth"
+          check_pod_parity "boutique-aiops-assistant" "app.kubernetes.io/name=aiops-assistant" "$boutique_aiops_assistant"
 
           echo "Verifying workload rollouts in namespace 'boutique'..."
           kubectl rollout status deployment/auth -n boutique --timeout=120s
@@ -139,6 +263,7 @@ jobs:
               exit 1
             fi
           done
+          echo "All release-to-GitOps-to-EKS parity gates PASSED successfully."
 
       - name: Execute Live DEV Application Smoke Tests
         id: smoke_tests
@@ -195,6 +320,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
+          ACTION="${{ github.event.inputs.action }}"
+          TAG="${{ github.event.inputs.release_tag }}"
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
@@ -202,7 +329,7 @@ jobs:
             -f state="success" \
             -f environment="development" \
             -f environment_url="https://demo.aarjav.site" \
-            -f description="DEV deployment verified healthy. Live at https://demo.aarjav.site"
+            -f description="DEV ${ACTION} verified healthy for ${TAG}. Parity confirmed across ECR, GitOps & EKS."
 
       - name: Mark GitHub Deployment Failed
         if: failure()
@@ -210,6 +337,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
+          ACTION="${{ github.event.inputs.action }}"
+          TAG="${{ github.event.inputs.release_tag }}"
           if [ -n "$DEPLOYMENT_ID" ]; then
             gh api \
               --method POST \
@@ -218,5 +347,5 @@ jobs:
               -f state="failure" \
               -f environment="development" \
               -f environment_url="https://demo.aarjav.site" \
-              -f description="DEV deployment verification failed smoke tests."
+              -f description="DEV ${ACTION} failed verification for ${TAG}."
           fi

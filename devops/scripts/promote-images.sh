@@ -61,24 +61,27 @@ fi
 FALLBACK_MANIFEST=""
 case "$SERVICE" in
   auth|boutique-auth)
-    MANIFEST="devops/gitops/k8s/backend/auth.yml"
+    MANIFEST="devops/gitops/overlays/dev/auth.yml"
+    FALLBACK_MANIFEST="devops/gitops/k8s/backend/auth.yml"
     REPO_NAME="boutique-auth"
     ;;
   gateway|boutique-gateway)
-    MANIFEST="devops/gitops/k8s/backend/gateway.yml"
+    MANIFEST="devops/gitops/overlays/dev/gateway.yml"
+    FALLBACK_MANIFEST="devops/gitops/k8s/backend/gateway.yml"
     REPO_NAME="boutique-gateway"
     ;;
   frontend|boutique-frontend)
-    if [ -f "devops/gitops/k8s/frontend/rollout.yaml" ]; then
-      MANIFEST="devops/gitops/k8s/frontend/rollout.yaml"
-    else
-      MANIFEST="devops/gitops/k8s/frontend/blue-green.yml"
-      FALLBACK_MANIFEST="devops/gitops/k8s/frontend/deployment.yml"
-    fi
+    MANIFEST="devops/gitops/overlays/dev/frontend.yml"
+    FALLBACK_MANIFEST="devops/gitops/k8s/frontend/rollout.yaml"
     REPO_NAME="boutique-frontend"
     ;;
+  aiops|aiops-assistant|boutique-aiops-assistant)
+    MANIFEST="devops/gitops/overlays/dev/aiops.yml"
+    FALLBACK_MANIFEST="devops/gitops/k8s/aiops/deployment.yaml"
+    REPO_NAME="boutique-aiops-assistant"
+    ;;
   *)
-    echo "Error: Unknown service $SERVICE. Valid services are: auth, gateway, frontend." >&2
+    echo "Error: Unknown service $SERVICE. Valid services are: auth, gateway, frontend, aiops-assistant." >&2
     exit 1
     ;;
 esac

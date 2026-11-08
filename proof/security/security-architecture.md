@@ -71,3 +71,46 @@ For enterprise production environments, the platform architecture prescribes thr
 1. **Self-Hosted In-VPC GitHub Runners (ARC)**: Deploy GitHub Actions Runner Controller (ARC) directly within private subnets of the platform VPC. CI/CD runs entirely inside the AWS network perimeter, enabling complete deactivation of the public EKS API endpoint (`endpointPublicAccess: false`, `endpointPrivateAccess: true`).
 2. **Bastion / Client VPN Gateway**: Restrict public access CIDRs (`publicAccessCidrs`) to dedicated corporate VPN egress elastic IPs or AWS Client VPN endpoint CIDRs.
 3. **AWS Verified Access / Cloudflare Zero Trust**: Front administrative endpoints with OIDC-authenticated identity-aware proxies, enforcing multi-factor device posture checks before granting network connectivity.
+
+---
+
+## 5. GitHub Actions OIDC Trust Policy & Least-Privilege Hardening
+
+### IAM Role: `github-actions-ecr-publisher`
+The GitHub Actions workflow authenticates to AWS via OpenID Connect (OIDC) through role `arn:aws:iam::592668326948:role/github-actions-ecr-publisher`.
+
+### Overly Permissive Wildcard Elimination
+During security review, account-wide wildcard conditions (`repo:itsme-aarjav/*` and `repo:itsme-aarjav*`) were identified and purged. These wildcards previously permitted any repository under the account to assume the role.
+
+The trust policy is now strictly pinned to the exact repository, branch, and environment claims:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::592668326948:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": [
+            "repo:itsme-aarjav/autonomous-devsecops-platform:ref:refs/heads/main",
+            "repo:itsme-aarjav/autonomous-devsecops-platform:ref:refs/tags/*",
+            "repo:itsme-aarjav/autonomous-devsecops-platform:environment:development"
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+**Isolation Guarantee**: Unrelated repositories (e.g. `pokevault` or other personal repositories) cannot assume this role under any condition.
+
+### EKS Access Entry Least-Privilege Scoping
+- **Redundant Policy Removal**: `AmazonEKSViewPolicy` was cleanly disassociated as it was redundant.
+- **AdminView Policy Rationale**: `AmazonEKSAdminViewPolicy` is retained as a strictly read-only cluster access policy. It grants read-only view access across cluster nodes and custom resource definitions (specifically Argo CD `applications.argoproj.io`), which are not aggregated into the default Kubernetes `view` ClusterRole. The role possesses zero write, mutation, exec, or deletion capabilities in Kubernetes.

@@ -94,6 +94,22 @@ class TestCanaryRemediation(unittest.TestCase):
         self.assertIn("512Mi", rendered.diff)
         self.assertIn("256Mi", rendered.diff)
 
+    def test_canary_manifest_command_bounding(self):
+        """Tests that canary manifest defines bounded memory checks and avoids endless loops."""
+        canary_manifest = Path(self.repo_root) / "devops/gitops/overlays/dev/canary.yml"
+        self.assertTrue(canary_manifest.is_file())
+        content = canary_manifest.read_text()
+
+        # Verify ConfigMap volume mount definition
+        self.assertIn("boutique-canary-trigger", content)
+        self.assertIn("/etc/canary-trigger", content)
+
+        # Verify command contains bounded check logic (checking cgroup limit <= 128Mi)
+        self.assertIn("trigger_check()", content)
+        self.assertIn("134217728", content)
+        self.assertIn("Simulating bounded memory load", content)
+        self.assertIn("Bounded workload resolved by remediation; running stably", content)
+
     def test_canary_invalid_proposal_rejected(self):
         """Tests that out-of-bounds proposals or unknown workloads are strictly rejected."""
         # Excessive memory limit (2Gi > MAX_MEMORY_BYTES 1Gi)

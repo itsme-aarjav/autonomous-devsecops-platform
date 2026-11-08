@@ -39,7 +39,7 @@ Query the public catalog via the API gateway:
 curl -s https://demo.aarjav.site/api/products | jq .
 ```
 **Expected Response**:
-Returns 8 luxury boutique products (e.g., *Cashmere Blend Overcoat*, *Merino Wool Knit Sweater*, *Italian Leather Weekender*) with current real-time inventory counts and image asset paths.
+Returns the 8 luxury boutique products seeded in PostgreSQL (*Akoya Pearl Drop Earrings*, *Cashmere Blend Overcoat*, *Classic Tailored Wool Blazer*, *Diamond Solitaire Necklace*, *Italian Leather Handbag*, *Signature Leather Wallet*, *Silk Evening Gown*, *Stiletto Designer Heels*) with real-time inventory counts and image asset paths (products are unrated by default with NULL rating in database).
 
 ### B. Verify Static Image Assets
 Verify that product image assets load over HTTPS with valid content headers:
@@ -52,8 +52,8 @@ HTTP/2 200
 content-type: image/jpeg
 ```
 
-### C. Place an Authenticated Order (Atomic Inventory Deduction)
-Authenticate as the recruiter account, retrieve a JWT Bearer token, and place an order:
+### C. Place an Authenticated Demo Order (Atomic Inventory Deduction)
+Authenticate as the recruiter account, retrieve a JWT Bearer token, and place a demonstration order (no real payment processed; transactional PostgreSQL deduction):
 ```bash
 RECRUITER_PWD=$(aws secretsmanager get-secret-value --region us-east-2 \
   --secret-id boutique/dev/recruiter-demo-credential \
@@ -63,7 +63,7 @@ TOKEN=$(curl -s -X POST https://demo.aarjav.site/api/auth/login \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"recruiter@demo.aarjav.site\",\"password\":\"${RECRUITER_PWD}\"}" | jq -r .token)
 
-# Place an order for 1x Cashmere Blend Overcoat (UUID: 10000000-0000-0000-0000-000000000001)
+# Place a demo order for 1x Cashmere Blend Overcoat (UUID: 11111111-1111-4111-8111-111111111111)
 curl -s -X POST https://demo.aarjav.site/api/orders \
   -H "Authorization: Bearer ${TOKEN}" \
   -H "Content-Type: application/json" \
@@ -77,7 +77,7 @@ curl -s -X POST https://demo.aarjav.site/api/orders \
       "country": "US"
     },
     "items": [
-      { "productId": "10000000-0000-0000-0000-000000000001", "quantity": 1 }
+      { "productId": "11111111-1111-4111-8111-111111111111", "quantity": 1 }
     ]
   }' | jq .
 ```

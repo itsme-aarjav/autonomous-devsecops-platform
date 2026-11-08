@@ -273,9 +273,7 @@ const Orders: React.FC = () => {
                       </Box>
                       
                       <Typography variant="body2" color="text.secondary">
-                        Est. Delivery: {new Date(
-                          new Date(order.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000
-                        ).toLocaleDateString()}
+                        Recorded: {new Date(order.createdAt).toLocaleDateString()}
                       </Typography>
                     </Box>
                   </CardContent>

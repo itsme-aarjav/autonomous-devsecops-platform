@@ -109,3 +109,17 @@ aws s3api head-object \
 # 5. Clean up test job
 kubectl delete job manual-s3-backup-verify -n boutique
 ```
+
+---
+
+## 4. Current Execution Status & S3 Inventory
+
+- **CronJob Schedule**: `0 2 * * *` (02:00 AM IST daily) with `timeZone: Asia/Kolkata`.
+- **Scheduled Execution Status**: `LAST SCHEDULE: <none>`. Because the CronJob was applied after 02:00 IST on Nov 8, the first automated scheduled run will fire at the next 02:00 AM IST window. No scheduled execution has occurred yet.
+- **S3 Bucket Objects**: Two verified encrypted backup archives currently exist in `s3://boutique-aiops-backups-592668326948-us-east-2/backups/`:
+  1. `backups/auth_db_backup_20261107_204155Z.sql.gz` (3,761 bytes, created during manual preflight validation)
+  2. `backups/auth_db_backup_20261107_214737Z.sql.gz` (3,862 bytes, created during manual fail-closed verification)
+- **Encryption Verification**: Confirmed via `aws s3api head-object`:
+  - `ServerSideEncryption: aws:kms`
+  - `SSEKMSKeyId: arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b`
+  - `BucketKeyEnabled: true`

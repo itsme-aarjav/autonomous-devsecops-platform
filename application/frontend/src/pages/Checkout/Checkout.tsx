@@ -96,19 +96,21 @@ const Checkout: React.FC = () => {
         <Paper elevation={3} sx={{ p: 4, textAlign: 'center', borderRadius: 3 }}>
           <SuccessIcon sx={{ fontSize: 72, color: 'success.main', mb: 2 }} />
           <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
-            Order Confirmed!
+            Demo Order Confirmed!
           </Typography>
           <Typography variant="h6" color="text.secondary" paragraph>
-            Thank you for your purchase, {address.fullName}.
+            Thank you for evaluating the platform, {address.fullName}.
           </Typography>
           <Alert severity="success" sx={{ my: 3, textAlign: 'left' }}>
-            <strong>Order Placed Successfully:</strong> Your order has been confirmed and inventory reserved.
+            <strong>Demo Order Placed Successfully:</strong> Your order record has been created in PostgreSQL and inventory has been reserved.
             <br />
             <strong>Order Reference ID:</strong> <code>{completedOrder.id}</code>
             <br />
             <strong>Total Amount:</strong> ${completedOrder.totalAmount?.toFixed(2)}
             <br />
             <strong>Status:</strong> {completedOrder.status?.toUpperCase()}
+            <br />
+            <em>Note: This is a platform demonstration transaction. No real payment was collected and no physical shipment will occur.</em>
           </Alert>
           <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'center' }}>
             <Button
@@ -170,9 +172,10 @@ const Checkout: React.FC = () => {
       </Typography>
 
       <Alert severity="info" sx={{ mb: 4 }}>
-        <strong>COMPLIMENTARY EXPRESS CHECKOUT</strong>
+        <strong>DEMO CHECKOUT &bull; NO REAL PAYMENT REQUIRED</strong>
         <br />
-        Boutique membership courtesy authorization enabled. Complimentary insured express delivery on all orders.
+        This is an autonomous cloud platform demonstration. Submitting an order creates an authenticated transaction in PostgreSQL and decrements real inventory.
+        <strong> No real payment is collected or processed</strong>, and no physical delivery will take place.
       </Alert>
 
       {errorMessage && (
@@ -187,7 +190,10 @@ const Checkout: React.FC = () => {
           <Grid size={{ xs: 12, md: 7 }}>
             <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <ShippingIcon /> Shipping Address
+                <ShippingIcon /> Demo Shipping Details
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Pre-filled with synthetic demo details for evaluation. No personal or real address information is required.
               </Typography>
               <Divider sx={{ mb: 3 }} />
 
@@ -196,7 +202,7 @@ const Checkout: React.FC = () => {
                   <TextField
                     required
                     fullWidth
-                    label="Recipient Full Name"
+                    label="Demo Recipient Name"
                     name="fullName"
                     value={address.fullName}
                     onChange={handleInputChange}
@@ -206,7 +212,7 @@ const Checkout: React.FC = () => {
                   <TextField
                     required
                     fullWidth
-                    label="Street Address"
+                    label="Demo Street Address"
                     name="street"
                     value={address.street}
                     onChange={handleInputChange}
@@ -260,7 +266,7 @@ const Checkout: React.FC = () => {
                 <SecurityIcon color="primary" /> Payment Method
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Boutique Courtesy Account — Instant Direct Authorization.
+                Simulated Demo Payment — Live PostgreSQL transactional verification. No payment card or financial data processed.
               </Typography>
             </Paper>
           </Grid>
@@ -330,7 +336,7 @@ const Checkout: React.FC = () => {
                 disabled={submitting}
                 sx={{ py: 1.5, fontWeight: 700 }}
               >
-                {submitting ? <CircularProgress size={26} color="inherit" /> : 'Place Order'}
+                {submitting ? <CircularProgress size={26} color="inherit" /> : 'Place Demo Order'}
               </Button>
             </Paper>
           </Grid>
