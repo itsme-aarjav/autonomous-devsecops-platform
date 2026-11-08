@@ -25,7 +25,7 @@ This checklist provides human evaluators, operators, and recruiters with an item
 - [x] **Storefront**: [`https://demo.aarjav.site`](https://demo.aarjav.site) (HTTP/2 200 OK, ACM TLS).
 - [x] **Grafana Visualizations**: [`https://grafana.demo.aarjav.site`](https://grafana.demo.aarjav.site) (HTTP/2 302 &rarr; `/login`, protected by native Grafana login).
 - [x] **Argo CD GitOps UI**: [`https://argocd.demo.aarjav.site`](https://argocd.demo.aarjav.site) (HTTP/2 200 OK, protected by native Argo CD login).
-- [x] **Zero-Trust Administrative Posture**: Prometheus and Alertmanager kept on internal `ClusterIP` to prevent unauthenticated internet access.
+- [x] **Internal Administrative Posture**: Prometheus and Alertmanager kept on internal `ClusterIP` to prevent unauthenticated internet access.
 
 ---
 

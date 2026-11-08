@@ -211,7 +211,7 @@ def run_e2e_demonstration():
             print(f"    {line}")
         print("  ----------------------------------------------------")
 
-    # Demonstrate explicit human operator approval gate and direct-to-main application
+    # Demonstrate explicit human operator approval gate and Pull Request generation
     print("\n  --- Human Operator Approval Gate Simulation ---")
     approved_proposal = remediation_engine.apply_approved_remediation(
         proposal_id=proposal["proposal_id"],

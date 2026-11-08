@@ -9,7 +9,7 @@ Welcome to the **Autonomous DevSecOps & Cloud Operations Platform**. This guide 
 - [x] **Public HTTPS Web UI**: Accessible with valid TLS at [`https://demo.aarjav.site`](https://demo.aarjav.site)
 - [x] **E-Commerce Microservices**: Product catalog, real-time inventory management, transactional orders backed by PostgreSQL 15.19
 - [x] **Microservices API Gateway & Auth**: Live JWT authentication and role-based access control
-- [x] **Zero-Trust CI/CD Pipeline**: GitHub Actions with OpenID Connect (OIDC) & zero static AWS keys
+- [x] **Secure OIDC CI/CD Pipeline**: GitHub Actions with OpenID Connect (OIDC) & zero static AWS keys
 - [x] **GitOps Continuous Delivery**: Argo CD & Argo Rollouts managing canary deployments on EKS ([`https://argocd.demo.aarjav.site`](https://argocd.demo.aarjav.site))
 - [x] **Observability Stack**: Prometheus Operator, Grafana ([`https://grafana.demo.aarjav.site`](https://grafana.demo.aarjav.site)), Node Exporter, kube-state-metrics
 - [x] **Autonomous AIOps Engine**: Event-driven incident triage using SQS FIFO, Amazon Bedrock, and Human-in-the-Loop PR Remediation
@@ -164,7 +164,7 @@ curl -s -H "Authorization: Bearer ${TOKEN}" https://demo.aarjav.site/api/auth/me
 
 ## Walkthrough Step 4: Observability & Telemetry
 
-The platform runs a production-grade Prometheus and Grafana stack on Kubernetes, secured behind AWS ACM TLS certificates and form-based authentication.
+The platform runs a comprehensive Prometheus and Grafana stack on Kubernetes, secured behind AWS ACM TLS certificates and form-based authentication.
 
 ### A. Grafana Remote Dashboards
 Navigate directly to the remote Grafana interface in your browser:
@@ -196,8 +196,8 @@ https://argocd.demo.aarjav.site
 - **Live Status**: Inspect the `boutique-dev` application and healthy Argo Rollouts canary controllers.
 - **Evidence Tip**: Capture a screenshot of the Argo CD application topology and save to `proof/screenshots/05-argocd-ui.png`.
 
-### C. Zero-Trust Telemetry Engine (Prometheus & Alertmanager)
-Prometheus and Alertmanager do not feature native user authentication. In compliance with strict zero-trust standards, they are intentionally kept internal on Kubernetes `ClusterIP` to prevent exposing unauthenticated administrative endpoints:
+### C. Internal Telemetry Engine (Prometheus & Alertmanager)
+Prometheus and Alertmanager do not feature native user authentication. In compliance with network isolation standards, they are intentionally kept internal on Kubernetes `ClusterIP` to prevent exposing unauthenticated administrative endpoints:
 ```bash
 # Secure local tunnel to Prometheus Web UI
 kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:9090

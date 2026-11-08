@@ -1,6 +1,6 @@
 # Autonomous DevSecOps Platform — Access Inventory & Credential Guide
 
-> **Security Notice**: This document provides connection endpoints, service topology, and command templates for evaluating the platform. In accordance with zero-trust principles, long-lived production secrets and raw tokens are **never** committed to version control.
+> **Security Notice**: This document provides connection endpoints, service topology, and command templates for evaluating the platform. In accordance with least-privilege principles, long-lived production secrets and raw tokens are **never** committed to version control.
 
 ---
 

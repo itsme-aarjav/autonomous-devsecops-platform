@@ -1,6 +1,6 @@
 # Operational Dashboards & Service Inventory
 
-This inventory documents all live platform interfaces, remote access URLs, authentication mechanisms, and zero-trust architectural boundaries.
+This inventory documents all live platform interfaces, remote access URLs, authentication mechanisms, and network security boundaries.
 
 ---
 
@@ -57,26 +57,26 @@ curl -s -X POST https://demo.aarjav.site/api/auth/login \
 
 ---
 
-## 3. Zero-Trust Cloud-Only Architecture & Cost Optimization
+## 3. Least-Privilege Network Isolation & Cost Optimization
 
-### Zero-Trust Invariant: Why Internal Dashboards Are Kept Private
+### Network Isolation Invariant: Why Internal Dashboards Are Kept Private
 Services without native identity and access management (IAM) mechanisms (such as **Prometheus** and **Alertmanager**) are strictly isolated on internal Kubernetes `ClusterIP` networks.
 
 Exposing unauthenticated monitoring administrative endpoints directly to the public internet presents severe attack vectors:
 - **Alertmanager**: An unauthenticated attacker could inject silences, suppress critical alerts during an intrusion, or re-route telemetry.
 - **Prometheus**: An attacker could craft heavy TSDB queries to cause Denial-of-Service (DoS) on monitoring nodes, or scrape sensitive environment variables and internal infrastructure topologies.
 
-### Architectural Trade-Off: Zero-Trust Tunnels vs. Expensive Infrastructure
-In enterprise cloud environments, securing internal dashboards without port-forwarding typically requires:
+### Architectural Trade-Off: Local Port-Forwarding vs. Costly Infrastructure
+In cloud environments, securing internal dashboards without port-forwarding typically requires:
 1. **AWS Cognito User Pool + ALB OIDC Authentication**: Enforces OAuth2/OIDC login at the Application Load Balancer layer before traffic reaches internal pods.
 2. **Dedicated Bastion Host + Multi-AZ NAT Gateways**: Incurs substantial ongoing cloud costs — each AWS NAT Gateway costs ~$32.40/month ($65–$97/month across 2–3 Availability Zones) plus $0.045/GB data processing fees, alongside Bastion EC2 compute costs.
 
-Our platform adopts a **Zero-Trust Cloud-Native Model**:
+Our platform adopts a **Private Network Isolation Model**:
 - **Zero Idle Cost**: Eliminates expensive NAT Gateways and idle Bastion compute instances.
 - **IAM-Governed Access**: Authorized operators tunnel directly to internal services via encrypted Kubernetes API channels (`kubectl port-forward`), authenticated through AWS IAM Signature Version 4 and Kubernetes RBAC.
 - **Dual Defense**: External public access remains strictly limited to applications with mature native authentication (Grafana RBAC, Argo CD JWT sessions, Boutique Customer Auth).
 
-| Service | Internal Target | Port-Forward Command | Local URL | Zero-Trust Rationale |
+| Service | Internal Target | Port-Forward Command | Local URL | Isolation Rationale |
 | :--- | :--- | :--- | :--- | :--- |
 | **Prometheus** | `svc/kube-prometheus-stack-prometheus` (`monitoring`) | `kubectl port-forward svc/kube-prometheus-stack-prometheus -n monitoring 9090:9090` | `http://localhost:9090` | Prometheus lacks native authentication. Kept internal to prevent TSDB DoS and infrastructure reconnaissance. |
 | **Alertmanager** | `svc/kube-prometheus-stack-alertmanager` (`monitoring`) | `kubectl port-forward svc/kube-prometheus-stack-alertmanager -n monitoring 9093:9093` | `http://localhost:9093` | Alertmanager lacks native login. Kept internal to prevent unauthorized silence injection or routing tampering. |

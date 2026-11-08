@@ -71,7 +71,7 @@ class TrustedTokenApprovalAuthenticator(BaseApprovalAuthenticator):
 
 class AwsIamApprovalAuthenticator(BaseApprovalAuthenticator):
     """
-    Production-grade human approval authenticator bound to authenticated AWS IAM/STS caller identity.
+    AWS IAM-based human approval authenticator bound to authenticated AWS IAM/STS caller identity.
     Enforces that caller is authenticated in the target AWS Account (default: 592668326948)
     and matches authorized operator IAM principal patterns.
 

@@ -12,7 +12,7 @@ The test successfully proved that the database can be fully reconstructed from a
 
 | Parameter | Value | Details |
 | :--- | :--- | :--- |
-| **Snapshot ID** | `snap-05a3b0ffe3463e280` | Automated production-grade EBS snapshot |
+| **Snapshot ID** | `snap-05a3b0ffe3463e280` | Automated point-in-time EBS snapshot |
 | **Original Volume** | `vol-01f1ce50d718b4e69` | `boutique-postgres-0` data volume (20 GiB gp3) |
 | **AWS Region / AZ** | `us-east-2` / `us-east-2a` | Ohio |
 | **Snapshot Status** | `completed` (100% progress) | 535,298,048 bytes transferred |

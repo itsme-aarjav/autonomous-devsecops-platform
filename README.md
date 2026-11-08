@@ -237,7 +237,7 @@ The platform enforces a clear separation between **local development validation*
 > **Operational Status & Platform Readiness**:
 > - **GitHub CI Validation & Multi-Stage Builds (Verified)**: Multi-stage Docker container builds (4 images), security vulnerability scanning (Trivy), Kustomize manifest validation, Ansible playbook syntax, and Terraform validation pass cleanly on hosted GitHub runners (10/10 jobs).
 > - **Live EKS Cluster & ECR Deployment**: EKS cluster (`boutique-dev-eks`) deployed on AWS (`592668326948` / `us-east-2`) with Argo CD, Prometheus Operator, Argo Rollouts, and ALB Ingress serving `https://demo.aarjav.site`. Immutable image digests published to private ECR.
-> - **Automated S3 Backups**: Two-stage Kubernetes CronJob performs daily compressed `pg_dump` backups encrypted with AWS KMS (`1e4e2ce3-e642-47a9-a20d-3a47b052918b`) to S3 bucket `boutique-aiops-backups-592668326948-us-east-2`.
+> - **Automated S3 Backups**: Two-stage Kubernetes CronJob is configured for daily compressed `pg_dump` backups encrypted with AWS KMS (`1e4e2ce3-e642-47a9-a20d-3a47b052918b`) to S3 bucket `boutique-aiops-backups-592668326948-us-east-2` (scheduled daily at 02:00 AM IST; isolated point-in-time restore verified).
 > - **Amazon Bedrock (Nova Lite)**: Integrated with Amazon Bedrock Nova Lite (`amazon.nova-lite-v1:0`) and DynamoDB stores (`boutique-aiops-episodes`, `boutique-aiops-remediations`).
 > - **Human-Approved GitOps Remediation**: Implemented with DynamoDB proposal persistence store, constant-time operator authentication gate (`hmac.compare_digest`), CloudShell approval CLI (`aiops/operator_cli.py`), and reviewed GitHub Pull Request generation. Synthetic canary test suite ready for operator live verification.
 
@@ -273,7 +273,7 @@ cd application/backend && npm test
 # Frontend unit tests
 cd application/frontend && npm test
 
-# AIOps unit and security regression tests (27 tests)
+# AIOps unit and security regression tests (27 tests: 22 approval safety tests + 5 canary remediation tests)
 python3 -m unittest discover -s aiops/tests -p "test_*.py" -v
 ```
 

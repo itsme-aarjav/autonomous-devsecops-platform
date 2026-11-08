@@ -133,7 +133,7 @@ When deployed on Amazon EKS Auto Mode, the assistant uses EKS Pod Identity:
 
 ## Testing & Quality Gates
 
-The repository includes **27 unit and security regression tests** covering safe proposal generation, deterministic policy boundaries, and constant-time operator authentication:
+The repository includes **27 unit and security regression tests** (22 approval safety tests + 5 canary remediation tests) covering safe proposal generation, deterministic policy boundaries, and constant-time operator authentication:
 
 ```bash
 # Run AIOps unit and security regression test suite
@@ -141,12 +141,12 @@ python3 -m unittest discover -s aiops/tests -p "test_*.py" -v
 ```
 
 ### Test Coverage Highlights:
-- **`test_approval_safety.py` (24 tests)**:
+- **`test_approval_safety.py` (22 tests)**:
   - Constant-time human operator token authentication (`TrustedTokenApprovalAuthenticator` via `hmac.compare_digest`).
   - Safe Pull Request generation and promotion gating (proposals restricted to PR generation; direct commits to `main` fail closed).
   - Remediation policy constraints, memory bounds clamping, schema validation, and path traversal rejection.
   - Proposal idempotency, duplicate prevention, and thread-safe approval locking.
-- **`test_canary_remediation.py` (3 tests)**:
+- **`test_canary_remediation.py` (5 tests)**:
   - End-to-end canary OOMKilled remediation generation.
   - Policy evaluation and deterministic memory patch rendering (`requests: 256Mi`, `limits: 512Mi`).
   - Synthetic test isolation and verification safeguards.

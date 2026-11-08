@@ -2,7 +2,7 @@
 
 > **Live Cloud Demo**: [`https://demo.aarjav.site`](https://demo.aarjav.site)  
 > **AWS Account ID**: `592668326948` | **Region**: `us-east-2` | **Cluster**: `boutique-dev-eks`  
-> **Architecture Overview**: Automated Infrastructure as Code, GitOps progressive delivery, zero-trust security, full observability, and an event-driven generative AI site reliability engineering (AIOps) assistant.
+> **Architecture Overview**: Automated Infrastructure as Code, GitOps progressive delivery, defense-in-depth security, full observability, and an event-driven generative AI site reliability engineering (AIOps) assistant.
 
 ---
 
@@ -76,7 +76,7 @@ Every capability is verifiable live against real AWS infrastructure:
 
 - **Core Verification & Access**:
   - [`proof/verification-checklist.md`](verification-checklist.md): Comprehensive itemized verification checklist with `READY_FOR_USER_VERIFICATION` status.
-  - [`proof/dashboard-links.md`](dashboard-links.md): Verified inventory of all public HTTPS endpoints, admin credential retrieval, and zero-trust ClusterIP rationale.
+  - [`proof/dashboard-links.md`](dashboard-links.md): Verified inventory of all public HTTPS endpoints, admin credential retrieval, and internal ClusterIP rationale.
   - [`proof/manual-aiops-demo.md`](manual-aiops-demo.md): Step-by-step instructions for operators to test CLI commands (`list`, `show`, `approve`, `reject`) and trigger live incidents.
   - [`proof/backup-recovery/restore-verification.md`](backup-recovery/restore-verification.md): Technical report of the real isolated PostgreSQL EBS restore test.
   - [`proof/cost/finops-cost-model.md`](cost/finops-cost-model.md): Itemized $341.20/mo AWS FinOps economics model.

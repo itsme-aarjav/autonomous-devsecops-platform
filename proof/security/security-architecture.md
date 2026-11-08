@@ -1,6 +1,6 @@
 # Cloud-Native Security & DevSecOps Hardening Architecture
 
-## 1. Zero-Trust Security Tenets
+## 1. Core Security Architecture Tenets
 
 The Autonomous DevSecOps Platform implements defense-in-depth across the entire software delivery lifecycle, from code commit to cloud runtime:
 
@@ -63,7 +63,7 @@ All sensitive data stores are encrypted at rest using dedicated AWS Key Manageme
 In the current DEV environment, the EKS cluster endpoint operates with public endpoint access enabled (`0.0.0.0/0`). This configuration is explicitly maintained to accommodate **GitHub-hosted Actions runners** (`ubuntu-24.04`), which execute CI/CD verification and deployment jobs from dynamic IP ranges across Azure datacenters without static egress IPs.
 
 Even with public endpoint access enabled:
-1. **Zero-Trust IAM Authentication**: Every request to the Kubernetes API must carry a valid AWS STS signed bearer token from an authorized IAM principal. Anonymous and unauthenticated requests receive `401 Unauthorized`.
+1. **IAM-Governed Authentication**: Every request to the Kubernetes API must carry a valid AWS STS signed bearer token from an authorized IAM principal. Anonymous and unauthenticated requests receive `401 Unauthorized`.
 2. **Deterministic Kubernetes RBAC**: Authenticated IAM roles are mapped to minimal, least-privilege Kubernetes ClusterRoles. There is no anonymous access or cluster-admin sprawl.
 
 ### Production Enterprise Migration Path
