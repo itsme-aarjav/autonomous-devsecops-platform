@@ -4,6 +4,7 @@ Unit tests verifying Canary workload remediation, policy gating, and GitOps diff
 
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from aiops.agent.schemas import RootCauseAnalysis
 from aiops.agent.remediation.policy import RemediationPolicyEngine, WORKLOAD_MANIFEST_MAP, ALLOWLISTED_WORKLOADS
@@ -98,7 +99,16 @@ class TestCanaryRemediation(unittest.TestCase):
             justification="Increase container memory limit.",
             policy_decision=PolicyDecision.APPROVED,
         )
-        rendered = self.renderer.render_proposal_patch(proposal)
+        source = Path(self.repo_root) / proposal.target_manifest
+        baseline = source.read_text()
+        baseline = baseline.replace("memory: 256Mi", "memory: 64Mi", 1)
+        baseline = baseline.replace("memory: 512Mi", "memory: 128Mi", 1)
+
+        with TemporaryDirectory() as tmp:
+            fixture = Path(tmp) / proposal.target_manifest
+            fixture.parent.mkdir(parents=True, exist_ok=True)
+            fixture.write_text(baseline)
+            rendered = ManifestPatchRenderer(repo_root=tmp).render_proposal_patch(proposal)
         self.assertIn("devops/gitops/overlays/production/canary.yml", rendered.modified_files)
         self.assertTrue(len(rendered.diff) > 0)
         self.assertIn("512Mi", rendered.diff)
