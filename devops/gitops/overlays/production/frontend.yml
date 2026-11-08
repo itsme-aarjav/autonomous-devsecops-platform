@@ -50,7 +50,7 @@ spec:
         fsGroup: 10001
       containers:
         - name: frontend
-          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-frontend@sha256:48045d256194d3e68e2174a63fe95e5e2687b5ec1c43f9c67a5a2e178bda2040
+          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-frontend@sha256:6ff8b5daf079803e65ec86f6bd436f218b030a5dfcfb742d5bc79aaf04da8f48
           imagePullPolicy: IfNotPresent
           resources:
             requests:
