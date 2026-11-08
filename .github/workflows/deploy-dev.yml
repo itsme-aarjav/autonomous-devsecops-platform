@@ -33,22 +33,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          DEPLOYMENT_JSON=$(gh api \
+          DEPLOYMENT_PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg desc "DEV deployment verification for release ${{ github.event.inputs.release_tag }}" \
+            '{ref: $ref, environment: "development", description: $desc, transient_environment: false, production_environment: false, auto_merge: false, required_contexts: []}')
+
+          DEPLOYMENT_JSON=$(echo "$DEPLOYMENT_PAYLOAD" | gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/deployments \
-            --input - <<EOF
-{
-  "ref": "${{ github.ref }}",
-  "environment": "development",
-  "description": "DEV deployment verification for release ${{ github.event.inputs.release_tag }}",
-  "transient_environment": false,
-  "production_environment": false,
-  "auto_merge": false,
-  "required_contexts": []
-}
-EOF
-)
+            --input -)
 
           DEPLOYMENT_ID=$(echo "$DEPLOYMENT_JSON" | jq -r .id)
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
