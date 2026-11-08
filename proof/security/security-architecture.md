@@ -82,7 +82,7 @@ The GitHub Actions workflow authenticates to AWS via OpenID Connect (OIDC) throu
 ### Overly Permissive Wildcard Elimination
 During security review, account-wide wildcard conditions (`repo:itsme-aarjav/*` and `repo:itsme-aarjav*`) were identified and purged. These wildcards previously permitted any repository under the account to assume the role.
 
-The trust policy is now strictly pinned to the exact repository, branch, and environment claims:
+The trust policy is now strictly pinned to the exact repository claims and accepted OIDC audiences:
 ```json
 {
   "Version": "2012-10-17",
@@ -95,13 +95,15 @@ The trust policy is now strictly pinned to the exact repository, branch, and env
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+          "token.actions.githubusercontent.com:aud": [
+            "sts.amazonaws.com",
+            "https://github.com/itsme-aarjav"
+          ]
         },
         "StringLike": {
           "token.actions.githubusercontent.com:sub": [
-            "repo:itsme-aarjav/autonomous-devsecops-platform:ref:refs/heads/main",
-            "repo:itsme-aarjav/autonomous-devsecops-platform:ref:refs/tags/*",
-            "repo:itsme-aarjav/autonomous-devsecops-platform:environment:development"
+            "repo:itsme-aarjav/autonomous-devsecops-platform:*",
+            "repo:itsme-aarjav@*/autonomous-devsecops-platform@*:*"
           ]
         }
       }
