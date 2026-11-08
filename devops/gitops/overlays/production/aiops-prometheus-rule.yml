@@ -1,0 +1,28 @@
+---
+# Prometheus Alerting Rule: Pod OOMKilled Detection
+# Location: gitops/overlays/production/aiops-prometheus-rule.yml
+# Managed by kube-prometheus-stack Prometheus Operator
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: aiops-pod-oomkilled
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+    release: kube-prometheus-stack
+    role: alert-rules
+spec:
+  groups:
+    - name: boutique.aiops.workload.alerts
+      rules:
+        - alert: PodOOMKilled
+          expr: kube_pod_container_status_last_terminated_reason{reason="OOMKilled", namespace="boutique"} == 1 or kube_pod_container_status_terminated_reason{reason="OOMKilled", namespace="boutique"} == 1
+          for: 0m
+          labels:
+            severity: critical
+            namespace: boutique
+            workload: "{{ $labels.container }}"
+          annotations:
+            summary: "Container {{ $labels.container }} in pod {{ $labels.pod }} terminated due to OOMKilled"
+            description: "Workload {{ $labels.container }} in namespace boutique exceeded memory limit and was OOMKilled."

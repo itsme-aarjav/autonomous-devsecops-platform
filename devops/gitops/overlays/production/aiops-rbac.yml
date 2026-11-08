@@ -1,0 +1,106 @@
+---
+# Autonomous DevSecOps Platform — Consolidated RBAC for AIOps Agent
+# Location: gitops/overlays/production/aiops-rbac.yml
+#
+# Consolidates:
+# - ServiceAccount (boutique namespace, EKS Pod Identity enabled)
+# - Namespace-scoped Role & RoleBinding for pod inspection, bounded logs, and workloads
+# - ClusterRole & ClusterRoleBinding for EKS Auto Mode NodeDiagnostic operations & node inspection
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aiops-assistant
+  namespace: boutique
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+
+---
+# Minimal Namespace-Scoped Role for AIOps Agent
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: aiops-assistant-role
+  namespace: boutique
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+rules:
+  # Pod status and events
+  - apiGroups: [""]
+    resources:
+      - pods
+      - events
+    verbs: ["get", "list"]
+
+  # Bounded container logs
+  - apiGroups: [""]
+    resources:
+      - pods/log
+    verbs: ["get"]
+
+  # Workloads: deployments and replicasets
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: aiops-assistant-rolebinding
+  namespace: boutique
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: aiops-assistant-role
+subjects:
+  - kind: ServiceAccount
+    name: aiops-assistant
+    namespace: boutique
+
+---
+# Cluster-Scoped Role for NodeDiagnostic lifecycle and node conditions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aiops-assistant-cluster-role
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+rules:
+  # Manage EKS Auto Mode NodeDiagnostic Custom Resources
+  - apiGroups: ["eks.amazonaws.com"]
+    resources:
+      - nodediagnostics
+      - nodediagnostics/status
+    verbs: ["get", "list", "watch", "create", "delete"]
+
+  # Read-only node inspection
+  - apiGroups: [""]
+    resources:
+      - nodes
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aiops-assistant-cluster-binding
+  labels:
+    app.kubernetes.io/name: aiops-assistant
+    app.kubernetes.io/part-of: autonomous-devsecops-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aiops-assistant-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: aiops-assistant
+    namespace: boutique

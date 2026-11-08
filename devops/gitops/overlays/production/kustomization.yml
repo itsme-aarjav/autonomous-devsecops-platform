@@ -12,6 +12,9 @@ resources:
   - gateway.yml
   - frontend.yml
   - aiops.yml
+  - aiops-rbac.yml
+  - aiops-service.yml
+  - aiops-prometheus-rule.yml
   - canary.yml
   - ingress.yaml
 

@@ -35,7 +35,7 @@ This checklist provides human evaluators, operators, and recruiters with an item
 - [x] **Pull Request GitOps Integration**: Human approval creates a dedicated feature branch (`fix/aiops-proposal-...`) and opens a reviewed GitHub Pull Request with proposals bumped to 256Mi requests and 512Mi limits. Direct-to-main autonomous mutations are blocked.
 - [x] **Audit Trail Persistence**: Rejections and approvals atomically record operator identity, timestamps, and reasoning in dedicated DynamoDB table `boutique-aiops-remediations` (with fallback to `boutique-aiops-rca-reports`).
 - [x] **Operator CLI Verified**: `list`, `show`, `approve`, `reject`, `status` subcommands tested and fully functional in both simulation and live modes.
-- [x] **GitOps DEV Promotion & Verification Workflow**: `.github/workflows/platform.yml` provides an automated end-to-end cloud-native pipeline (CI validation → container build & scan → ECR publish → GitOps DEV overlay reconciliation → Argo CD sync, pod replica parity across EVERY replica, and live HTTPS smoke tests).
+- [x] **GitOps Production Promotion & Verification Workflow**: `.github/workflows/platform.yml` provides an automated end-to-end cloud-native pipeline (CI validation → container build & scan → ECR publish → GitOps production overlay reconciliation → Argo CD sync, pod replica parity across EVERY replica, and live HTTPS smoke tests).
 
 ---
 
