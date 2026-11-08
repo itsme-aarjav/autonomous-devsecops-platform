@@ -21,9 +21,6 @@ jobs:
   deploy-and-verify-dev:
     name: Verify & Record DEV Deployment
     runs-on: ubuntu-24.04
-    environment:
-      name: development
-      url: https://demo.aarjav.site
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
