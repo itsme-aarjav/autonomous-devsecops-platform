@@ -1,0 +1,104 @@
+=== AWS PROJECT TEARDOWN & RECURRING COST ELIMINATION AUDIT ===
+Timestamp: 2026-11-08T23:25:00Z / 2026-11-09T04:55:00 IST
+AWS Account: 592668326948
+AWS Region: us-east-2
+Target: Recurring Project Cost < $2.00 / month (Achieved: < $0.01 / month)
+
+1. COMPUTE & ORCHESTRATION (ELIMINATED: $193.00/mo -> $0.00/mo)
+- EKS Cluster (boutique-dev-eks): DELETED (aws eks list-clusters -> [])
+- EKS Auto Mode / Karpenter Nodes: TERMINATED (aws ec2 describe-instances -> [])
+- Kubernetes Namespaces & Workloads: DELETED (boutique, monitoring, argocd, argo-rollouts)
+- CloudWatch Log Group (/aws/eks/boutique-dev-eks/cluster): DELETED
+
+2. NETWORKING & INGRESS (ELIMINATED: $113.00/mo -> $0.00/mo)
+- Application Load Balancers: DELETED (aws elbv2 describe-load-balancers -> [])
+  * k8s-boutique-boutique-34baedbce1: DELETED
+  * k8s-monitori-grafanai-28ea07b12d: DELETED
+  * k8s-argocd-argocdin-26faf85580: DELETED
+- Target Groups: DELETED (aws elbv2 describe-target-groups -> [])
+- NAT Gateway (nat-0f90877e6368c66d5): DELETED (aws ec2 describe-nat-gateways -> [])
+- Elastic IP (eipalloc-004dff2222f406619 / 3.12.199.177): RELEASED (aws ec2 describe-addresses -> [])
+- Project Subnets (4 subnets in 10.1.0.0/16): DELETED
+- Project VPC (vpc-09b73c79412ad1f25): DELETED
+- Route 53 Project Records: DELETED from hosted zone Z03613601CUCUEOYY4ZU2
+  * demo.aarjav.site (A ALIAS): DELETED
+  * argocd.demo.aarjav.site (A ALIAS): DELETED
+  * grafana.demo.aarjav.site (A ALIAS): DELETED
+  * _8672...demo.aarjav.site (CNAME): DELETED
+- ACM Certificates: DELETED (demo.aarjav.site, *.demo.aarjav.site -> [])
+
+3. STORAGE, DATA & MESSAGING (ELIMINATED: $11.23/mo -> $0.00/mo)
+- EBS Volume (vol-01f1ce50d718b4e69, 20GB gp3): DELETED (aws ec2 describe-volumes -> [])
+- EBS Snapshot (snap-05a3b0ffe3463e280): DELETED (aws ec2 describe-snapshots -> [])
+- DynamoDB Tables: DELETED (aws dynamodb list-tables -> [])
+  * boutique-aiops-episodes: DELETED
+  * boutique-aiops-rca-reports: DELETED
+  * boutique-aiops-remediations: DELETED
+- SQS FIFO Queues: DELETED (aws sqs list-queues -> [])
+  * boutique-aiops-alert-queue.fifo: DELETED
+  * boutique-aiops-alert-dlq.fifo: DELETED
+- Secrets Manager Secrets: FORCE-DELETED WITHOUT RECOVERY (aws secretsmanager list-secrets -> [])
+  * boutique/database/credentials: DELETED
+  * boutique/auth/jwt-secret: DELETED
+  * boutique/aiops/approval-tokens: DELETED
+  * boutique/aiops/github-token: DELETED
+  * boutique/aiops/webhook-token: DELETED
+  * boutique/dev/recruiter-demo-credential: DELETED
+- ECR Repositories: FORCE-DELETED (aws ecr describe-repositories -> [])
+  * boutique-frontend: DELETED
+  * boutique-gateway: DELETED
+  * boutique-auth: DELETED
+  * boutique-aiops-assistant: DELETED
+- S3 Buckets: DELETED
+  * boutique-aiops-node-diagnostics-us-east-2: DELETED
+  * boutique-aiops-backups-592668326948-us-east-2: DELETED (Objects & version markers purged)
+- KMS Customer Managed Key (1e4e2ce3-e642-47a9-a20d-3a47b052918b):
+  * State: PendingDeletion (7-day AWS mandatory purge window)
+  * Alias alias/boutique-aiops-key: DELETED
+
+4. IAM & SECURITY ROLES (ELIMINATED: 6 project roles deleted)
+- boutique-cloud-operator: DELETED
+- boutique-dev-eks-aiops-agent-role: DELETED
+- boutique-dev-eks-cluster-role: DELETED
+- boutique-dev-eks-node-role: DELETED
+- boutique-dev-eks-postgres-backup-role: DELETED
+- github-actions-ecr-publisher: DELETED
+- EKS OIDC Provider (oidc.eks.us-east-2...): DELETED
+
+5. PRE-EXISTING & SHARED AWS RESOURCES (100% PRESERVED & UNTOUCHED)
+- Default VPC (vpc-0bd35a75422e13c49, 172.31.0.0/16) & 3 default subnets: PRESERVED
+- Route 53 Hosted Zone (aarjav.site., /hostedzone/Z03613601CUCUEOYY4ZU2): PRESERVED
+  * aarjav.site (A, AAAA, NS, SOA): PRESERVED
+  * www.aarjav.site (A, AAAA): PRESERVED
+  * portfolio.aarjav.site (CNAME -> Vercel): PRESERVED
+  * _2ed5...aarjav.site (ACM validation): PRESERVED
+- S3 Buckets:
+  * pokevault-frontend-592668326948: PRESERVED
+  * pokevault-tfstate-592668326948: PRESERVED
+- IAM Role: pokevault-github-ci-role: PRESERVED
+- Shared Account OIDC Provider: arn:aws:iam::592668326948:oidc-provider/token.actions.githubusercontent.com: PRESERVED
+
+6. PROJECT TERRAFORM STATE RETENTION (RETAINED AS REQUESTED)
+- S3 Bucket: boutique-aiops-tfstate-us-east-2: RETAINED (<$0.01 / month)
+- Local Offline Backup: /tmp/tfstate-backup-20261109/ (bootstrap, persistent, production, production-addons)
+- State Synchronization:
+  * environments/production/addons: 0 resources (Destroy complete)
+  * environments/production: 0 resources (Destroy complete)
+  * persistent: 0 resources (Destroy complete)
+  * bootstrap: 1 resource (aws_s3_bucket.state_bucket)
+
+7. CI/CD AUTO-DEPLOYMENT SAFEGUARD
+- Workflow (.github/workflows/platform.yml):
+  * deploy-platform: if: false (DISABLED)
+  * ECR OIDC login & publish steps: if: false (DISABLED)
+  * Local validation & security testing: PRESERVED
+  * Verified: Pushes to main cannot trigger cloud deployments or mutate AWS.
+
+8. ONGOING RECURRING AWS COST ESTIMATE ATTRIBUTABLE TO THIS PROJECT
+- Compute (EKS + EC2): $0.00 / month
+- Networking (ALBs + NAT + EIP): $0.00 / month
+- Databases & Storage (EBS + DynamoDB + ECR): $0.00 / month
+- Secrets Manager: $0.00 / month
+- KMS CMK (PendingDeletion): $0.00 / month
+- S3 (tfstate bucket < 1 MB): < $0.01 / month
+- TOTAL PROJECT RECURRING COST: < $0.01 / month (Goal < $2.00 / month: MET)

@@ -4,9 +4,7 @@ resource "aws_kms_key" "cmk" {
   deletion_window_in_days = 30
   enable_key_rotation     = true
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle prevent_destroy removed for authorized teardown
 
   tags = {
     Name        = "boutique-aiops-cmk"
@@ -182,9 +180,7 @@ resource "aws_s3_bucket" "database_backup" {
   bucket        = var.database_backup_bucket_name
   force_destroy = false
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # lifecycle prevent_destroy removed for authorized teardown
 
   tags = {
     Name        = var.database_backup_bucket_name
