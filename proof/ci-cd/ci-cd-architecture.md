@@ -8,7 +8,7 @@ The repository uses **one GitHub Actions workflow**, `platform.yml` (`Platform P
 
 ```
 .github/workflows/
-└── platform.yml  # Automated CI -> Build & Scan -> ECR Publish -> GitOps DEV Reconcile -> EKS Verification
+└── platform.yml  # Automated CI -> Build & Scan -> ECR Publish -> GitOps Production Reconcile -> EKS Verification
 ```
 
 ---
@@ -20,19 +20,14 @@ The repository uses **one GitHub Actions workflow**, `platform.yml` (`Platform P
 - **Execution Flow on `main`**:
   1. **CI Validation**: Runs Terraform formatting check, Ansible syntax validation, Kustomize manifests check, Shell script syntax check, 27 AIOps unit & security regression tests, and Trivy filesystem vulnerability scan.
   2. **Container Image Build & Scan**: Matrix build for all 4 microservices (`boutique-auth`, `boutique-gateway`, `boutique-frontend`, `boutique-aiops-assistant`), non-root UID 10001 assertion for frontend, and Trivy container image security scan (`HIGH,CRITICAL` gate).
-  3. **ECR Publishing**: Authenticates via AWS GitHub OIDC (`arn:aws:iam::592668326948:role/github-actions-ecr-publisher`), pushes immutable commit tags and `dev-latest` to Amazon ECR, and resolves immutable sha256 digests.
-  4. **GitOps DEV Reconciliation**: Reconciles `devops/gitops/overlays/dev/` manifests with immutable ECR digests. Commits and pushes with `[skip ci]` when digests change to prevent infinite loops.
+  3. **ECR Publishing**: Authenticates via AWS GitHub OIDC (`arn:aws:iam::592668326948:role/github-actions-ecr-publisher`), pushes immutable commit tags and `latest` to Amazon ECR, and resolves immutable sha256 digests.
+  4. **GitOps Production Reconciliation**: Reconciles `devops/gitops/overlays/production/` manifests with immutable ECR digests. Commits and pushes with `[skip ci]` when digests change to prevent infinite loops.
   5. **Cluster & Workload Parity Verification**: Polls Argo CD application sync & health at expected revision, verifies Frontend Argo Rollout completion (handling canary pauses), audits replica parity and running image digests across **every** running pod replica, checks restart counts, and executes live HTTPS smoke tests against `https://demo.aarjav.site`.
-  6. **GitHub Deployment Record**: Creates deployment record in `in_progress` state and marks it `success` (`https://demo.aarjav.site`) only after complete cluster verification and smoke tests succeed. Fails closed on any error.
+  6. **GitHub Deployment Record**: Creates deployment record in `in_progress` state for environment `production` and marks it `success` (`https://demo.aarjav.site`) only after complete cluster verification and smoke tests succeed. Fails closed on any error.
 
 ### B. Pull Request Validation Mode
 - **Trigger**: `pull_request` targeting `main`.
 - **Behavior**: Executes all CI validation and container build/scan jobs. Skips AWS publishing, GitOps modification, and EKS verification to keep PR checks fast and secure.
-
-### C. Production Safety Job (`platform.yml`, operation: production)
-- **Trigger**: Manual `workflow_dispatch` with `operation: production`.
-- **Safety**: No production environment or deployment permissions are granted.
-- **Fail-Closed Protection**: Fails closed (`exit 1`) with an explicit notice that production infrastructure is not provisioned.
 
 ---
 

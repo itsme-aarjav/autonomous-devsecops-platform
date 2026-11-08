@@ -61,22 +61,22 @@ fi
 FALLBACK_MANIFEST=""
 case "$SERVICE" in
   auth|boutique-auth)
-    MANIFEST="devops/gitops/overlays/dev/auth.yml"
+    MANIFEST="devops/gitops/overlays/production/auth.yml"
     FALLBACK_MANIFEST="devops/gitops/k8s/backend/auth.yml"
     REPO_NAME="boutique-auth"
     ;;
   gateway|boutique-gateway)
-    MANIFEST="devops/gitops/overlays/dev/gateway.yml"
+    MANIFEST="devops/gitops/overlays/production/gateway.yml"
     FALLBACK_MANIFEST="devops/gitops/k8s/backend/gateway.yml"
     REPO_NAME="boutique-gateway"
     ;;
   frontend|boutique-frontend)
-    MANIFEST="devops/gitops/overlays/dev/frontend.yml"
+    MANIFEST="devops/gitops/overlays/production/frontend.yml"
     FALLBACK_MANIFEST="devops/gitops/k8s/frontend/rollout.yaml"
     REPO_NAME="boutique-frontend"
     ;;
   aiops|aiops-assistant|boutique-aiops-assistant)
-    MANIFEST="devops/gitops/overlays/dev/aiops.yml"
+    MANIFEST="devops/gitops/overlays/production/aiops.yml"
     FALLBACK_MANIFEST="devops/gitops/k8s/aiops/deployment.yaml"
     REPO_NAME="boutique-aiops-assistant"
     ;;

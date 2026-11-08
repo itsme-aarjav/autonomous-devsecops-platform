@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: 'https://github.com/itsme-aarjav/autonomous-devsecops-platform.git'
     targetRevision: main
-    path: devops/gitops/overlays/dev
+    path: devops/gitops/overlays/production
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: boutique

@@ -55,11 +55,11 @@ devops/terraform/
    - Provisions resources that outlive temporary clusters: KMS CMK (`alias/boutique-aiops-key` with `prevent_destroy = true`), AWS Secrets Manager containers (`boutique/database/credentials`, `boutique/auth/jwt-secret`, `boutique/aiops/webhook-token`, `boutique/aiops/github-token`), 4 ECR image repositories (boutique-frontend, boutique-gateway, boutique-auth, boutique-aiops-assistant) with KMS encryption, dedicated S3 node diagnostics bucket (`boutique-aiops-node-diagnostics-us-east-2`), SQS FIFO alert queue & DLQ (`boutique-aiops-alert-queue.fifo`), DynamoDB episode & RCA tables (`boutique-aiops-episodes`, `boutique-aiops-rca-reports`), and GitHub Actions OIDC publisher role.
    - Post-Apply Seeding: High-entropy credentials are never committed to code or stored in Terraform state; they are seeded immediately following Stage 2 apply using the in-memory script `devops/terraform/persistent/scripts/seed_secrets.py`.
    - Kubernetes Secret Synchronization: Before deploying workloads, run `devops/terraform/persistent/scripts/sync_secrets_to_k8s.sh` to securely deliver Secrets Manager credentials into Kubernetes Secrets (`boutique-jwt`, `boutique-secrets`, `aiops-webhook-secret`, `aiops-github-secret`) across `boutique` and `monitoring` namespaces.
-3. Stage 3 (Dev Environment):
-   - Path: `environments/dev/`
+3. Stage 3 (Production Environment):
+   - Path: `environments/production/`
    - Provisions the network topology, security groups, and EKS 1.36 cluster with Auto Mode enabled.
 4. Stage 4 (Add-ons):
-   - Path: `environments/dev/addons/`
+   - Path: `environments/production/addons/`
    - Connects to the active cluster and deploys Argo CD, Argo Rollouts controller & CRDs, and kube-prometheus-stack.
 5. Stage 5 (GitOps Application Bootstrap):
    - Path: `devops/gitops/argo-cd.yml`
@@ -130,5 +130,5 @@ devops/terraform/
 ## Governance and Safety Rules
 - Never use `-auto-approve`: Always save plans to disk (`terraform plan -out=tfplan`) and inspect resources before applying.
 - Isolation of persistent state: The `persistent/` root must not be destroyed during routine demo teardowns.
-- Teardown process: Destroy temporary resources by navigating to `environments/dev/addons/` first, followed by `environments/dev/`.
-- Database backup requirement: Before executing a teardown of `environments/dev/`, export PostgreSQL data using `pg_dumpall`.
+- Teardown process: Destroy temporary resources by navigating to `environments/production/addons/` first, followed by `environments/production/`.
+- Database backup requirement: Before executing a teardown of `environments/production/`, export PostgreSQL data using `pg_dumpall`.

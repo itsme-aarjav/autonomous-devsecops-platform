@@ -141,7 +141,7 @@ aws dynamodb scan --region us-east-2 --table-name boutique-aiops-remediations \
 > For canary OOM incidents, the remediation generator proposes:
 > - **Memory Request**: `256Mi` (scaled up from baseline `64Mi`)
 > - **Memory Limit**: `512Mi` (scaled up from baseline `128Mi`)
-> - **Target Manifest**: `devops/gitops/overlays/dev/canary.yml`
+> - **Target Manifest**: `devops/gitops/overlays/production/canary.yml`
 > The deterministic policy engine verifies that both values fall within permitted bounds (request <= 512Mi, limit <= 1024Mi) and approve the proposal for human review.
 
 ### Step 5: Review and Approve via Operator CLI

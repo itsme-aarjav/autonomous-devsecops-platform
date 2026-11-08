@@ -1,5 +1,5 @@
 region      = "us-east-2"
-environment = "dev"
+environment = "production"
 
 vpc_name     = "boutique-dev-vpc"
 vpc_cidr     = "10.1.0.0/16"

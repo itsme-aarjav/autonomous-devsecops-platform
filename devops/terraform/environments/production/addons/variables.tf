@@ -7,7 +7,7 @@ variable "region" {
 variable "environment" {
   description = "Environment identifier"
   type        = string
-  default     = "dev"
+  default     = "production"
 }
 
 variable "enable_argocd" {
@@ -19,12 +19,12 @@ variable "enable_argocd" {
 variable "enable_monitoring" {
   description = "Enable Kube-Prometheus-Stack Helm release deployment (Stage 3B.4)"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_argo_rollouts" {
   description = "Enable Argo Rollouts controller Helm release deployment (Stage 3B.4)"
   type        = bool
-  default     = false
+  default     = true
 }
 

@@ -137,8 +137,8 @@ else
   echo "[*] Status: Updating cluster publicAccessCidrs to ${TARGET_CIDR}..."
 fi
 
-# Optional local dev.auto.tfvars sync (if present and ignored)
-TFVARS_FILE="devops/terraform/environments/dev/dev.auto.tfvars"
+# Optional local production.auto.tfvars sync (if present and ignored)
+TFVARS_FILE="devops/terraform/environments/production/production.auto.tfvars"
 if [[ -f "${TFVARS_FILE}" ]]; then
   if grep -q "admin_cidr_blocks" "${TFVARS_FILE}"; then
     echo "[*] Aligning local Git-ignored ${TFVARS_FILE} with ${TARGET_CIDR}..."

@@ -43,21 +43,21 @@ REQUIRED_SERVICES: List[str] = [
 # Relative paths to manifests for each service (from repository root)
 SERVICE_MANIFESTS: Dict[str, List[str]] = {
     "boutique-frontend": [
-        "devops/gitops/overlays/dev/frontend.yml",
+        "devops/gitops/overlays/production/frontend.yml",
         "devops/gitops/k8s/frontend/rollout.yaml",
         "devops/gitops/k8s/frontend/blue-green.yml",
         "devops/gitops/k8s/frontend/deployment.yml",
     ],
     "boutique-gateway": [
-        "devops/gitops/overlays/dev/gateway.yml",
+        "devops/gitops/overlays/production/gateway.yml",
         "devops/gitops/k8s/backend/gateway.yml",
     ],
     "boutique-auth": [
-        "devops/gitops/overlays/dev/auth.yml",
+        "devops/gitops/overlays/production/auth.yml",
         "devops/gitops/k8s/backend/auth.yml",
     ],
     "boutique-aiops-assistant": [
-        "devops/gitops/overlays/dev/aiops.yml",
+        "devops/gitops/overlays/production/aiops.yml",
         "devops/gitops/k8s/aiops/deployment.yaml",
     ],
 }

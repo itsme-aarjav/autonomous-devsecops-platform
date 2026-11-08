@@ -6,15 +6,19 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.0"
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.25"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 3.0"
     }
   }
 
   backend "s3" {
     bucket       = "boutique-aiops-tfstate-us-east-2"
-    key          = "dev/terraform.tfstate"
+    key          = "production/addons/terraform.tfstate"
     region       = "us-east-2"
     use_lockfile = true
     encrypt      = true

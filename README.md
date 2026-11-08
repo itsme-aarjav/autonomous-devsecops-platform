@@ -217,7 +217,7 @@ autonomous-devsecops-platform/
 │   └── terraform/              # Infrastructure as code (AWS us-east-2)
 │       ├── bootstrap/          # Stage 1: S3 remote state storage
 │       ├── persistent/         # Stage 2: KMS CMK, ECR, SQS FIFO, DynamoDB
-│       ├── environments/dev/   # Stage 3: VPC & EKS Auto Mode cluster
+│       ├── environments/production/ # Stage 3: VPC & EKS Auto Mode cluster
 │       ├── modules/            # Reusable Terraform modules (vpc, eks, ecr, argocd)
 │       └── scripts/            # In-memory secret seeder & JWT synchronizer
 ├── README.md                   # Platform documentation

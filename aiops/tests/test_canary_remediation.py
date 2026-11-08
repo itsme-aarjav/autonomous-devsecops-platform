@@ -30,11 +30,11 @@ class TestCanaryRemediation(unittest.TestCase):
         self.assertIn("boutique-canary", ALLOWLISTED_WORKLOADS)
         self.assertEqual(
             WORKLOAD_MANIFEST_MAP["canary"][0],
-            "devops/gitops/overlays/dev/canary.yml",
+            "devops/gitops/overlays/production/canary.yml",
         )
         self.assertEqual(
             WORKLOAD_MANIFEST_MAP["boutique-canary"][0],
-            "devops/gitops/overlays/dev/canary.yml",
+            "devops/gitops/overlays/production/canary.yml",
         )
 
         rca = RootCauseAnalysis(
@@ -73,7 +73,7 @@ class TestCanaryRemediation(unittest.TestCase):
             action_type=RemediationActionType.SET_MEMORY_RESOURCES,
             workload="canary",
             namespace="boutique",
-            target_manifest="devops/gitops/overlays/dev/canary.yml",
+            target_manifest="devops/gitops/overlays/production/canary.yml",
             parameters=RemediationParameters(memory_request="256Mi", memory_limit="512Mi", target_container="canary"),
             confidence_score=0.90,
             justification="Scale memory limit for canary workload to 512Mi.",
@@ -92,21 +92,21 @@ class TestCanaryRemediation(unittest.TestCase):
             action_type=RemediationActionType.SET_MEMORY_RESOURCES,
             workload="canary",
             namespace="boutique",
-            target_manifest="devops/gitops/overlays/dev/canary.yml",
+            target_manifest="devops/gitops/overlays/production/canary.yml",
             parameters=RemediationParameters(memory_request="256Mi", memory_limit="512Mi", target_container="canary"),
             confidence_score=0.92,
             justification="Increase container memory limit.",
             policy_decision=PolicyDecision.APPROVED,
         )
         rendered = self.renderer.render_proposal_patch(proposal)
-        self.assertIn("devops/gitops/overlays/dev/canary.yml", rendered.modified_files)
+        self.assertIn("devops/gitops/overlays/production/canary.yml", rendered.modified_files)
         self.assertTrue(len(rendered.diff) > 0)
         self.assertIn("512Mi", rendered.diff)
         self.assertIn("256Mi", rendered.diff)
 
     def test_canary_manifest_command_bounding(self):
         """Tests that canary manifest defines bounded memory checks and avoids endless loops."""
-        canary_manifest = Path(self.repo_root) / "devops/gitops/overlays/dev/canary.yml"
+        canary_manifest = Path(self.repo_root) / "devops/gitops/overlays/production/canary.yml"
         self.assertTrue(canary_manifest.is_file())
         content = canary_manifest.read_text()
 
@@ -131,7 +131,7 @@ class TestCanaryRemediation(unittest.TestCase):
             action_type=RemediationActionType.SET_MEMORY_RESOURCES,
             workload="canary",
             namespace="boutique",
-            target_manifest="devops/gitops/overlays/dev/canary.yml",
+            target_manifest="devops/gitops/overlays/production/canary.yml",
             parameters=RemediationParameters(memory_limit="2048Mi", target_container="canary"),
             confidence_score=0.95,
             justification="Attempting excessive memory allocation.",

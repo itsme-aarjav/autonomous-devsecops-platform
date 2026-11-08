@@ -7,7 +7,7 @@ variable "region" {
 variable "environment" {
   description = "Environment identifier"
   type        = string
-  default     = "dev"
+  default     = "production"
 }
 
 variable "vpc_name" {

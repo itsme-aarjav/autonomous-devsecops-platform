@@ -22,25 +22,25 @@ ALLOWLISTED_WORKLOADS: Set[str] = {
 }
 
 # Explicit mapping of allowed workloads to their canonical GitOps manifests
-# Canonical paths prioritize overlays/dev (actively reconciled by Argo CD) with k8s/ compatibility
+# Canonical paths prioritize overlays/production (actively reconciled by Argo CD) with k8s/ compatibility
 WORKLOAD_MANIFEST_MAP: Dict[str, List[str]] = {
     "auth": [
-        "devops/gitops/overlays/dev/auth.yml",
+        "devops/gitops/overlays/production/auth.yml",
         "devops/gitops/k8s/backend/auth.yml",
     ],
     "gateway": [
-        "devops/gitops/overlays/dev/gateway.yml",
+        "devops/gitops/overlays/production/gateway.yml",
         "devops/gitops/k8s/backend/gateway.yml",
     ],
     "frontend": [
-        "devops/gitops/overlays/dev/frontend.yml",
+        "devops/gitops/overlays/production/frontend.yml",
         "devops/gitops/k8s/frontend/rollout.yaml",
     ],
     "canary": [
-        "devops/gitops/overlays/dev/canary.yml",
+        "devops/gitops/overlays/production/canary.yml",
     ],
     "boutique-canary": [
-        "devops/gitops/overlays/dev/canary.yml",
+        "devops/gitops/overlays/production/canary.yml",
     ],
 }
 

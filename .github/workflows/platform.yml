@@ -15,7 +15,6 @@ on:
         options:
           - pipeline
           - verify
-          - production
 
 permissions:
   contents: read
@@ -71,7 +70,7 @@ jobs:
       - name: Build and Validate GitOps Manifests
         run: |
           kubectl kustomize devops/gitops/ > /dev/null
-          kubectl kustomize devops/gitops/overlays/dev/ > /dev/null
+          kubectl kustomize devops/gitops/overlays/production/ > /dev/null
 
   validate-shell:
     name: Shell Script Syntax Validation
@@ -117,19 +116,8 @@ jobs:
           severity: 'HIGH,CRITICAL'
           exit-code: '1'
 
-  block-production:
-    name: Production Not Provisioned (Fail Closed)
-    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'production'
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Block Production Deployment
-        run: |
-          echo "Production infrastructure is not provisioned. No production deployment is allowed." >&2
-          exit 1
-
   build-scan-publish-containers:
     name: Build, Scan & Publish (${{ matrix.service }})
-    if: github.event_name != 'workflow_dispatch' || inputs.operation != 'production'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -195,11 +183,14 @@ jobs:
         run: |
           REGISTRY="${{ steps.login-ecr.outputs.registry }}"
           TAGGED_IMAGE="${REGISTRY}/${{ matrix.service }}:${{ github.sha }}"
+          TAGGED_LATEST="${REGISTRY}/${{ matrix.service }}:latest"
           TAGGED_DEV="${REGISTRY}/${{ matrix.service }}:dev-latest"
           docker tag "${{ matrix.service }}:${{ github.sha }}" "${TAGGED_IMAGE}"
+          docker tag "${{ matrix.service }}:${{ github.sha }}" "${TAGGED_LATEST}"
           docker tag "${{ matrix.service }}:${{ github.sha }}" "${TAGGED_DEV}"
           echo "Pushing immutable image: ${TAGGED_IMAGE}..."
           docker push "${TAGGED_IMAGE}"
+          docker push "${TAGGED_LATEST}"
           docker push "${TAGGED_DEV}"
 
           DIGEST=$(aws ecr describe-images \
@@ -216,9 +207,9 @@ jobs:
 
           echo "Successfully published ${{ matrix.service }} to ECR with immutable digest: ${DIGEST}"
 
-  deploy-dev:
-    name: Deploy to DEV (GitOps & EKS)
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.operation != 'production')
+  deploy-platform:
+    name: Deploy Platform (GitOps & EKS)
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch')
     needs:
       - validate-terraform
       - validate-ansible
@@ -243,11 +234,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          DESC="Automated DEV GitOps deployment for release ${{ github.sha }}"
+          DESC="Automated Production GitOps deployment for release ${{ github.sha }}"
           DEPLOYMENT_PAYLOAD=$(jq -n \
             --arg ref "${{ github.ref }}" \
             --arg desc "$DESC" \
-            '{ref: $ref, environment: "development", description: $desc, transient_environment: false, production_environment: false, auto_merge: false, required_contexts: []}')
+            '{ref: $ref, environment: "production", description: $desc, transient_environment: false, production_environment: true, auto_merge: false, required_contexts: []}')
 
           DEPLOYMENT_JSON=$(echo "$DEPLOYMENT_PAYLOAD" | gh api \
             --method POST \
@@ -264,9 +255,9 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
             -f state="in_progress" \
-            -f environment="development" \
+            -f environment="production" \
             -f environment_url="https://demo.aarjav.site" \
-            -f description="Reconciling GitOps overlay manifests and verifying cluster parity for ${{ github.sha }}..."
+            -f description="Reconciling GitOps production overlay manifests and verifying cluster parity for ${{ github.sha }}..."
 
       - name: Configure AWS Credentials via GitHub OIDC
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -278,7 +269,7 @@ jobs:
       - name: Resolve Immutable Container Image Digests in ECR
         id: resolve_ecr
         run: |
-          TARGET_TAG="${{ (github.event_name == 'workflow_dispatch' && inputs.operation == 'verify') && 'dev-latest' || github.sha }}"
+          TARGET_TAG="${{ (github.event_name == 'workflow_dispatch' && inputs.operation == 'verify') && 'latest' || github.sha }}"
           ACCOUNT_ID="592668326948"
           REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
           echo "Resolving ECR digests for target image tag: ${TARGET_TAG}"
@@ -299,6 +290,17 @@ jobs:
               --region us-east-2 \
               --query "imageDetails[0].imageDigest" \
               --output text 2>/dev/null || echo "None")
+
+            if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+              if [ "$TARGET_TAG" = "latest" ]; then
+                DIGEST=$(aws ecr describe-images \
+                  --repository-name "${repo}" \
+                  --image-ids imageTag="dev-latest" \
+                  --region us-east-2 \
+                  --query "imageDetails[0].imageDigest" \
+                  --output text 2>/dev/null || echo "None")
+              fi
+            fi
 
             if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
               echo "Error: Repository ${repo} is missing required image tag '${TARGET_TAG}' in ECR!" >&2
@@ -323,37 +325,37 @@ jobs:
             exit 0
           fi
 
-          echo "Updating GitOps dev overlay manifests with target ECR digests..."
+          echo "Updating GitOps production overlay manifests with target ECR digests..."
           python3 devops/scripts/update_gitops_image.py \
-            --manifest devops/gitops/overlays/dev/frontend.yml \
+            --manifest devops/gitops/overlays/production/frontend.yml \
             --service boutique-frontend \
             --image-uri "${REGISTRY}/boutique-frontend@${boutique_frontend}"
 
           python3 devops/scripts/update_gitops_image.py \
-            --manifest devops/gitops/overlays/dev/gateway.yml \
+            --manifest devops/gitops/overlays/production/gateway.yml \
             --service boutique-gateway \
             --image-uri "${REGISTRY}/boutique-gateway@${boutique_gateway}"
 
           python3 devops/scripts/update_gitops_image.py \
-            --manifest devops/gitops/overlays/dev/auth.yml \
+            --manifest devops/gitops/overlays/production/auth.yml \
             --service boutique-auth \
             --image-uri "${REGISTRY}/boutique-auth@${boutique_auth}"
 
           python3 devops/scripts/update_gitops_image.py \
-            --manifest devops/gitops/overlays/dev/aiops.yml \
+            --manifest devops/gitops/overlays/production/aiops.yml \
             --service boutique-aiops-assistant \
             --image-uri "${REGISTRY}/boutique-aiops-assistant@${boutique_aiops_assistant}"
 
           echo "Validating updated GitOps overlay with Kustomize..."
-          kubectl kustomize devops/gitops/overlays/dev/ > /dev/null
+          kubectl kustomize devops/gitops/overlays/production/ > /dev/null
 
-          if git status --porcelain devops/gitops/overlays/dev | grep -q "devops/gitops/overlays/dev"; then
-            echo "Changes detected in dev overlay manifests. Committing to main [skip ci]..."
+          if git status --porcelain devops/gitops/overlays/production | grep -q "devops/gitops/overlays/production"; then
+            echo "Changes detected in production overlay manifests. Committing to main [skip ci]..."
             git checkout main || git checkout -B main origin/main
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add devops/gitops/overlays/dev/
-            git commit -m "chore(gitops): reconcile dev overlays for ${{ github.sha }} [skip ci]"
+            git add devops/gitops/overlays/production/
+            git commit -m "chore(gitops): reconcile production overlays for ${{ github.sha }} [skip ci]"
             git pull --rebase origin main || true
             git push origin main
             EXP_REV=$(git rev-parse HEAD)
@@ -395,10 +397,10 @@ jobs:
             echo "    ✓ GitOps manifest matches target release digest."
           }
 
-          check_gitops_parity "boutique-frontend" "devops/gitops/overlays/dev/frontend.yml" "$boutique_frontend"
-          check_gitops_parity "boutique-gateway" "devops/gitops/overlays/dev/gateway.yml" "$boutique_gateway"
-          check_gitops_parity "boutique-auth" "devops/gitops/overlays/dev/auth.yml" "$boutique_auth"
-          check_gitops_parity "boutique-aiops-assistant" "devops/gitops/overlays/dev/aiops.yml" "$boutique_aiops_assistant"
+          check_gitops_parity "boutique-frontend" "devops/gitops/overlays/production/frontend.yml" "$boutique_frontend"
+          check_gitops_parity "boutique-gateway" "devops/gitops/overlays/production/gateway.yml" "$boutique_gateway"
+          check_gitops_parity "boutique-auth" "devops/gitops/overlays/production/auth.yml" "$boutique_auth"
+          check_gitops_parity "boutique-aiops-assistant" "devops/gitops/overlays/production/aiops.yml" "$boutique_aiops_assistant"
 
           echo "================================================================================"
           echo "VERIFYING ARGO CD SYNCHRONIZATION (Expected Revision: ${EXPECTED_REVISION})"
@@ -534,7 +536,7 @@ jobs:
           done
           echo "All release-to-GitOps-to-EKS parity gates PASSED successfully."
 
-      - name: Execute Live DEV Application Smoke Tests
+      - name: Execute Live Application Smoke Tests
         run: |
           echo "Executing live smoke tests against https://demo.aarjav.site..."
 
@@ -589,9 +591,9 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
               -f state="success" \
-              -f environment="development" \
+              -f environment="production" \
               -f environment_url="https://demo.aarjav.site" \
-              -f description="DEV GitOps deployment verified: parity check, Argo CD sync, pod replicas, and live smoke tests PASSED."
+              -f description="Production GitOps deployment verified: parity check, Argo CD sync, pod replicas, and live smoke tests PASSED."
           fi
 
       - name: Mark GitHub Deployment Failed
@@ -606,8 +608,8 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
               -f state="failure" \
-              -f environment="development" \
+              -f environment="production" \
               -f environment_url="https://demo.aarjav.site" \
-              -f description="DEV GitOps deployment FAILED verification."
+              -f description="Production GitOps deployment FAILED verification."
           fi
 
