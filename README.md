@@ -211,15 +211,13 @@ autonomous-devsecops-platform/
 │   │   ├── grafana/            # Grafana provisioning & dashboards
 │   │   └── prometheus/         # Prometheus scrape configuration
 │   ├── scripts/                # Platform release & image promotion utilities
-│   │   ├── promote-images.sh   # ECR image promotion & GitOps updater
 │   │   ├── restore-local-db.sh # Safe idempotent PostgreSQL restore
 │   │   └── update_gitops_image.py # Deterministic SHA256 digest manifest updater
 │   └── terraform/              # Infrastructure as code (AWS us-east-2)
 │       ├── bootstrap/          # Stage 1: S3 remote state storage
 │       ├── persistent/         # Stage 2: KMS CMK, ECR, SQS FIFO, DynamoDB
 │       ├── environments/production/ # Stage 3: VPC & EKS Auto Mode cluster
-│       ├── modules/            # Reusable Terraform modules (vpc, eks, ecr, argocd)
-│       └── scripts/            # In-memory secret seeder & JWT synchronizer
+│       └── modules/            # Reusable Terraform modules (vpc, eks, ecr, argocd)
 ├── README.md                   # Platform documentation
 ├── .gitignore                  # Git path exclusions
 └── .trivyignore                # Security vulnerability scanner exclusions
