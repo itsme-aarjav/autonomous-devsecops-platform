@@ -264,7 +264,10 @@ resource "aws_iam_role_policy" "aiops_agent_policy" {
           "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-5",
           "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
           "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
-          "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
+          "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+          "arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-lite-v1:0",
+          "arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-micro-v1:0",
+          "arn:aws:bedrock:us-east-2::foundation-model/amazon.nova-pro-v1:0"
         ]
       },
       {
@@ -312,6 +315,81 @@ resource "aws_eks_pod_identity_association" "aiops_agent" {
   namespace       = "boutique"
   service_account = "aiops-assistant"
   role_arn        = aws_iam_role.aiops_agent_role.arn
+}
+
+# ------------------------------------------------------------------------------
+# PostgreSQL Backup IAM Role & Pod Identity Association
+# ------------------------------------------------------------------------------
+resource "aws_iam_role" "postgres_backup_role" {
+  name        = "${var.cluster_name}-postgres-backup-role"
+  description = "Dedicated least-privilege IAM role for PostgreSQL S3/KMS backup CronJob via EKS Pod Identity"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "pods.eks.amazonaws.com"
+      }
+      Action = [
+        "sts:AssumeRole",
+        "sts:TagSession"
+      ]
+      Condition = {
+        StringEquals = {
+          "aws:RequestTag/eks-cluster-arn"            = aws_eks_cluster.eks.arn
+          "aws:RequestTag/kubernetes-namespace"       = "boutique"
+          "aws:RequestTag/kubernetes-service-account" = "postgres-backup"
+        }
+      }
+    }]
+  })
+
+  tags = {
+    Name      = "${var.cluster_name}-postgres-backup-role"
+    ManagedBy = "terraform"
+  }
+}
+
+resource "aws_iam_role_policy" "postgres_backup_policy" {
+  name = "boutique-postgres-backup-policy"
+  role = aws_iam_role.postgres_backup_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "PostgresBackupS3Access"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          var.database_backup_bucket_arn,
+          "${var.database_backup_bucket_arn}/backups/*"
+        ]
+      },
+      {
+        Sid    = "PostgresBackupKMSAccess"
+        Effect = "Allow"
+        Action = [
+          "kms:GenerateDataKey",
+          "kms:Decrypt",
+          "kms:DescribeKey"
+        ]
+        Resource = var.diagnostics_kms_key_arn
+      }
+    ]
+  })
+}
+
+resource "aws_eks_pod_identity_association" "postgres_backup" {
+  cluster_name    = aws_eks_cluster.eks.name
+  namespace       = "boutique"
+  service_account = "postgres-backup"
+  role_arn        = aws_iam_role.postgres_backup_role.arn
 }
 
 # ------------------------------------------------------------------------------

@@ -117,6 +117,11 @@ jobs:
         run: |
           source /tmp/release_digests/digests.env
           TAG="${{ github.event.inputs.release_tag }}"
+          if [[ ! "$TAG" =~ ^[a-zA-Z0-9._-]+$ ]]; then
+            echo "Error: Invalid release_tag format '${TAG}'!" >&2
+            exit 1
+          fi
+
           ACCOUNT_ID="592668326948"
           REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
           BRANCH_NAME="gitops/promote-dev-${TAG}"
@@ -351,38 +356,120 @@ jobs:
           check_gitops_parity "boutique-auth" "devops/gitops/overlays/dev/auth.yml" "$boutique_auth"
           check_gitops_parity "boutique-aiops-assistant" "devops/gitops/overlays/dev/aiops.yml" "$boutique_aiops_assistant"
 
-          # 2. Verify Argo CD Application Status & Synchronization
-          echo "[2/3] Verifying Argo CD GitOps Application Synchronization..."
-          MAX_WAIT=60
+          # 2. Verify Argo CD Application Status & Exact Synced Revision
+          echo "[2/5] Verifying Argo CD GitOps Application Synchronization & Exact Git Revision..."
+          MAX_WAIT=120
           ELAPSED=0
+          EXPECTED_REVISION="${{ github.sha }}"
+
+          # Trigger Argo CD refresh to ensure it evaluates the current commit
+          kubectl annotate application boutique -n argocd argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
 
           while true; do
             SYNC_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
             HEALTH_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
             SYNCED_REVISION=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.revision}' 2>/dev/null || echo "Unknown")
-            echo "  Argo CD status (elapsed ${ELAPSED}s): Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, Revision=${SYNCED_REVISION}"
+            echo "  Argo CD status (elapsed ${ELAPSED}s): Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, Revision=${SYNCED_REVISION} (Expected=${EXPECTED_REVISION})"
 
-            if [ "${SYNC_STATUS}" = "Synced" ] && [ "${HEALTH_STATUS}" = "Healthy" ]; then
-              echo "  ✓ Argo CD boutique application is Synced and Healthy at revision ${SYNCED_REVISION}."
+            if [ "${SYNC_STATUS}" = "Synced" ] && [ "${HEALTH_STATUS}" = "Healthy" ] && [ "${SYNCED_REVISION}" = "${EXPECTED_REVISION}" ]; then
+              echo "  ✓ Argo CD boutique application is Synced and Healthy at exact expected revision ${SYNCED_REVISION}."
               break
             fi
 
             if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
-              echo "Error: Argo CD application failed to achieve Synced & Healthy state within ${MAX_WAIT}s (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS})!" >&2
+              echo "Error: Argo CD failed to achieve Synced & Healthy state at expected revision ${EXPECTED_REVISION} within ${MAX_WAIT}s (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, SyncedRevision=${SYNCED_REVISION})!" >&2
               exit 1
             fi
             sleep 5
             ELAPSED=$((ELAPSED + 5))
           done
 
-          # 3. Verify Live EKS Running Pod Image Parity across EVERY Replica
-          echo "[3/3] Verifying desired-versus-running release image parity on live EKS workloads (EVERY replica)..."
+          # 3. Verify Deployment & Rollout Replica Parity (Desired = Current = Updated = Ready = Available)
+          echo "[3/5] Verifying Deployment & Rollout Replica Parity from Specifications..."
+          check_deployment_replicas() {
+            local name="$1"
+            echo "  Checking Deployment: ${name} (namespace: boutique)"
+
+            local desired current updated ready available
+            desired=$(kubectl get deployment "$name" -n boutique -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+            current=$(kubectl get deployment "$name" -n boutique -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
+            updated=$(kubectl get deployment "$name" -n boutique -o jsonpath='{.status.updatedReplicas}' 2>/dev/null || echo "0")
+            ready=$(kubectl get deployment "$name" -n boutique -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+            available=$(kubectl get deployment "$name" -n boutique -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
+
+            echo "    Replicas -> Desired: ${desired}, Current: ${current}, Updated: ${updated}, Ready: ${ready}, Available: ${available}"
+
+            if [ -z "$desired" ] || [ "$desired" -lt 1 ]; then
+              echo "Error: Invalid or zero desired replicas for deployment/${name}!" >&2
+              exit 1
+            fi
+
+            if [ "$current" != "$desired" ] || [ "$updated" != "$desired" ] || [ "$ready" != "$desired" ] || [ "$available" != "$desired" ]; then
+              echo "Error: Replica count mismatch for deployment/${name}! Desired: ${desired}, Current: ${current}, Updated: ${updated}, Ready: ${ready}, Available: ${available}" >&2
+              echo "Stale, unready, or missing replicas detected. Failing closed." >&2
+              exit 1
+            fi
+            echo "    ✓ Deployment ${name} has all ${desired} replica(s) current, updated, ready, and available."
+          }
+
+          check_deployment_replicas "auth"
+          check_deployment_replicas "gateway"
+          check_deployment_replicas "aiops-assistant"
+          check_deployment_replicas "boutique-canary"
+
+          # 4. Verify Frontend Argo Rollout Completion & Replica Parity
+          echo "[4/5] Verifying Frontend Argo Rollout Full Completion & Health..."
+          echo "  Checking Rollout: frontend (namespace: boutique)"
+
+          local ro_desired ro_current ro_updated ro_ready ro_available ro_phase ro_completed ro_paused ro_step
+          ro_desired=$(kubectl get rollout frontend -n boutique -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+          ro_current=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.replicas}' 2>/dev/null || echo "0")
+          ro_updated=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.updatedReplicas}' 2>/dev/null || echo "0")
+          ro_ready=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+          ro_available=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
+          ro_phase=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+          ro_completed=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.conditions[?(@.type=="Completed")].status}' 2>/dev/null || echo "False")
+          ro_paused=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.conditions[?(@.type=="Paused")].status}' 2>/dev/null || echo "False")
+          ro_step=$(kubectl get rollout frontend -n boutique -o jsonpath='{.status.currentStepIndex}' 2>/dev/null || echo "0")
+
+          echo "    Rollout Replicas -> Desired: ${ro_desired}, Current: ${ro_current}, Updated: ${ro_updated}, Ready: ${ro_ready}, Available: ${ro_available}"
+          echo "    Rollout Health   -> Phase: ${ro_phase}, Completed: ${ro_completed}, Paused: ${ro_paused}, StepIndex: ${ro_step}"
+
+          if [ -z "$ro_desired" ] || [ "$ro_desired" -lt 1 ]; then
+            echo "Error: Invalid or zero desired replicas for rollout/frontend!" >&2
+            exit 1
+          fi
+
+          if [ "$ro_current" != "$ro_desired" ] || [ "$ro_updated" != "$ro_desired" ] || [ "$ro_ready" != "$ro_desired" ] || [ "$ro_available" != "$ro_desired" ]; then
+            echo "Error: Replica count mismatch for rollout/frontend! Desired: ${ro_desired}, Current: ${ro_current}, Updated: ${ro_updated}, Ready: ${ro_ready}, Available: ${ro_available}" >&2
+            exit 1
+          fi
+
+          if [ "$ro_phase" != "Healthy" ]; then
+            echo "Error: Rollout frontend is not Healthy (phase: ${ro_phase})!" >&2
+            exit 1
+          fi
+
+          if [ "$ro_completed" != "True" ]; then
+            echo "Error: Rollout frontend has not completed rollout (Completed condition: ${ro_completed})!" >&2
+            exit 1
+          fi
+
+          if [ "$ro_paused" = "True" ]; then
+            echo "Error: Rollout frontend is paused during rollout!" >&2
+            exit 1
+          fi
+          echo "    ✓ Frontend Argo Rollout is Healthy, fully Completed (not paused), and all ${ro_desired} replicas match desired count."
+
+          # 5. Verify Live EKS Running Pod Image Parity across EVERY Replica (Strict Counts & Digests)
+          echo "[5/5] Verifying desired-versus-running release image parity on live EKS workloads (EVERY replica)..."
           check_pod_parity() {
             local svc="$1"
             local label_selector="$2"
             local expected_digest="$3"
+            local expected_replicas="$4"
 
-            echo "  Checking All Live Pod Replicas: ${svc} (selector: ${label_selector})"
+            echo "  Checking All Live Pod Replicas: ${svc} (selector: ${label_selector}, expected: ${expected_replicas})"
             echo "    Target ECR Digest: ${expected_digest}"
 
             local pod_data
@@ -417,17 +504,22 @@ jobs:
               fi
             done <<< "$pod_data"
 
-            if [ "$replica_count" -lt 1 ]; then
-              echo "Error: Found 0 active replicas for ${svc}!" >&2
+            if [ "$replica_count" -ne "$expected_replicas" ]; then
+              echo "Error: Replica count mismatch for ${svc}! Expected exactly ${expected_replicas} running pod(s), but found ${replica_count}." >&2
+              echo "Stale or missing pods detected. Failing closed." >&2
               exit 1
             fi
             echo "    ✓ Verified all ${replica_count} replica(s) match target release digest and are Ready."
           }
 
-          check_pod_parity "boutique-frontend" "app=frontend" "$boutique_frontend"
-          check_pod_parity "boutique-gateway" "app=gateway" "$boutique_gateway"
-          check_pod_parity "boutique-auth" "app=auth" "$boutique_auth"
-          check_pod_parity "boutique-aiops-assistant" "app.kubernetes.io/name=aiops-assistant" "$boutique_aiops_assistant"
+          auth_desired=$(kubectl get deployment auth -n boutique -o jsonpath='{.spec.replicas}')
+          gw_desired=$(kubectl get deployment gateway -n boutique -o jsonpath='{.spec.replicas}')
+          aiops_desired=$(kubectl get deployment aiops-assistant -n boutique -o jsonpath='{.spec.replicas}')
+
+          check_pod_parity "boutique-frontend" "app=frontend" "$boutique_frontend" "$ro_desired"
+          check_pod_parity "boutique-gateway" "app=gateway" "$boutique_gateway" "$gw_desired"
+          check_pod_parity "boutique-auth" "app=auth" "$boutique_auth" "$auth_desired"
+          check_pod_parity "boutique-aiops-assistant" "app.kubernetes.io/name=aiops-assistant" "$boutique_aiops_assistant" "$aiops_desired"
 
           echo "Verifying workload rollouts in namespace 'boutique'..."
           kubectl rollout status deployment/auth -n boutique --timeout=120s

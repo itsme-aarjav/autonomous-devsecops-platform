@@ -25,6 +25,9 @@ module "eks" {
   diagnostics_kms_key_arn = data.terraform_remote_state.persistent.outputs.kms_key_arn
   diagnostics_bucket_name = data.terraform_remote_state.persistent.outputs.node_diagnostics_bucket_name
 
+  database_backup_bucket_name = try(data.terraform_remote_state.persistent.outputs.database_backup_bucket_name, "boutique-aiops-backups-592668326948-us-east-2")
+  database_backup_bucket_arn  = try(data.terraform_remote_state.persistent.outputs.database_backup_bucket_arn, "arn:aws:s3:::boutique-aiops-backups-592668326948-us-east-2")
+
   aiops_alert_queue_arn        = data.terraform_remote_state.persistent.outputs.aiops_alert_queue_arn
   aiops_alert_dlq_arn          = data.terraform_remote_state.persistent.outputs.aiops_alert_dlq_arn
   aiops_episodes_table_arn     = data.terraform_remote_state.persistent.outputs.aiops_episodes_table_arn

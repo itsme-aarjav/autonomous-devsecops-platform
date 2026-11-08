@@ -78,6 +78,18 @@ variable "aiops_remediations_table_arn" {
   default     = ""
 }
 
+variable "database_backup_bucket_name" {
+  description = "Dedicated S3 bucket name for scheduled PostgreSQL backups"
+  type        = string
+  default     = "boutique-aiops-backups-592668326948-us-east-2"
+}
+
+variable "database_backup_bucket_arn" {
+  description = "ARN of the dedicated S3 bucket for scheduled PostgreSQL backups"
+  type        = string
+  default     = "arn:aws:s3:::boutique-aiops-backups-592668326948-us-east-2"
+}
+
 # NOTE: Legacy on-demand / spot node group variables and disk_size have been removed.
 # In EKS Auto Mode, worker scheduling and node capacity are managed dynamically via
 # Auto Mode NodePools (karpenter.sh/v1) and NodeClasses (eks.amazonaws.com/v1).

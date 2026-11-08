@@ -37,3 +37,8 @@ output "aiops_agent_role_arn" {
   description = "ARN of the EKS Pod Identity IAM Role for Autonomous AIOps Agent"
   value       = aws_iam_role.aiops_agent_role.arn
 }
+
+output "postgres_backup_role_arn" {
+  description = "ARN of the EKS Pod Identity IAM Role for PostgreSQL Database Backups"
+  value       = aws_iam_role.postgres_backup_role.arn
+}

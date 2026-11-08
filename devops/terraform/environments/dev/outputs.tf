@@ -53,3 +53,13 @@ output "oidc_provider_arn" {
   value       = module.eks.oidc_provider_arn
 }
 
+output "aiops_agent_role_arn" {
+  description = "ARN of the EKS Pod Identity IAM Role for Autonomous AIOps Agent"
+  value       = module.eks.aiops_agent_role_arn
+}
+
+output "postgres_backup_role_arn" {
+  description = "ARN of the EKS Pod Identity IAM Role for PostgreSQL Database Backups"
+  value       = module.eks.postgres_backup_role_arn
+}
+
