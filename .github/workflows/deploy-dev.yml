@@ -104,7 +104,8 @@ jobs:
               echo "Error: Repository ${repo} is missing required image tag '${TAG}' in ECR!" >&2
               exit 1
             fi
-            echo "${svc}=${DIGEST}" >> /tmp/release_digests/digests.env
+            var_name="${svc//-/_}"
+            echo "${var_name}=${DIGEST}" >> /tmp/release_digests/digests.env
             echo "  ✓ ${svc}: ${DIGEST}"
           done
           echo "All 4 microservice container digests resolved in ECR."
