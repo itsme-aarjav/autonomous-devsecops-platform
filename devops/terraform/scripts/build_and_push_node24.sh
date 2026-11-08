@@ -29,8 +29,8 @@ TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD 2>/dev/null || echo "latest")}"
 CREATED=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
-echo "=== Target ECR Registry: ${REGISTRY} (Account: ${ACCOUNT_ID}, Region: ${REGION}) ==="
-echo "=== Logging into ECR ==="
+echo "ECR Registry: ${REGISTRY} (Account: ${ACCOUNT_ID}, Region: ${REGION})"
+echo "Logging into ECR"
 aws ecr get-login-password --region "${REGION}" | docker login --username AWS --password-stdin "${REGISTRY}"
 
 SERVICES=(

@@ -1,39 +1,5 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# Script: sync_secrets_to_k8s.sh
-# Purpose: Synchronize scoped production secrets from AWS Secrets Manager
-#          into target Kubernetes namespaces using Server-Side Apply.
-#
-# Supported Scopes:
-#   Scope A: webhook (--scope webhook) [Stage 3B.3A]
-#     AWS Source: boutique/aiops/webhook-token (key: token)
-#     K8s Targets:
-#       - monitoring/aiops-webhook-secret
-#       - boutique/aiops-webhook-secret
-#     Security Boundary: Never accesses or reads historical DB/JWT or GitHub secrets.
-#
-#   Scope B: app (--scope app) [Stage 3C]
-#     AWS Sources:
-#       - boutique/auth/jwt-secret (key: JWT_SECRET)
-#       - boutique/database/credentials (keys: POSTGRES_PASSWORD, AUTH_DB_URL)
-#     K8s Targets:
-#       - boutique/boutique-jwt
-#       - boutique/boutique-secrets
-#     Security Boundary: Never accesses or reads webhook, approval, or GitHub tokens.
-#
-#   Scope C: github (--scope github)
-#     AWS Source: boutique/aiops/github-token
-#     Security Boundary: Excluded from default sync. Fails closed without future authorization.
-#
-# Security & Operational Invariants:
-#   - Enforces Server-Side Apply (--server-side --field-manager=devops-secret-sync)
-#     to eliminate client-side last-applied annotations containing base64 secret data.
-#   - Pre-validates all source metadata and values in memory before touching Kubernetes.
-#   - Fails closed on missing scope, unseeded secret containers, or missing AWSCURRENT versions.
-#   - All-or-nothing write semantics: Zero Kubernetes Secrets written if any prerequisite fails.
-#   - Never outputs secret values to stdout, stderr, process tables (/proc), or logs.
-#   - Restrictive temporary file permissions (chmod 600 in chmod 700 dir) with shred/rm trap.
-# ==============================================================================
+# Scoped secret sync; fail closed without logging secret values.
 
 set -euo pipefail
 
@@ -117,9 +83,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# ------------------------------------------------------------------------------
 # 1. Scope and Authorization Validation (Fail-Closed)
-# ------------------------------------------------------------------------------
 if [[ -z "$SCOPE" ]]; then
   echo "[ERROR] Mandatory parameter '--scope <webhook|app|github>' is missing." >&2
   echo "        Secret synchronization requires an explicit scope. Run '$(basename "$0") --help' for details." >&2
@@ -150,9 +114,7 @@ if [[ "$AUTHORIZED" != "true" ]]; then
   exit 1
 fi
 
-# ------------------------------------------------------------------------------
 # 2. Prerequisite Tools Check
-# ------------------------------------------------------------------------------
 for tool in aws jq kubectl python3; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "[ERROR] Required prerequisite '$tool' is not installed or not in PATH." >&2
@@ -160,9 +122,7 @@ for tool in aws jq kubectl python3; do
   fi
 done
 
-# ------------------------------------------------------------------------------
 # 3. Pre-flight AWS Account, Region & Cluster Identity Verification
-# ------------------------------------------------------------------------------
 EXPECTED_ACCOUNT="592668326948"
 EXPECTED_REGION="us-east-2"
 EXPECTED_CLUSTER="boutique-dev-eks"
@@ -251,9 +211,7 @@ else
   fi
 fi
 
-# ------------------------------------------------------------------------------
 # 4. Target Namespace Verification
-# ------------------------------------------------------------------------------
 REQUIRED_NAMESPACES=()
 if [[ "$SCOPE" == "webhook" ]]; then
   REQUIRED_NAMESPACES=("$NAMESPACE" "$MONITORING_NAMESPACE")
@@ -270,9 +228,7 @@ for ns in "${REQUIRED_NAMESPACES[@]}"; do
   echo "    [OK] Namespace '${ns}' exists."
 done
 
-# ------------------------------------------------------------------------------
 # 5. Safe Temporary Workspace & Cleanup Trap Setup
-# ------------------------------------------------------------------------------
 TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t 'k8s_secret_sync')
 chmod 700 "$TMP_DIR"
 
@@ -288,9 +244,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# ------------------------------------------------------------------------------
 # 6. Helper Functions
-# ------------------------------------------------------------------------------
 check_secret_metadata_has_current() {
   local sname="$1"
   local meta
@@ -360,9 +314,6 @@ apply_secret_ssa() {
   echo "    [OK] Synchronized Kubernetes Secret '${secret_name}' via Server-Side Apply in namespace '${target_ns}'."
 }
 
-# ==============================================================================
-# SCOPE A: AIOps Webhook Token Synchronization (Stage 3B.3A)
-# ==============================================================================
 if [[ "$SCOPE" == "webhook" ]]; then
   echo "==> [Scope A: Webhook] Pre-validating secret metadata for '${WEBHOOK_SECRET_NAME}'..."
   if ! check_secret_metadata_has_current "$WEBHOOK_SECRET_NAME"; then
@@ -410,9 +361,6 @@ if [[ "$SCOPE" == "webhook" ]]; then
   exit 0
 fi
 
-# ==============================================================================
-# SCOPE B: Application Credentials (JWT & Database) (Stage 3C)
-# ==============================================================================
 if [[ "$SCOPE" == "app" ]]; then
   echo "==> [Scope B: App] Pre-validating secret metadata for '${JWT_SECRET_NAME}' and '${DB_SECRET_NAME}'..."
   if ! check_secret_metadata_has_current "$JWT_SECRET_NAME"; then

@@ -322,7 +322,7 @@ class GitOpsRemediationEngine:
                     f"4. Verify pod health in the `{proposal.namespace}` namespace.\n"
                 )
                 commit_msg = (
-                    f"fix(gitops): apply approved {proposal.action_type.value} for {proposal.workload}\n\n"
+                    f"autonomous-devsecops-platform\n\n"
                     f"Proposal-ID: {proposal.proposal_id}\n"
                     f"Incident: {proposal.incident_id}\n"
                     f"Episode: {proposal.episode_id}\n"

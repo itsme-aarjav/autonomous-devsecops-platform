@@ -284,7 +284,7 @@ kubectl kustomize devops/gitops/ > /dev/null
 git add -- "${TARGET_MANIFESTS[@]}"
 git add -f -- "$PROMOTION_MANIFEST" "$SCAN_JSON"
 FILES_TO_ADD=("${TARGET_MANIFESTS[@]}" "$PROMOTION_MANIFEST" "$SCAN_JSON")
-git commit "${FILES_TO_ADD[@]}" -m "chore(gitops): pin ${SERVICE} to immutable digest ${SHORT_DIGEST}"
+git commit "${FILES_TO_ADD[@]}" -m "autonomous-devsecops-platform"
 
 PROMOTION_SUCCESS=true
 echo "Promotion applied and committed locally to 'main' for ${SERVICE} (@${SHORT_DIGEST})."

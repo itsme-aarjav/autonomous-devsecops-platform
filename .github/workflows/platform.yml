@@ -350,12 +350,12 @@ jobs:
           kubectl kustomize devops/gitops/overlays/production/ > /dev/null
 
           if git status --porcelain devops/gitops/overlays/production | grep -q "devops/gitops/overlays/production"; then
-            echo "Changes detected in production overlay manifests. Committing to main [skip ci]..."
+            echo "Changes detected in production overlay manifests. Committing GitOps changes..."
             git checkout main || git checkout -B main origin/main
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add devops/gitops/overlays/production/
-            git commit -m "chore(gitops): reconcile production overlays for ${{ github.sha }} [skip ci]"
+            git commit -m "autonomous-devsecops-platform"
             git pull --rebase origin main || true
             git push origin main
             EXP_REV=$(git rev-parse HEAD)
@@ -376,9 +376,7 @@ jobs:
           echo "Verifying EKS cluster connectivity..."
           kubectl get nodes -o wide
 
-          echo "================================================================================"
           echo "VERIFYING GITOPS OVERLAY MANIFEST PARITY"
-          echo "================================================================================"
           check_gitops_parity() {
             local svc="$1"
             local manifest="$2"
@@ -402,13 +400,10 @@ jobs:
           check_gitops_parity "boutique-auth" "devops/gitops/overlays/production/auth.yml" "$boutique_auth"
           check_gitops_parity "boutique-aiops-assistant" "devops/gitops/overlays/production/aiops.yml" "$boutique_aiops_assistant"
 
-          echo "================================================================================"
           echo "VERIFYING ARGO CD SYNCHRONIZATION (Expected Revision: ${EXPECTED_REVISION})"
-          echo "================================================================================"
           MAX_WAIT=180
           ELAPSED=0
 
-          # Trigger Argo CD refresh to evaluate current commit immediately
           kubectl annotate application boutique -n argocd argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
 
           while true; do
@@ -430,9 +425,7 @@ jobs:
             ELAPSED=$((ELAPSED + 5))
           done
 
-          echo "================================================================================"
           echo "VERIFYING ARGO ROLLOUT & DEPLOYMENT COMPLETION"
-          echo "================================================================================"
           RO_WAIT=180
           RO_ELAPSED=0
           while true; do
@@ -458,15 +451,12 @@ jobs:
             RO_ELAPSED=$((RO_ELAPSED + 5))
           done
 
-          # Verify deployments in namespace boutique
           kubectl rollout status deployment/auth -n boutique --timeout=120s
           kubectl rollout status deployment/gateway -n boutique --timeout=120s
           kubectl rollout status deployment/aiops-assistant -n boutique --timeout=120s
           kubectl rollout status deployment/boutique-canary -n boutique --timeout=120s
 
-          echo "================================================================================"
           echo "VERIFYING LIVE POD REPLICAS & IMAGE PARITY (EVERY REPLICA)"
-          echo "================================================================================"
           check_pod_parity() {
             local svc="$1"
             local label_selector="$2"

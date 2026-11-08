@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# Script: run-local-demo.sh
-# Purpose: Start a private, local demonstration environment for the Boutique
-#          application running on boutique-dev-eks without public exposure.
-# ==============================================================================
 set -euo pipefail
 
 NAMESPACE="boutique"
@@ -26,7 +21,6 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Wait for ports to become available
 sleep 2
 
 echo "==> Boutique Application Local Demo is LIVE!"
@@ -36,7 +30,6 @@ echo "    Unified Website : http://localhost:${DEMO_PORT}"
 echo ""
 echo "Press Ctrl+C to terminate."
 
-# Lightweight Python reverse proxy uniting frontend static assets and gateway /api routes
 python3 -c "
 import http.server
 import socketserver

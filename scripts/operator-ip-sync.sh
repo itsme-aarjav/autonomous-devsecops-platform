@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# Script: scripts/operator-ip-sync.sh
-# Purpose: Dynamically update EKS publicAccessCidrs to operator's workstation IPv4 /32
-# Security: Enforces least-privilege source IP allowlisting without 0.0.0.0/0 exposure
-# ==============================================================================
+# Sync operator access CIDRs.
 
 set -euo pipefail
 

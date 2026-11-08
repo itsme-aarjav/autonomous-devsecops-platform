@@ -91,7 +91,6 @@ def run_e2e_demonstration():
     print("  AUTONOMOUS AIOPS PLATFORM — END-TO-END LOCAL DEMONSTRATION")
     print("=" * 70)
 
-    # 1. Prepare Synthetic Incident
     raw_incident = {
         "incident_id": f"inc-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}",
         "title": "Pod OOMKilled in boutique-auth",
@@ -113,7 +112,6 @@ def run_e2e_demonstration():
     print(f"  Category    : {raw_incident['category']}")
     print(f"  Severity    : {raw_incident['severity'].upper()}")
 
-    # 2. Configure Local Test Sandbox & Adapters
     temp_dir = tempfile.mkdtemp(prefix="aiops_demo_")
     repo_root = os.path.abspath(os.path.join(current_dir, "../.."))
     config = AgentConfig(
@@ -141,7 +139,6 @@ def run_e2e_demonstration():
     print("  ✓ GitHub Provider     : None (Offline demonstration; no live GitHub mutations)")
     print("  ✓ Runbook Executor    : AnsibleRunbookExecutor (dry-run operational execution)")
 
-    # 3. Construct and Compile LangGraph Workflow
     print("\n[STEP 3/8] Compiling 8-Node LangGraph StateGraph Pipeline...")
     graph = create_aiops_graph(
         config=config,
@@ -153,12 +150,10 @@ def run_e2e_demonstration():
     )
     print("  ✓ StateGraph compiled successfully.")
 
-    # 4. Execute Pipeline
     print("\n[STEP 4/8] Executing Workflow:")
     initial_state = {"raw_incident": raw_incident}
     final_state = graph.invoke(initial_state)
 
-    # 5. Validate Pipeline Progression
     print("\n[STEP 5/8] Verifying Node Execution Progression:")
     steps_verified = [
         ("Input Validation", final_state.get("incident_id") == raw_incident["incident_id"]),
@@ -181,7 +176,6 @@ def run_e2e_demonstration():
     rca = final_state.get("root_cause_analysis", {})
     proposal = final_state.get("remediation_proposal", {})
 
-    # 6. Safety Gate Verification
     print("\n[STEP 6/8] Safety Gate & Policy Inspection:")
     print(f"  ✓ Confidence Score   : {rca.get('confidence_score'):.2f} / 1.00")
     print(f"  ✓ Non-Destructive    : {rca.get('is_destructive') is False}")
@@ -190,7 +184,6 @@ def run_e2e_demonstration():
     print(f"  ✓ Target Workload    : {proposal.get('workload')}")
     print(f"  ✓ Target Manifest    : {proposal.get('target_manifest')}")
 
-    # 7. Persistence Verification
     persisted_obj = persistence.get_result(raw_incident["incident_id"])
     assert persisted_obj is not None, "Persisted RCA must be retrievable from local storage."
     print("\n[STEP 7/8] Persistence Verification:")
@@ -198,7 +191,6 @@ def run_e2e_demonstration():
     print(f"  ✓ Successfully stored and retrieved report for: {raw_incident['incident_id']}")
     print(f"  ✓ Persisted file location: {persisted_path}")
 
-    # 8. Two-Tier Self-Healing Verification
     print("\n[STEP 8/8] Two-Tier Autonomous Self-Healing Verification:")
     if remediation_engine.last_runbook_result:
         print(f"  ✓ Tier-1 Operational Runbook : {remediation_engine.last_runbook_result.playbook} (Success: {remediation_engine.last_runbook_result.success})")
@@ -206,13 +198,12 @@ def run_e2e_demonstration():
     print(f"  ✓ Tier-2 Declarative GitOps  : Status: {proposal.get('status')} (Awaiting Human Approval for Direct-Main)")
     diff = proposal.get("diff_summary", "")
     if diff:
-        print("\n  --- Rendered GitOps Manifest Patch (Unified Diff) ---")
+        print("\nGitOps manifest patch")
         for line in diff.strip().splitlines():
             print(f"    {line}")
-        print("  ----------------------------------------------------")
 
     # Demonstrate explicit human operator approval gate and Pull Request generation
-    print("\n  --- Human Operator Approval Gate Simulation ---")
+    print("\nOperator approval simulation")
     approved_proposal = remediation_engine.apply_approved_remediation(
         proposal_id=proposal["proposal_id"],
         operator="sre-oncall-lead",

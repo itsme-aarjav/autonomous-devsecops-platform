@@ -1,19 +1,5 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# Script: sync_jwt_secret_to_k8s.sh
-# Purpose: Synchronize JWT_SECRET from AWS Secrets Manager into Kubernetes Secret 'boutique-jwt'
-#          using Server-Side Apply (--server-side --field-manager=devops-secret-sync).
-# Source of Truth: AWS Secrets Manager (boutique/auth/jwt-secret)
-# Target: Kubernetes Secret boutique-jwt (key: JWT_SECRET) in target namespace.
-#
-# Security Invariants:
-# - Server-Side Apply eliminates client-side last-applied annotation containing base64 data.
-# - Pre-validates secret metadata and AWSCURRENT version existence before reading.
-# - Pre-flight verification of AWS account, region, EKS cluster status, endpoint, and CA.
-# - Never prints secret values to stdout, stderr, logs, or command-line arguments.
-# - Uses restrictive temporary files (chmod 600 in chmod 700 dir) safely cleaned up via trap.
-# - Rejects weak, empty, or < 32-character secrets.
-# ==============================================================================
+# Sync JWT via server-side apply without exposing secret values.
 
 set -euo pipefail
 
@@ -87,9 +73,7 @@ if [[ "$AUTHORIZED" != "true" ]]; then
   exit 1
 fi
 
-# ------------------------------------------------------------------------------
 # 1. Prerequisite Validation & Pre-flight Identity Check
-# ------------------------------------------------------------------------------
 for tool in aws jq kubectl; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "[ERROR] Required prerequisite '$tool' is not installed or not in PATH." >&2
@@ -156,9 +140,7 @@ if ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
 fi
 echo "    [OK] Target namespace '${NAMESPACE}' exists."
 
-# ------------------------------------------------------------------------------
 # 2. Pre-validate Secret Metadata (Existence & AWSCURRENT)
-# ------------------------------------------------------------------------------
 echo "==> Pre-validating secret metadata for '${SECRET_NAME}'..."
 META=$(aws secretsmanager describe-secret --secret-id "$SECRET_NAME" --region "$REGION" --output json 2>/dev/null || echo "")
 if [[ -z "$META" ]]; then
@@ -179,9 +161,7 @@ if [[ -z "$HAS_CURRENT" ]]; then
 fi
 echo "    [OK] Secret '${SECRET_NAME}' metadata verified: active and contains AWSCURRENT version."
 
-# ------------------------------------------------------------------------------
 # 3. Retrieve Secret from AWS Secrets Manager
-# ------------------------------------------------------------------------------
 echo "==> Fetching secret '${SECRET_NAME}' from AWS Secrets Manager (${REGION})..."
 RAW_PAYLOAD=""
 if ! RAW_PAYLOAD=$(aws secretsmanager get-secret-value \
@@ -198,9 +178,7 @@ if [[ -z "$RAW_PAYLOAD" || "$RAW_PAYLOAD" == "None" ]]; then
   exit 1
 fi
 
-# ------------------------------------------------------------------------------
 # 4. Extract and Validate JWT_SECRET
-# ------------------------------------------------------------------------------
 JWT_SECRET=""
 if ! JWT_SECRET=$(echo "$RAW_PAYLOAD" | jq -e -r '.JWT_SECRET // empty' 2>/dev/null); then
   echo "[ERROR] Failed to parse JSON or 'JWT_SECRET' key is missing from secret payload." >&2
@@ -229,9 +207,7 @@ if [[ "$SECRET_LEN" -lt "$MIN_SECRET_LENGTH" ]]; then
 fi
 echo "    [OK] JWT secret payload validated successfully in memory (${SECRET_LEN} bytes)."
 
-# ------------------------------------------------------------------------------
 # 5. Safe Temporary File Handling & Trap Setup
-# ------------------------------------------------------------------------------
 TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t 'jwt_sync')
 chmod 700 "$TMP_DIR"
 SECRET_FILE="${TMP_DIR}/JWT_SECRET"
@@ -251,9 +227,7 @@ printf "%s" "$JWT_SECRET" > "$SECRET_FILE"
 chmod 600 "$SECRET_FILE"
 unset JWT_SECRET
 
-# ------------------------------------------------------------------------------
 # 6. Apply to Kubernetes as Secret 'boutique-jwt' via Server-Side Apply
-# ------------------------------------------------------------------------------
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "    [DRY-RUN] Validated Server-Side Apply payload for Secret 'boutique-jwt' in namespace '${NAMESPACE}' (write skipped)."
   exit 0
