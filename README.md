@@ -10,7 +10,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24%20LTS-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2015-4169E1.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-An enterprise-grade, cloud-native DevSecOps platform featuring a modern **3-Tier Microservices Architecture**, declarative GitOps driven by **Argo CD**, zero-downtime **Canary Progressive Delivery** via **Argo Rollouts**, full-stack telemetry using **Prometheus & Alertmanager**, and an intelligent **AIOps Agent (LangGraph + Amazon Bedrock Nova Lite)** with **Human-Approved GitOps Remediation**:
+A cloud-native, autonomous DevSecOps platform featuring a modern **3-Tier Microservices Architecture**, declarative GitOps driven by **Argo CD**, zero-downtime **Canary Progressive Delivery** via **Argo Rollouts**, full-stack telemetry using **Prometheus & Alertmanager**, and an intelligent **AIOps Agent (LangGraph + Amazon Bedrock Nova Lite)** with **Human-Approved GitOps Remediation**:
 1. **Automated Root Cause Diagnosis & Policy Gating**: Deterministic LangGraph + Amazon Bedrock (Nova Lite `amazon.nova-lite-v1:0`) diagnosis bounded by strict allowlist and resource limits.
 2. **Permanent Declarative Fixes**: Authenticated **Cloud Operator Approval CLI** (`hmac.compare_digest` token auth), generating reviewed GitHub Pull Requests with surgical manifest patches for human review, followed by merge and automated Argo CD reconciliation.
 
@@ -149,7 +149,10 @@ Cloud-Durable Proposal Store (DynamoDB: boutique-aiops-remediations)
 Cloud Operator Approval CLI (Token-Authenticated + Diff Confirmation)
        │
        ▼
-GitOps Direct-to-Main Manifest Update (Atomic CAS: PATCH refs/heads/main)
+Reviewed GitOps Pull Request Generation (Branch: fix/aiops-proposal-<id>)
+       │
+       ▼
+Human Review & Merge into main
        │
        ▼
 Argo CD Reconciliation & Verified Cluster Recovery
@@ -157,9 +160,9 @@ Argo CD Reconciliation & Verified Cluster Recovery
 
 > [!NOTE]
 > **Implementation Status & Operational Boundaries**:
-> - **Human-Approved GitOps Remediation**: Core patching engine, constant-time operator authentication gate (`hmac.compare_digest`), DynamoDB proposal persistence adapter, CloudShell-ready operator approval CLI (`aiops/operator_cli.py`), and GitHub direct-main commit integration are fully coded and tested locally; live incident demonstration on AWS EKS is pending infrastructure provisioning.
-> - **Ansible Scheduled Database Backups**: Ansible playbooks and tooling in `devops/ansible/` are preserved and repurposed exclusively for scheduled PostgreSQL backups in AWS (daily at 2:00 AM Asia/Kolkata), maintaining clean separation from operational cluster remediation.
-> - **Amazon Bedrock Inference**: Cross-region inference profile (`us.anthropic.claude-haiku-4-5-20251001-v1:0`) is verified active in AWS account `592668326948`; live paid inference calls will take place during the live EKS incident demonstration.
+> - **Human-Approved GitOps Remediation**: Core patching engine, constant-time operator authentication gate (`hmac.compare_digest`), DynamoDB proposal persistence adapter, CloudShell-ready operator approval CLI (`aiops/operator_cli.py`), and reviewed Pull Request generator are fully deployed and verified; the live incident demonstration will be executed personally by the human operator.
+> - **Kubernetes Scheduled Database Backups**: Two-stage Kubernetes CronJob (`postgres-backup-daily`) executes daily compressed PostgreSQL backups at 02:00 AM Asia/Kolkata with AWS KMS encryption to Amazon S3. Ansible playbooks in `devops/ansible/` provide operational Day-2 tooling.
+> - **Amazon Bedrock Inference**: Amazon Bedrock Nova Lite (`amazon.nova-lite-v1:0`) is configured and active in AWS account `592668326948` (us-east-2), providing structured root cause analysis with minimal inference latency.
 
 ### Cloud Operator Approval Workflow
 - The agent renders clean, surgical YAML diffs against the GitOps manifests in `devops/gitops/k8s/` and stores proposals in DynamoDB (`boutique-aiops-rca-reports`).
@@ -171,12 +174,12 @@ Argo CD Reconciliation & Verified Cluster Recovery
   # Inspect root cause, policy evaluation, and unified manifest diff
   python3 aiops/operator_cli.py show <proposal_id>
 
-  # Authenticate with operator token and apply to main
+  # Authenticate with operator token and generate reviewed Pull Request
   python3 aiops/operator_cli.py approve <proposal_id>
   ```
-- Enforces **Constant-Time Human Approval Token Authentication** (`TrustedTokenApprovalAuthenticator`) using `hmac.compare_digest` against authorized operator credentials before applying remediation proposals.
+- Enforces **Constant-Time Human Approval Token Authentication** (`TrustedTokenApprovalAuthenticator`) using `hmac.compare_digest` against authorized operator credentials before generating remediation Pull Requests.
 - Supports deterministic proposal generation with full audit provenance (Incident ID, Episode ID, root cause diagnosis, policy verification badge, and human review checklist).
-- Adheres to the platform's strict **Single-Main Branch Policy** for operational safety using atomic Compare-And-Swap GitHub branch updates.
+- Adheres to the platform's strict **Reviewed Pull Request Policy** for operational safety, generating dedicated feature branches and Pull Requests without unreviewed mutations to `main`.
 
 ---
 
@@ -194,7 +197,7 @@ autonomous-devsecops-platform/
 │   ├── requirements-agent.txt  # Pinned agent dependencies
 │   └── README.md               # AIOps architecture documentation
 ├── devops/                     # DevOps & Cloud Platform Operations
-│   ├── ansible/                # Ansible configuration & playbooks (repurposed for cloud PostgreSQL backups)
+│   ├── ansible/                # Ansible configuration & playbooks (operational Day-2 automation)
 │   │   ├── playbooks/          # Operational stabilization playbooks
 │   │   ├── inventory.ini       # Local execution inventory
 │   │   └── ansible.cfg         # Execution configuration
@@ -228,7 +231,7 @@ autonomous-devsecops-platform/
 
 The platform enforces a clear separation between **local development validation** and **GitHub Actions CI**:
 - **Local Development**: Developers build containers and run validation locally. Targeted unit and security test suites are maintained for local verification and omitted from public repository distributions.
-- **GitHub Actions CI**: Hosted runners execute automated formatting (Terraform fmt), syntax validation (Ansible, Shell), manifest validation (Kustomize), vulnerability scanning (Trivy filesystem and container gates), multi-stage Docker builds, and direct-to-main promotion upon human environment approval (`production-promotion`).
+- **GitHub Actions CI**: Hosted runners execute automated formatting (Terraform fmt), syntax validation (Ansible, Shell), manifest validation (Kustomize), vulnerability scanning (Trivy filesystem and container gates), multi-stage Docker builds, and fail-closed production promotion gating.
 
 > [!NOTE]
 > **Operational Status & Platform Readiness**:
@@ -236,7 +239,7 @@ The platform enforces a clear separation between **local development validation*
 > - **Live EKS Cluster & ECR Deployment**: EKS cluster (`boutique-dev-eks`) deployed on AWS (`592668326948` / `us-east-2`) with Argo CD, Prometheus Operator, Argo Rollouts, and ALB Ingress serving `https://demo.aarjav.site`. Immutable image digests published to private ECR.
 > - **Automated S3 Backups**: Two-stage Kubernetes CronJob performs daily compressed `pg_dump` backups encrypted with AWS KMS (`1e4e2ce3-e642-47a9-a20d-3a47b052918b`) to S3 bucket `boutique-aiops-backups-592668326948-us-east-2`.
 > - **Amazon Bedrock (Nova Lite)**: Integrated with Amazon Bedrock Nova Lite (`amazon.nova-lite-v1:0`) and DynamoDB stores (`boutique-aiops-episodes`, `boutique-aiops-remediations`).
-> - **Human-Approved GitOps Remediation**: Implemented with DynamoDB proposal persistence store, constant-time operator authentication gate (`hmac.compare_digest`), CloudShell approval CLI (`aiops/operator_cli.py`), and GitHub atomic CAS direct-main commit engine. Synthetic canary test suite ready for operator live verification.
+> - **Human-Approved GitOps Remediation**: Implemented with DynamoDB proposal persistence store, constant-time operator authentication gate (`hmac.compare_digest`), CloudShell approval CLI (`aiops/operator_cli.py`), and reviewed GitHub Pull Request generation. Synthetic canary test suite ready for operator live verification.
 
 ### 1. Verify Kubernetes Manifests
 ```bash
@@ -270,8 +273,8 @@ cd application/backend && npm test
 # Frontend unit tests
 cd application/frontend && npm test
 
-# AIOps test suite
-AIOPS_BEDROCK_ENABLED="false" PYTHONPATH=aiops python3 -m unittest discover -s aiops/tests -v
+# AIOps unit and security regression tests (27 tests)
+python3 -m unittest discover -s aiops/tests -p "test_*.py" -v
 ```
 
 ---
@@ -280,12 +283,12 @@ AIOPS_BEDROCK_ENABLED="false" PYTHONPATH=aiops python3 -m unittest discover -s a
 
 When an interviewer asks: *"Tell me about your Autonomous DevSecOps Platform project"*, here is the concise, high-impact breakdown:
 
-> *"I engineered a production-grade DevSecOps platform featuring a 3-tier microservices application (React 19 frontend, Node.js API Gateway, and an Auth service connected to PostgreSQL).*
+> *"I built a cloud-native DevSecOps platform featuring a 3-tier microservices application (React 19 frontend, Node.js API Gateway, and an Auth service connected to PostgreSQL).
 > 
-> *For progressive delivery, I implemented **Argo Rollouts** with an automated **Canary deployment strategy** (20% → 50% → 100% traffic shifting) alongside declarative GitOps managed by **Argo CD** on a strict **Single-Main Branch** operational model.*
+> For progressive delivery, I implemented **Argo Rollouts** with an automated **Canary deployment strategy** (20% → 50% → 100% traffic shifting) alongside declarative GitOps managed by **Argo CD** on a reviewed Pull Request operational model.
 > 
-> *For operations and incident management, I built an in-cluster **AIOps Assistant** using **LangGraph** and **Amazon Bedrock (Nova Lite)**. When Prometheus and Alertmanager fire an alert—such as a Pod OOMKilled—the agent gathers read-only cluster telemetry, sanitizes sensitive credentials, and performs automated root cause analysis.*
+> For operations and incident management, I built an in-cluster **AIOps Assistant** using **LangGraph** and **Amazon Bedrock (Nova Lite)**. When Prometheus and Alertmanager fire an alert—such as a Pod OOMKilled—the agent gathers read-only cluster telemetry, sanitizes sensitive credentials, and performs automated root cause analysis.
 > 
-> *What makes the platform unique is its **Autonomous DevSecOps & Human-Approved GitOps Remediation** workflow:
+> What makes the platform unique is its **Autonomous DevSecOps & Human-Approved GitOps Remediation** workflow:
 > 1. **Autonomous Root Cause Diagnosis (LangGraph + Bedrock)**: Gathers read-only cluster telemetry upon alert receipt, sanitizes sensitive tokens and URIs, performs root cause analysis with Amazon Bedrock Nova Lite, and gates proposals against a strict deterministic policy engine.
 > 2. **Human-Gated GitOps Execution (Cloud Operator CLI + Pull Requests)**: Operators review unified manifest diffs via CloudShell CLI, authenticate with constant-time tokens (`hmac.compare_digest`), and approve verified declarative fixes to open reviewed GitHub Pull Requests for human merge, triggering automated Argo CD sync."*

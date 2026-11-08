@@ -28,7 +28,7 @@ flowchart TD
 2. **Normalization & Deduplication (`normalize_incident`)**: Generates deterministic SHA256 deduplication hashes across incident attributes (`namespace`, `affected_workload`, `category`) to prevent redundant LLM invocations during alert storms.
 3. **Read-Only Evidence Collection (`collect_evidence`)**: Queries cluster telemetry using read-only Kubernetes and Prometheus adapters (fetching pod status, container exit codes, termination reasons, event streams, and Prometheus metric rates).
 4. **Evidence Sanitization (`sanitize_evidence`)**: Redacts bearer tokens, database connection URIs, AWS access keys, and internal IPs; enforces line count and byte length limits to protect prompt token budgets and prevent data leakage.
-5. **Bedrock RCA Inference (`analyze_with_bedrock`)**: Synthesizes telemetry using Amazon Bedrock Runtime Converse API (`us.anthropic.claude-haiku-4-5-20251001-v1:0` or `claude-sonnet`). Employs prompt injection defenses treating all logs and metrics strictly as untrusted data.
+5. **Bedrock RCA Inference (`analyze_with_bedrock`)**: Synthesizes telemetry using Amazon Bedrock Runtime Converse API (`amazon.nova-lite-v1:0`). Employs prompt injection defenses treating all logs and metrics strictly as untrusted data.
 6. **RCA Validation & Safety Gate (`validate_rca`)**: Validates the model output against `RootCauseAnalysis` schema. Enforces that `is_destructive: false` and scans recommended actions against forbidden destructive command patterns (`kubectl delete`, `rm -rf`, `helm uninstall`, `drop database`, etc.).
 7. **Diagnostic Persistence (`persist_result`)**: Records the completed investigation report in Amazon DynamoDB (or local file adapter) and associates the deduplication key with the generated incident record.
 8. **GitOps Remediation Proposal (`propose_remediation`)** *(Stage 6.5)*: Evaluates validated RCA outcomes against a deterministic policy engine, renders allowlisted Kubernetes manifest patches, and records a structured remediation proposal awaiting operator approval.
@@ -123,7 +123,7 @@ When deployed on Amazon EKS Auto Mode, the assistant uses EKS Pod Identity:
 - **ServiceAccount**: `aiops-assistant`
 - **IAM Role**: `boutique-dev-eks-aiops-agent-role`
 - **Permissions**:
-  - `bedrock:InvokeModel` restricted to US Anthropic inference profiles (`us.anthropic.*`).
+  - `bedrock:InvokeModel` authorized for Amazon Bedrock foundation models (including `amazon.nova-*` and US inference profiles).
   - `s3:PutObject` / `s3:GetObject` on the dedicated diagnostic bucket (`nodediagnostics/*`).
   - `kms:Decrypt` and `kms:GenerateDataKey` on the platform Customer Managed Key (CMK).
   - `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility` on FIFO alert queue.
@@ -133,33 +133,20 @@ When deployed on Amazon EKS Auto Mode, the assistant uses EKS Pod Identity:
 
 ## Testing & Quality Gates
 
-The AIOps test suite contains **178 comprehensive tests** (177 passed, 1 skipped) covering schemas, adapters, sanitization, durable SQS/DynamoDB queues, and the Stage 6.5 remediation generator:
+The repository includes **27 unit and security regression tests** covering safe proposal generation, deterministic policy boundaries, and constant-time operator authentication:
 
 ```bash
-# Run complete AIOps test suite (offline Bedrock policy, zero cloud dependencies)
-AIOPS_BEDROCK_ENABLED="false" PYTHONPATH=aiops python3 -m unittest discover -s aiops/tests -v
+# Run AIOps unit and security regression test suite
+python3 -m unittest discover -s aiops/tests -p "test_*.py" -v
 ```
 
 ### Test Coverage Highlights:
-- **`test_remediation_pr_generator.py` (40 tests)**:
-  - Valid OOMKilled and High CPU remediation end-to-end proposal generation.
-  - Unknown action, unsupported workload, and non-allowlisted namespace policy rejections.
-  - Concurrent approval serialization via process-local lock and repeated approval idempotency.
-  - Durable recovery: detecting already-applied proposals in Git history and reconciling store state without duplicate commits.
-  - Two separate engine instances sharing a store and repo without creating duplicate commits.
-  - GitHub reference conflict handling (409) and fail-closed persistence failure logging.
-  - Path traversal attempts (`../../`) and manifest mismatch protections.
-  - Resource boundary clamping and schema validation (`request <= limit`, `replicas <= 5`).
-  - Secret leakage prevention across proposals and rendered diffs.
-  - Frontend manifest synchronization (`rollout.yaml`).
-  - Operator token verification via `TrustedTokenApprovalAuthenticator` (`hmac.compare_digest`) and fail-closed security.
-  - Idempotent duplicate incident handling and existing proposal detection.
-  - GitHub rate limit (429), auth error (401), and stale SHA conflict resilience.
-  - LangGraph Node 8 integration and runtime worker queue integration.
-  - Paginated commit history traversal across >20 intervening commits without false negatives.
-  - Fail-closed error propagation for GitHub API rate limits, auth errors, and provider failures during discovery.
-  - Unique per-write temp file isolation (`uuid4`) and collision-free concurrent disk writes in `LocalFileRemediationStore`.
-  - Genuine simultaneous two-engine barrier test verifying atomic Git ref CAS update, conflict rejection, and retry reconciliation.
-- **`test_durable_queue.py` (47 tests)**: SQS FIFO, DLQ redrive, DynamoDB leases, and out-of-order resolved alerts.
-- **`test_webhook_receiver.py` (29 tests)**: Alertmanager v0.27.0 webhook parsing, constant-time bearer auth, bounded body limits.
-- **`test_aiops_agent.py` & others (62 tests)**: Diagnostic pipeline, runtime event loop, sanitization, composite telemetry adapters, and node diagnostics.
+- **`test_approval_safety.py` (24 tests)**:
+  - Constant-time human operator token authentication (`TrustedTokenApprovalAuthenticator` via `hmac.compare_digest`).
+  - Safe Pull Request generation and promotion gating (proposals restricted to PR generation; direct commits to `main` fail closed).
+  - Remediation policy constraints, memory bounds clamping, schema validation, and path traversal rejection.
+  - Proposal idempotency, duplicate prevention, and thread-safe approval locking.
+- **`test_canary_remediation.py` (3 tests)**:
+  - End-to-end canary OOMKilled remediation generation.
+  - Policy evaluation and deterministic memory patch rendering (`requests: 256Mi`, `limits: 512Mi`).
+  - Synthetic test isolation and verification safeguards.

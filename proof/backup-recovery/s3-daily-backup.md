@@ -20,12 +20,12 @@ The database backup pipeline uses a production two-stage decoupled pod architect
 │ Image: postgres:15-alpine         │ Image: public.ecr.aws/aws-cli      │
 ├───────────────────────────────────┼────────────────────────────────────┤
 │ 1. Connects to internal DB        │ 1. Inherits shared volume /backup  │
-│    (boutique-postgres-0:5432)     │ 2. Reads SQL gzip archive          │
+│    (boutique-postgres:5432)       │ 2. Reads SQL gzip archive          │
 │ 2. Executes pg_dump               │ 3. Executes aws s3 cp with:        │
 │ 3. Compresses with gzip -9        │    --sse aws:kms                   │
 │ 4. Verifies size (> 500 bytes)    │    --sse-kms-key-id <kms-key-id>   │
 │ 5. Validates gzip integrity (-t)  │ 4. Executes aws s3api head-object  │
-│ 6. Writes to shared /backup       │    verifying S3 metadata           │
+│ 6. Writes to shared /backup       │    verifying SSE is aws:kms & key  │
 └───────────────────────────────────┴────────────────────────────────────┘
 ```
 

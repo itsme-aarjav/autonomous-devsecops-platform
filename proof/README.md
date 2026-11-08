@@ -1,14 +1,14 @@
 # Autonomous DevSecOps & Cloud Operations Platform — Evaluator Evidence Package
 
-> **Live Production-Grade Demo**: [`https://demo.aarjav.site`](https://demo.aarjav.site)  
+> **Live Cloud Demo**: [`https://demo.aarjav.site`](https://demo.aarjav.site)  
 > **AWS Account ID**: `592668326948` | **Region**: `us-east-2` | **Cluster**: `boutique-dev-eks`  
-> **Architecture Overview**: Fully automated Infrastructure as Code, GitOps progressive delivery, zero-trust security, full observability, and an event-driven generative AI site reliability engineering (AIOps) assistant.
+> **Architecture Overview**: Automated Infrastructure as Code, GitOps progressive delivery, zero-trust security, full observability, and an event-driven generative AI site reliability engineering (AIOps) assistant.
 
 ---
 
 ## 1. Executive Summary & Capabilities Demonstrated
 
-This repository and evaluation package represent a complete, end-to-end implementation of modern cloud engineering, DevSecOps, and platform operations. Built to demonstrate elite engineering practices, the platform addresses real-world challenges in cloud infrastructure, CI/CD pipeline scalability, container security, and autonomous operations.
+This repository and evaluation package represent a complete, end-to-end implementation of modern cloud engineering, DevSecOps, and platform operations. Built to demonstrate modern cloud engineering practices, the platform addresses real-world challenges in cloud infrastructure, CI/CD pipeline scalability, container security, and autonomous operations.
 
 ```
                               ┌───────────────────────────────────────────┐

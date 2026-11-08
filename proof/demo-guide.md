@@ -256,7 +256,7 @@ The platform uses decoupled, single-responsibility GitHub Actions workflows:
 3. **`deploy-dev.yml` (GitOps Deployment & Live Verification)**:
    - Supports two explicit execution modes:
      - `action: verify` (read-only audit): Verifies that current GitOps overlay manifests and every live running pod replica on EKS match target ECR digests, validates Argo CD revision health, and runs live smoke tests.
-     - `action: deploy` (automated GitOps promotion): Updates overlay manifests, creates a reviewed GitOps Pull Request, merges to `main`, synchronizes Argo CD to the merged commit, and verifies that all replicas roll out cleanly.
+     - `action: deploy` (reviewed GitOps promotion): Updates overlay manifests and opens a reviewed GitOps Pull Request for human review (setting deployment status to `AWAITING_HUMAN_REVIEW` without auto-merging). Once merged by the engineer, Argo CD reconciles and rolls out the release.
    - Records genuine GitHub Deployment events (`environment: development`, tracking statuses: `in_progress`, `success`, `failure`), with distinct status descriptions between verification and promotion.
    - Executes live post-deployment HTTP smoke tests against `https://demo.aarjav.site`.
 4. **`promote-prod.yml` (Production Gate - Fails Closed)**:

@@ -2,7 +2,7 @@
 
 ## 1. High-Level Architecture Overview
 
-The **Autonomous DevSecOps & Cloud Operations Platform** is an enterprise-grade cloud architecture combining automated Kubernetes infrastructure, microservices workloads, full GitOps delivery, end-to-end observability, and an event-driven generative AI site reliability engineering (AIOps) assistant.
+The **Autonomous DevSecOps & Cloud Operations Platform** is a cloud-native platform architecture combining automated Kubernetes infrastructure, microservices workloads, full GitOps delivery, end-to-end observability, and an event-driven generative AI site reliability engineering (AIOps) assistant.
 
 ```mermaid
 flowchart TD
@@ -27,7 +27,7 @@ flowchart TD
                         FE["Frontend Pods<br/>(React/Vite, Non-Root UID 10001)"]
                         GW["Gateway Pods<br/>(Express API Gateway)"]
                         AUTH["Auth Pod<br/>(TypeScript, JWT Auth)"]
-                        DB[("PostgreSQL 16 StatefulSet<br/>(Encrypted EBS gp3 20Gi)")]
+                        DB[("PostgreSQL 15 StatefulSet<br/>(Encrypted EBS gp3 20Gi)")]
                         AIOPS["AIOps Assistant Pod<br/>(FastAPI / Python 3.11)"]
                     end
 
