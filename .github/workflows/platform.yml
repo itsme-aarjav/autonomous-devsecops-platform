@@ -170,7 +170,7 @@ jobs:
           exit-code: '1'
 
       - name: Configure AWS Credentials via GitHub OIDC
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'pipeline')
+        if: false # Disabled: cloud infrastructure decommissioned
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
         with:
           role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
@@ -178,12 +178,12 @@ jobs:
           audience: sts.amazonaws.com
 
       - name: Login to Amazon ECR
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'pipeline')
+        if: false # Disabled: cloud infrastructure decommissioned
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
 
       - name: Publish Verified Image to ECR & Resolve Digest
-        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.operation == 'pipeline')
+        if: false # Disabled: cloud infrastructure decommissioned
         run: |
           REGISTRY="${{ steps.login-ecr.outputs.registry }}"
           TAGGED_IMAGE="${REGISTRY}/${{ matrix.service }}:${{ github.sha }}"
@@ -213,7 +213,7 @@ jobs:
 
   deploy-platform:
     name: Deploy Platform (GitOps & EKS)
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch')
+    if: false # Disabled: cloud infrastructure decommissioned
     needs:
       - validate-terraform
       - validate-ansible
