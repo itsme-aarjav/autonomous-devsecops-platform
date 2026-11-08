@@ -4,6 +4,7 @@ kind: Kustomization
 namespace: boutique
 
 resources:
+  - postgres-backup-sa.yml
   - storageclass.yml
   - postgres.yml
   - backup-cronjob.yml

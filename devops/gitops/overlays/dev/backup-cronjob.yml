@@ -24,7 +24,7 @@ spec:
             app: postgres-backup
         spec:
           restartPolicy: OnFailure
-          serviceAccountName: aiops-assistant
+          serviceAccountName: postgres-backup
           tolerations:
             - key: "role"
               operator: "Equal"

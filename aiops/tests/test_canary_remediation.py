@@ -53,6 +53,16 @@ class TestCanaryRemediation(unittest.TestCase):
         workload_canary = self.engine._extract_workload(rca, {"affected_workload": "canary"})
         self.assertIn(workload_canary, ("canary", "boutique-canary"))
 
+        # Incident with pod name containing ReplicaSet/Pod hash suffix
+        workload_pod_hash = self.engine._extract_workload(rca, {"affected_workload": "boutique-canary-5c9d488bb5-pnt2d"})
+        self.assertIn(workload_pod_hash, ("canary", "boutique-canary"))
+
+        workload_canary_hash = self.engine._extract_workload(rca, {"affected_workload": "canary-5c9d488bb5-pnt2d"})
+        self.assertIn(workload_canary_hash, ("canary", "boutique-canary"))
+
+        workload_auth_hash = self.engine._extract_workload(rca, {"affected_workload": "auth-786cb868b8-jn8dx"})
+        self.assertEqual(workload_auth_hash, "auth")
+
     def test_canary_policy_approval(self):
         """Tests that a valid canary memory remediation proposal passes deterministic policy."""
         proposal = RemediationProposal(

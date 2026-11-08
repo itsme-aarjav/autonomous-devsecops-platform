@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: postgres-backup
+  namespace: boutique
+  labels:
+    app: postgres-backup
+    component: database

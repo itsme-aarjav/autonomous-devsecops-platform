@@ -620,9 +620,21 @@ class GitOpsRemediationEngine:
             candidate = raw.removeprefix("boutique-")
             if candidate in WORKLOAD_MANIFEST_MAP:
                 return candidate
+
+            # Match against allowlisted workloads when pod names include ReplicaSet/Pod hashes
+            # (e.g. 'boutique-canary-5c9d488bb5-pnt2d' -> 'boutique-canary' or 'canary')
+            for key in sorted(WORKLOAD_MANIFEST_MAP.keys(), key=len, reverse=True):
+                if raw == key or raw.startswith(f"{key}-"):
+                    return key
+                if candidate == key or candidate.startswith(f"{key}-"):
+                    return key
+
             return candidate
         text = f"{rca.root_cause} {rca.summary}".lower()
-        return next((svc for svc in WORKLOAD_MANIFEST_MAP if svc in text), "unknown")
+        for svc in sorted(WORKLOAD_MANIFEST_MAP.keys(), key=len, reverse=True):
+            if svc in text:
+                return svc
+        return "unknown"
 
     def _build_candidate_proposal(
         self,

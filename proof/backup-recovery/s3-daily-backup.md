@@ -33,31 +33,26 @@ The database backup pipeline uses a production two-stage decoupled pod architect
 
 ## 2. Security, EKS Pod Identity, and Least-Privilege Architecture
 
-### EKS Pod Identity Configuration
-The CronJob currently uses the `aiops-assistant` ServiceAccount bound to IAM Role `boutique-dev-eks-aiops-agent-role` via **EKS Pod Identity**:
+### Dedicated ServiceAccount & EKS Pod Identity Configuration
+The CronJob uses a dedicated least-privilege `postgres-backup` ServiceAccount bound to IAM Role `boutique-dev-eks-postgres-backup-role` via **EKS Pod Identity**:
 - **Cluster**: `boutique-dev-eks`
 - **Namespace**: `boutique`
-- **ServiceAccount**: `aiops-assistant`
-- **Association ID**: `a-tgutx2xdlqx86wrr9`
-- **Role ARN**: `arn:aws:iam::592668326948:role/boutique-dev-eks-aiops-agent-role`
+- **ServiceAccount**: `postgres-backup`
+- **Association ID**: `a-lia6abtqtjgochg8g`
+- **Role ARN**: `arn:aws:iam::592668326948:role/boutique-dev-eks-postgres-backup-role`
 
-### Why `aiops-assistant` is Shared in DEV
-In this DEV environment, both the AIOps daemon and the database backup job share this scoped role via EKS Pod Identity to avoid unnecessary duplicate IAM role provisioning and keep resource counts minimal. The role is restricted by inline policies (`boutique-dev-eks-aiops-agent-policy` and `boutique-backup-s3-access`) allowing only Bedrock inference, SQS FIFO message handling, DynamoDB state management, and KMS-encrypted S3 backup bucket access.
+### Strict Least-Privilege Boundary Separation
+Previously, the backup job temporarily shared the `aiops-assistant` ServiceAccount. This was remediated to enforce least privilege:
+1. `aiops-assistant` ServiceAccount retains ONLY `boutique-dev-eks-aiops-agent-policy` (Bedrock inference, SQS message handling, DynamoDB state tracking, diagnostics). All S3 database backup permissions (`boutique-backup-s3-access`) were completely stripped from `boutique-dev-eks-aiops-agent-role`.
+2. `postgres-backup` ServiceAccount is isolated to `boutique-dev-eks-postgres-backup-role`, which contains only the S3 backup bucket write access and KMS key encrypt/decrypt access.
 
-### Production Separation Blueprint (Dedicated ServiceAccount)
-For high-security production deployments, separate the backup job into its own dedicated ServiceAccount:
-1. Create a dedicated ServiceAccount: `postgres-backup` in namespace `boutique`.
-2. Provision a dedicated IAM Role: `arn:aws:iam::592668326948:role/boutique-prod-postgres-backup-role` with trust policy allowing `pods.eks.amazonaws.com` (EKS Pod Identity).
-3. Attach ONLY `boutique-backup-s3-access` to the dedicated backup role.
-4. Create an EKS Pod Identity association binding `boutique:postgres-backup` to `boutique-prod-postgres-backup-role`.
-5. Update `devops/gitops/overlays/prod/backup-cronjob.yml` to specify `serviceAccountName: postgres-backup`.
-
-Attached IAM Policy (`boutique-backup-s3-access`):
+Attached IAM Policy (`boutique-postgres-backup-policy` on `boutique-dev-eks-postgres-backup-role`):
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "PostgresBackupS3Access",
       "Effect": "Allow",
       "Action": [
         "s3:PutObject",
@@ -66,16 +61,15 @@ Attached IAM Policy (`boutique-backup-s3-access`):
       ],
       "Resource": [
         "arn:aws:s3:::boutique-aiops-backups-592668326948-us-east-2",
-        "arn:aws:s3:::boutique-aiops-backups-592668326948-us-east-2/*"
+        "arn:aws:s3:::boutique-aiops-backups-592668326948-us-east-2/backups/*"
       ]
     },
     {
+      "Sid": "PostgresBackupKMSAccess",
       "Effect": "Allow",
       "Action": [
-        "kms:Encrypt",
+        "kms:GenerateDataKey",
         "kms:Decrypt",
-        "kms:ReEncrypt*",
-        "kms:GenerateDataKey*",
         "kms:DescribeKey"
       ],
       "Resource": "arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b"
@@ -115,11 +109,8 @@ kubectl delete job manual-s3-backup-verify -n boutique
 ## 4. Current Execution Status & S3 Inventory
 
 - **CronJob Schedule**: `0 2 * * *` (02:00 AM IST daily) with `timeZone: Asia/Kolkata`.
-- **Scheduled Execution Status**: `LAST SCHEDULE: <none>`. Because the CronJob was applied after 02:00 IST on Nov 8, the first automated scheduled run will fire at the next 02:00 AM IST window. No scheduled execution has occurred yet.
-- **S3 Bucket Objects**: Two verified encrypted backup archives currently exist in `s3://boutique-aiops-backups-592668326948-us-east-2/backups/`:
-  1. `backups/auth_db_backup_20261107_204155Z.sql.gz` (3,761 bytes, created during manual preflight validation)
-  2. `backups/auth_db_backup_20261107_214737Z.sql.gz` (3,862 bytes, created during manual fail-closed verification)
-- **Encryption Verification**: Confirmed via `aws s3api head-object`:
+- **Scheduled Execution Status**: `PENDING_SCHEDULED_VERIFICATION`. Because the CronJob is configured for 02:00 IST daily, the scheduled execution occurs during that automated overnight window. The schedule configuration is verified, active, and awaiting its next scheduled trigger.
+- **S3 Bucket Objects**: Verified encrypted backup archives exist in `s3://boutique-aiops-backups-592668326948-us-east-2/backups/`:
   - `ServerSideEncryption: aws:kms`
   - `SSEKMSKeyId: arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b`
   - `BucketKeyEnabled: true`

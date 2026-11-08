@@ -8,7 +8,7 @@ on:
         required: true
         default: "dev-latest"
       action:
-        description: "Execution action: 'verify' (validate current DEV deployment) or 'deploy' (promote release to GitOps and sync to DEV)"
+        description: "Execution action: 'verify' (validate current DEV deployment) or 'deploy' (prepare reviewed GitOps PR for promotion)"
         required: true
         default: "verify"
         type: choice
@@ -16,20 +16,20 @@ on:
           - verify
           - deploy
 
-permissions:
-  contents: write
-  id-token: write
-  deployments: write
-  pull-requests: write
-
 concurrency:
   group: deploy-dev
   cancel-in-progress: false
 
 jobs:
-  deploy-and-verify-dev:
-    name: Verify & Record DEV Deployment
+  prepare-promotion:
+    name: Prepare DEV GitOps Promotion PR
+    if: github.event.inputs.action == 'deploy'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+      deployments: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -41,9 +41,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ACTION="${{ github.event.inputs.action }}"
           TAG="${{ github.event.inputs.release_tag }}"
-          DESC="DEV ${ACTION} for release ${TAG}"
+          DESC="DEV promotion PR preparation for release ${TAG}"
 
           DEPLOYMENT_PAYLOAD=$(jq -n \
             --arg ref "${{ github.ref }}" \
@@ -67,7 +66,7 @@ jobs:
             -f state="in_progress" \
             -f environment="development" \
             -f environment_url="https://demo.aarjav.site" \
-            -f description="Executing DEV ${ACTION} for release ${TAG}..."
+            -f description="Resolving digests and preparing promotion PR for release ${TAG}..."
 
       - name: Configure AWS Credentials via GitHub OIDC
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
@@ -76,7 +75,7 @@ jobs:
           aws-region: us-east-2
           audience: sts.amazonaws.com
 
-      - name: Resolve & Verify Immutable Container Image Digests in ECR
+      - name: Resolve Immutable Container Image Digests in ECR
         id: resolve_ecr
         run: |
           TAG="${{ github.event.inputs.release_tag }}"
@@ -111,9 +110,8 @@ jobs:
           done
           echo "All 4 microservice container digests resolved in ECR."
 
-      - name: Promote Release via GitOps Pull Request (Only if action == 'deploy')
-        if: github.event.inputs.action == 'deploy'
-        id: promote_gitops
+      - name: Prepare Reviewed GitOps Promotion PR (No Auto-Merge)
+        id: prepare_pr
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -121,7 +119,8 @@ jobs:
           TAG="${{ github.event.inputs.release_tag }}"
           ACCOUNT_ID="592668326948"
           REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
-          BRANCH_NAME="gitops/promote-dev-${TAG}-${{ github.run_id }}"
+          BRANCH_NAME="gitops/promote-dev-${TAG}"
+          DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
 
           echo "Updating GitOps overlay manifests for release '${TAG}'..."
           python3 devops/scripts/update_gitops_image.py \
@@ -148,50 +147,173 @@ jobs:
           kubectl kustomize devops/gitops/overlays/dev/ > /dev/null
 
           if git status --porcelain | grep -q "devops/gitops/overlays/dev"; then
-            echo "Changes detected. Initiating reviewed GitOps PR process..."
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
+            echo "Changes detected against main. Checking for existing open promotion PR..."
+            EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --state open --json url -q '.[0].url' || echo "")
 
-            git checkout -b "$BRANCH_NAME"
-            git add devops/gitops/overlays/dev/
-            git commit -m "chore(gitops): promote release ${TAG} to DEV [skip ci]"
-            git push origin "$BRANCH_NAME"
+            if [ -n "$EXISTING_PR" ]; then
+              echo "Existing open promotion PR already exists: $EXISTING_PR"
+              PR_URL="$EXISTING_PR"
+            else
+              echo "Creating promotion branch and PR..."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
 
-            echo "Creating Pull Request for GitOps promotion..."
-            PR_URL=$(gh pr create \
-              --base main \
-              --head "$BRANCH_NAME" \
-              --title "chore(gitops): promote release ${TAG} to DEV" \
-              --body "Automated GitOps DEV promotion for release ${TAG}. Promoted digests: frontend (${boutique_frontend}), gateway (${boutique_gateway}), auth (${boutique_auth}), aiops (${boutique_aiops_assistant}).")
+              git checkout -B "$BRANCH_NAME"
+              git add devops/gitops/overlays/dev/
+              git commit -m "chore(gitops): promote release ${TAG} to DEV [skip ci]"
+              git push origin "$BRANCH_NAME" --force
 
-            echo "Pull Request created: $PR_URL"
+              PR_BODY="Automated GitOps DEV promotion PR for release \`${TAG}\`. Promoted digests: frontend (\`${boutique_frontend}\`), gateway (\`${boutique_gateway}\`), auth (\`${boutique_auth}\`), aiops (\`${boutique_aiops_assistant}\`). ACTION REQUIRED: Human review & merge required. Merging will trigger Argo CD deployment to EKS."
 
-            echo "Merging GitOps promotion Pull Request into main..."
-            gh pr merge "$PR_URL" --merge --auto || gh pr merge "$PR_URL" --merge
+              PR_URL=$(gh pr create \
+                --base main \
+                --head "$BRANCH_NAME" \
+                --title "chore(gitops): promote release ${TAG} to DEV" \
+                --body "$PR_BODY")
+              echo "Created promotion PR: $PR_URL"
+            fi
 
-            # Return to main and pull merged commit
-            git checkout main
-            git pull origin main
-            MERGED_REVISION=$(git rev-parse HEAD)
-            echo "MERGED_GITOPS_REVISION=${MERGED_REVISION}" >> /tmp/release_digests/digests.env
-            echo "merged_revision=$MERGED_REVISION" >> "$GITHUB_OUTPUT"
-            echo "Successfully merged GitOps promotion PR. Target GitOps commit: $MERGED_REVISION"
+            echo "================================================================================"
+            echo "PROMOTION PR READY: $PR_URL"
+            echo "STATUS: AWAITING_HUMAN_REVIEW"
+            echo "Human review required. Workflow will NOT auto-merge or commit to main directly."
+            echo "================================================================================"
 
-            # Clean up remote promotion branch
-            git push origin --delete "$BRANCH_NAME" || true
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+              -f state="in_progress" \
+              -f environment="development" \
+              -f environment_url="https://demo.aarjav.site" \
+              -f description="AWAITING_HUMAN_REVIEW: Promotion PR created ($PR_URL). Awaiting engineer review & merge."
           else
-            echo "GitOps overlay manifests are already pinned to target release digests."
-            MERGED_REVISION=$(git rev-parse HEAD)
-            echo "MERGED_GITOPS_REVISION=${MERGED_REVISION}" >> /tmp/release_digests/digests.env
-            echo "merged_revision=$MERGED_REVISION" >> "$GITHUB_OUTPUT"
-            echo "Current main GitOps commit: $MERGED_REVISION"
+            echo "GitOps overlay manifests on main are already pinned to target release digests."
+            echo "================================================================================"
+            echo "STATUS: ALREADY_PINNED"
+            echo "Manifests on main already match release ${TAG}. Run with action=verify to test."
+            echo "================================================================================"
+
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+              -f state="in_progress" \
+              -f environment="development" \
+              -f environment_url="https://demo.aarjav.site" \
+              -f description="ALREADY_PINNED: GitOps manifests in main already match release ${TAG}. Run action=verify to validate cluster parity."
           fi
+
+      - name: Mark Deployment Preparation Failed
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -n "$DEPLOYMENT_ID" ]; then
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+              -f state="failure" \
+              -f environment="development" \
+              -f environment_url="https://demo.aarjav.site" \
+              -f description="DEV GitOps promotion preparation FAILED for ${TAG}."
+          fi
+
+  verify-deployment:
+    name: Verify DEV Deployment & Smoke Tests
+    if: github.event.inputs.action == 'verify'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      deployments: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Deployment Record
+        id: create_deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          DESC="DEV read-only verification for release ${TAG}"
+
+          DEPLOYMENT_PAYLOAD=$(jq -n \
+            --arg ref "${{ github.ref }}" \
+            --arg desc "$DESC" \
+            '{ref: $ref, environment: "development", description: $desc, transient_environment: false, production_environment: false, auto_merge: false, required_contexts: []}')
+
+          DEPLOYMENT_JSON=$(echo "$DEPLOYMENT_PAYLOAD" | gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/deployments \
+            --input -)
+
+          DEPLOYMENT_ID=$(echo "$DEPLOYMENT_JSON" | jq -r .id)
+          echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
+          echo "Created GitHub Deployment ID: $DEPLOYMENT_ID"
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/deployments/$DEPLOYMENT_ID/statuses \
+            -f state="in_progress" \
+            -f environment="development" \
+            -f environment_url="https://demo.aarjav.site" \
+            -f description="Executing DEV read-only verification for release ${TAG}..."
+
+      - name: Configure AWS Credentials via GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4.0.2
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-2
+          audience: sts.amazonaws.com
+
+      - name: Resolve Immutable Container Image Digests in ECR
+        id: resolve_ecr
+        run: |
+          TAG="${{ github.event.inputs.release_tag }}"
+          ACCOUNT_ID="592668326948"
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
+          echo "Resolving ECR digests for target release tag: ${TAG}"
+
+          declare -A SERVICE_REPOS=(
+            ["boutique-frontend"]="boutique-frontend"
+            ["boutique-gateway"]="boutique-gateway"
+            ["boutique-auth"]="boutique-auth"
+            ["boutique-aiops-assistant"]="boutique-aiops-assistant"
+          )
+
+          mkdir -p /tmp/release_digests
+          for svc in "${!SERVICE_REPOS[@]}"; do
+            repo="${SERVICE_REPOS[$svc]}"
+            DIGEST=$(aws ecr describe-images \
+              --repository-name "${repo}" \
+              --image-ids imageTag="${TAG}" \
+              --region us-east-2 \
+              --query "imageDetails[0].imageDigest" \
+              --output text 2>/dev/null || echo "None")
+
+            if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+              echo "Error: Repository ${repo} is missing required image tag '${TAG}' in ECR!" >&2
+              exit 1
+            fi
+            var_name="${svc//-/_}"
+            echo "${var_name}=${DIGEST}" >> /tmp/release_digests/digests.env
+            echo "  ✓ ${svc}: ${DIGEST}"
+          done
+          echo "All 4 microservice container digests resolved in ECR."
 
       - name: Verify Release-to-GitOps-to-EKS Digest Parity and Argo CD Revision (Strict Fail-Closed)
         run: |
           source /tmp/release_digests/digests.env
           TAG="${{ github.event.inputs.release_tag }}"
-          ACTION="${{ github.event.inputs.action }}"
 
           echo "Configuring kubectl for EKS cluster boutique-dev-eks..."
           aws eks update-kubeconfig --region us-east-2 --name boutique-dev-eks
@@ -229,16 +351,10 @@ jobs:
           check_gitops_parity "boutique-auth" "devops/gitops/overlays/dev/auth.yml" "$boutique_auth"
           check_gitops_parity "boutique-aiops-assistant" "devops/gitops/overlays/dev/aiops.yml" "$boutique_aiops_assistant"
 
-          # 2. Verify Argo CD Application Status & Synced Revision
+          # 2. Verify Argo CD Application Status & Synchronization
           echo "[2/3] Verifying Argo CD GitOps Application Synchronization..."
-          MAX_WAIT=120
+          MAX_WAIT=60
           ELAPSED=0
-          TARGET_REVISION="${MERGED_GITOPS_REVISION:-}"
-
-          # Trigger Argo CD refresh if a new GitOps promotion was merged
-          if [ -n "$TARGET_REVISION" ]; then
-            kubectl annotate application boutique -n argocd argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
-          fi
 
           while true; do
             SYNC_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
@@ -246,19 +362,13 @@ jobs:
             SYNCED_REVISION=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.revision}' 2>/dev/null || echo "Unknown")
             echo "  Argo CD status (elapsed ${ELAPSED}s): Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, Revision=${SYNCED_REVISION}"
 
-            REVISION_MATCH=true
-            if [ -n "$TARGET_REVISION" ] && [ "$SYNCED_REVISION" != "$TARGET_REVISION" ]; then
-              REVISION_MATCH=false
-              echo "    Waiting for Argo CD to synchronize target revision ${TARGET_REVISION} (current: ${SYNCED_REVISION})..."
-            fi
-
-            if [ "${SYNC_STATUS}" = "Synced" ] && [ "${HEALTH_STATUS}" = "Healthy" ] && [ "$REVISION_MATCH" = "true" ]; then
+            if [ "${SYNC_STATUS}" = "Synced" ] && [ "${HEALTH_STATUS}" = "Healthy" ]; then
               echo "  ✓ Argo CD boutique application is Synced and Healthy at revision ${SYNCED_REVISION}."
               break
             fi
 
             if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
-              echo "Error: Argo CD application failed to achieve Synced & Healthy state within ${MAX_WAIT}s (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, Revision=${SYNCED_REVISION}, Expected=${TARGET_REVISION})!" >&2
+              echo "Error: Argo CD application failed to achieve Synced & Healthy state within ${MAX_WAIT}s (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS})!" >&2
               exit 1
             fi
             sleep 5
@@ -392,13 +502,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
-          ACTION="${{ github.event.inputs.action }}"
           TAG="${{ github.event.inputs.release_tag }}"
-          if [ "$ACTION" = "deploy" ]; then
-            DESC="DEV promotion & deployment PASSED for ${TAG}. GitOps PR merged, Argo CD synced, and all replicas verified running target digests."
-          else
-            DESC="DEV read-only verification PASSED for ${TAG}. Parity confirmed across ECR, GitOps & all running EKS replicas (no promotion executed)."
-          fi
+          DESC="DEV read-only verification PASSED for ${TAG}. Parity confirmed across ECR, GitOps & all running EKS replicas (no promotion executed)."
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
@@ -414,14 +519,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
-          ACTION="${{ github.event.inputs.action }}"
           TAG="${{ github.event.inputs.release_tag }}"
           if [ -n "$DEPLOYMENT_ID" ]; then
-            if [ "$ACTION" = "deploy" ]; then
-              DESC="DEV promotion & deployment FAILED for ${TAG}."
-            else
-              DESC="DEV read-only verification FAILED for ${TAG}."
-            fi
             gh api \
               --method POST \
               -H "Accept: application/vnd.github+json" \
@@ -429,5 +528,5 @@ jobs:
               -f state="failure" \
               -f environment="development" \
               -f environment_url="https://demo.aarjav.site" \
-              -f description="$DESC"
+              -f description="DEV read-only verification FAILED for ${TAG}."
           fi
