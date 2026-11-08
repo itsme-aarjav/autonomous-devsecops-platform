@@ -325,6 +325,9 @@ jobs:
             exit 0
           fi
 
+          git fetch origin main
+          git checkout -B main origin/main
+
           echo "Updating GitOps production overlay manifests with target ECR digests..."
           python3 devops/scripts/update_gitops_image.py \
             --manifest devops/gitops/overlays/production/frontend.yml \
@@ -351,12 +354,10 @@ jobs:
 
           if git status --porcelain devops/gitops/overlays/production | grep -q "devops/gitops/overlays/production"; then
             echo "Changes detected in production overlay manifests. Committing GitOps changes..."
-            git checkout main || git checkout -B main origin/main
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add devops/gitops/overlays/production/
             git commit -m "autonomous-devsecops-platform"
-            git pull --rebase origin main || true
             git push origin main
             EXP_REV=$(git rev-parse HEAD)
             echo "Pushed updated GitOps manifests. New HEAD revision: ${EXP_REV}"
@@ -457,7 +458,7 @@ jobs:
           kubectl rollout status deployment/boutique-canary -n boutique --timeout=120s
 
           echo "VERIFYING LIVE POD REPLICAS & IMAGE PARITY (EVERY REPLICA)"
-          check_pod_parity() {
+          check_pod_parity() (
             local svc="$1"
             local label_selector="$2"
             local expected_digest="$3"
@@ -501,7 +502,16 @@ jobs:
               echo "Error: Replica count mismatch for ${svc}! Expected ${expected_replicas} pod(s), found ${replica_count}." >&2
               exit 1
             fi
-            echo "    ✓ Verified all ${replica_count} replica(s) match target release digest and are Ready."
+            echo "Verified all ${replica_count} replica(s) for ${svc}."
+          )
+
+          wait_pod_parity() {
+            local attempt
+            for attempt in {1..24}; do
+              if check_pod_parity "$@"; then return 0; fi
+              if [ "$attempt" -eq 24 ]; then return 1; fi
+              sleep 5
+            done
           }
 
           ro_desired=$(kubectl get rollout frontend -n boutique -o jsonpath='{.spec.replicas}')
@@ -509,10 +519,10 @@ jobs:
           gw_desired=$(kubectl get deployment gateway -n boutique -o jsonpath='{.spec.replicas}')
           aiops_desired=$(kubectl get deployment aiops-assistant -n boutique -o jsonpath='{.spec.replicas}')
 
-          check_pod_parity "boutique-frontend" "app=frontend" "$boutique_frontend" "$ro_desired"
-          check_pod_parity "boutique-gateway" "app=gateway" "$boutique_gateway" "$gw_desired"
-          check_pod_parity "boutique-auth" "app=auth" "$boutique_auth" "$auth_desired"
-          check_pod_parity "boutique-aiops-assistant" "app.kubernetes.io/name=aiops-assistant" "$boutique_aiops_assistant" "$aiops_desired"
+          wait_pod_parity "boutique-frontend" "app=frontend" "$boutique_frontend" "$ro_desired"
+          wait_pod_parity "boutique-gateway" "app=gateway" "$boutique_gateway" "$gw_desired"
+          wait_pod_parity "boutique-auth" "app=auth" "$boutique_auth" "$auth_desired"
+          wait_pod_parity "boutique-aiops-assistant" "app.kubernetes.io/name=aiops-assistant" "$boutique_aiops_assistant" "$aiops_desired"
 
           echo "Verifying active pods and restart counts..."
           kubectl get pods -n boutique -o wide
