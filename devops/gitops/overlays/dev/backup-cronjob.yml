@@ -108,6 +108,8 @@ spec:
                   TIMESTAMP=$(date -u +%Y%m%d_%H%M%SZ)
                   S3_KEY="backups/auth_db_backup_${TIMESTAMP}.sql.gz"
                   SRC_FILE="/backup/auth_db_dump.sql.gz"
+                  INTENDED_KMS_KEY_ID="1e4e2ce3-e642-47a9-a20d-3a47b052918b"
+                  INTENDED_KMS_KEY_ARN="arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b"
                   
                   if [ ! -f "${SRC_FILE}" ]; then
                     echo "[ERROR] Source backup file not found at ${SRC_FILE}!" >&2
@@ -116,15 +118,36 @@ spec:
                   
                   aws s3 cp "${SRC_FILE}" "s3://boutique-aiops-backups-592668326948-us-east-2/${S3_KEY}" \
                     --sse aws:kms \
-                    --sse-kms-key-id 1e4e2ce3-e642-47a9-a20d-3a47b052918b
+                    --sse-kms-key-id "${INTENDED_KMS_KEY_ID}"
                   
                   echo "[$(date -u +%FT%TZ)] S3 upload completed successfully. Verifying uploaded object metadata..."
-                  METADATA=$(aws s3api head-object \
+                  ACTUAL_SSE=$(aws s3api head-object \
                     --bucket boutique-aiops-backups-592668326948-us-east-2 \
-                    --key "${S3_KEY}")
-                  
+                    --key "${S3_KEY}" \
+                    --query "ServerSideEncryption" \
+                    --output text 2>/dev/null || echo "")
+
+                  ACTUAL_KMS_KEY=$(aws s3api head-object \
+                    --bucket boutique-aiops-backups-592668326948-us-east-2 \
+                    --key "${S3_KEY}" \
+                    --query "SSEKMSKeyId" \
+                    --output text 2>/dev/null || echo "")
+
                   echo "[$(date -u +%FT%TZ)] Verified S3 Object: ${S3_KEY}"
-                  echo "${METADATA}"
+                  echo "[$(date -u +%FT%TZ)] ServerSideEncryption: ${ACTUAL_SSE}"
+                  echo "[$(date -u +%FT%TZ)] SSEKMSKeyId: ${ACTUAL_KMS_KEY}"
+
+                  if [ "${ACTUAL_SSE}" != "aws:kms" ]; then
+                    echo "[ERROR] S3 object encryption verification failed! ServerSideEncryption is '${ACTUAL_SSE}', expected 'aws:kms'." >&2
+                    exit 1
+                  fi
+
+                  if [ "${ACTUAL_KMS_KEY}" != "${INTENDED_KMS_KEY_ARN}" ] && [ "${ACTUAL_KMS_KEY}" != "${INTENDED_KMS_KEY_ID}" ]; then
+                    echo "[ERROR] S3 KMS key verification failed! SSEKMSKeyId is '${ACTUAL_KMS_KEY}', expected '${INTENDED_KMS_KEY_ARN}'." >&2
+                    exit 1
+                  fi
+
+                  echo "[$(date -u +%FT%TZ)] Explicit verification passed: ServerSideEncryption is aws:kms and SSEKMSKeyId matches intended KMS key."
                   echo "[$(date -u +%FT%TZ)] Scheduled daily PostgreSQL backup complete and verified."
               resources:
                 requests:
