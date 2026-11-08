@@ -40,7 +40,7 @@ spec:
                       - spot
       containers:
         - name: gateway
-          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-gateway@sha256:2214cfd911b70302aafa5a72e3a7e078f6c956aeefefcbe1bd157fd5565038d4
+          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-gateway@sha256:0ea2d55def836efecf72ec7955350b85cdaae4f605f4afd968ae3d5a7a69146f
           resources:
             requests:
               cpu: 100m

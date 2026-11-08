@@ -40,7 +40,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: aiops-agent
-          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:b26327fe3c40ac575e477e327ec5c97945dac1b1b8ddb9a4421ac633c73c3c3b
+          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:f89483acd2018456301bc4920488e516c1c54760cc8426a4f3d374e03bbb0b0c
           imagePullPolicy: IfNotPresent
           ports:
             - name: http-health
