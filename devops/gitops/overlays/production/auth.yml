@@ -33,7 +33,7 @@ spec:
                       - spot
       containers:
         - name: auth
-          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-auth@sha256:1855aedb69fdf3eedcb2843479813052ff3f1f36ec46b879f9e4bd121b055bc5
+          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-auth@sha256:602a4301811a405840b5c01aa3ce7dc2011a1aef7e3e1eb338036ff513743acf
           resources:
             requests:
               cpu: 100m
