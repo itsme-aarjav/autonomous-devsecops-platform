@@ -1,0 +1,44 @@
+UTC: 2026-11-08T19:47:19Z
+EKS Nodes:
+NAME                  STATUS   ROLES    AGE     VERSION
+i-075240d9f53a40981   Ready    <none>   9m44s   v1.36.4-eks-cfb47f5
+i-097c16131db561171   Ready    <none>   12h     v1.36.4-eks-cfb47f5
+i-0cb22dbe12516c08e   Ready    <none>   31h     v1.36.4-eks-cfb47f5
+Application Pods:
+NAME                               READY   STATUS    RESTARTS   AGE
+aiops-assistant-868959bdb-5qstm    1/1     Running   0          7m56s
+auth-d688b584c-t5pld               1/1     Running   0          32m
+boutique-canary-5c9d488bb5-x7qn6   1/1     Running   0          7m56s
+boutique-postgres-0                1/1     Running   0          29h
+frontend-576fcc8bd9-pmj4j          1/1     Running   0          32m
+frontend-576fcc8bd9-zsjn4          1/1     Running   0          32m
+gateway-84f8d5bc68-4rk6c           1/1     Running   0          32m
+gateway-84f8d5bc68-lb6h4           1/1     Running   0          32m
+Application Workloads:
+NAME                              READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/aiops-assistant   1/1     1            1           27h
+deployment.apps/auth              1/1     1            1           29h
+deployment.apps/boutique-canary   1/1     1            1           22h
+deployment.apps/gateway           2/2     2            2           29h
+
+NAME                                 READY   AGE
+statefulset.apps/boutique-postgres   1/1     29h
+
+NAME                                  SCHEDULE    TIMEZONE       SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+cronjob.batch/postgres-backup-daily   0 2 * * *   Asia/Kolkata   False     0        <none>          9h
+Monitoring Pods:
+NAME                                                       READY   STATUS    RESTARTS   AGE
+alertmanager-kube-prometheus-stack-alertmanager-0          2/2     Running   0          31h
+kube-prometheus-stack-grafana-844b68d89b-dsmv5             3/3     Running   0          31h
+kube-prometheus-stack-kube-state-metrics-9ddc489d8-htjf4   1/1     Running   0          31h
+kube-prometheus-stack-operator-6b56568775-rfhxn            1/1     Running   0          31h
+kube-prometheus-stack-prometheus-node-exporter-7qqx8       1/1     Running   0          9m52s
+kube-prometheus-stack-prometheus-node-exporter-jjx98       1/1     Running   0          12h
+kube-prometheus-stack-prometheus-node-exporter-mzj5c       1/1     Running   0          31h
+prometheus-kube-prometheus-stack-prometheus-0              2/2     Running   0          31h
+AIOps Prometheus Rules:
+NAME                  AGE
+aiops-pod-oomkilled   32m
+Argo CD Applications:
+NAMESPACE   NAME       SYNC STATUS   HEALTH STATUS
+argocd      boutique   Synced        Healthy

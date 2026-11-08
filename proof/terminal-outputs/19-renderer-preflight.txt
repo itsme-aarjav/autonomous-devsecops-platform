@@ -1,0 +1,11 @@
+UTC: 2026-11-08T21:11:22Z
+Current branch:
+main
+Renderer local changes:
+Renderer implementation:
+119:    def _apply_remediation_to_yaml(
+131:            docs = list(yaml.safe_load_all(yaml_content))
+156:                elif action_type in (RemediationActionType.SET_MEMORY_RESOURCES, RemediationActionType.SET_CPU_RESOURCES):
+183:                    if action_type == RemediationActionType.SET_MEMORY_RESOURCES:
+211:        return yaml.safe_dump_all(updated_docs, sort_keys=False, default_flow_style=False)
+218:        elif proposal.action_type == RemediationActionType.SET_MEMORY_RESOURCES:

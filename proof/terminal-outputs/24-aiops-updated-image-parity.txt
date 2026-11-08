@@ -1,0 +1,8 @@
+UTC: 2026-11-08T21:29:35Z
+ECR digest: sha256:afe0b3e21e47820c789813bfd5fbe6d27f49271deade466009780f7dd25038f3
+EKS image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:afe0b3e21e47820c789813bfd5fbe6d27f49271deade466009780f7dd25038f3
+PASS: EKS image matches updated ECR build
+deployment "aiops-assistant" successfully rolled out
+Argo CD applications:
+NAME       SYNC     HEALTH
+boutique   Synced   Healthy

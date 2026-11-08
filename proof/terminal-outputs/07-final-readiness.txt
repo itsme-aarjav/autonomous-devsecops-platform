@@ -1,0 +1,10 @@
+AIOps Webhook Secret - Monitoring:
+secret/aiops-webhook-secret
+AIOps Webhook Secret - Boutique:
+secret/aiops-webhook-secret
+Backup Schedule and Success:
+Last scheduled: 2026-11-08T20:30:00Z
+Last successful: 2026-11-08T20:30:25Z
+Backup Jobs:
+NAME                             STATUS     COMPLETIONS   DURATION   AGE
+postgres-backup-daily-29902830   Complete   1/1           25s        12m

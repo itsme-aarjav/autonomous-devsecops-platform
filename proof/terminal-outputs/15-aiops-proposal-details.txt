@@ -1,0 +1,24 @@
+UTC: 2026-11-08T20:59:06Z
+Real DynamoDB AIOps proposal details:
+{
+  "proposal_id": "597a71c7dbb432d2",
+  "incident_id": "6af279e317a3dc5697621ddcde963bfa67102c246a1b82d9a92e6b123d27dd64",
+  "status": "PENDING_HUMAN_APPROVAL",
+  "workload": "canary",
+  "namespace": "boutique",
+  "action_type": "SET_MEMORY_RESOURCES",
+  "target_manifest": "devops/gitops/overlays/production/canary.yml",
+  "parameters": {
+    "replicas": null,
+    "memory_request": "256Mi",
+    "memory_limit": "512Mi",
+    "cpu_request": null,
+    "cpu_limit": null,
+    "image_digest": null,
+    "target_container": "canary"
+  },
+  "confidence_score": 0.95,
+  "policy_decision": "APPROVED",
+  "policy_reason": "Policy approval: Proposal for workload 'canary' satisfies all safety, bounding, and allowlist constraints.",
+  "justification": "Scale container memory limits for canary to mitigate Pod OOMKilled condition."
+}

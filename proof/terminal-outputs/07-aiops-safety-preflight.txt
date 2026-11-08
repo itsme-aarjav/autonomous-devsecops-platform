@@ -1,0 +1,45 @@
+UTC: 2026-11-08T20:40:17Z
+Canary Deployment:
+NAME              READY   UP-TO-DATE   AVAILABLE   AGE
+boutique-canary   1/1     1            1           23h
+Canary Pods:
+NAME                               READY   STATUS    RESTARTS   AGE
+boutique-canary-5c9d488bb5-x7qn6   1/1     Running   0          60m
+Canary Memory Limits:
+Request: 64Mi
+Limit: 128Mi
+Existing Incident Trigger:
+PASS: No active incident trigger
+AIOps Agent:
+NAME              READY   UP-TO-DATE   AVAILABLE   AGE
+aiops-assistant   1/1     1            1           27h
+Prometheus OOM Alert Rule:
+NAME                  AGE
+aiops-pod-oomkilled   85m
+AWS SQS Queue:
+https://sqs.us-east-2.amazonaws.com/592668326948/boutique-aiops-alert-queue.fifo
+DynamoDB Tables:
+---------------------------------------
+|            DescribeTable            |
++--------------------------+----------+
+|           Name           | Status   |
++--------------------------+----------+
+|  boutique-aiops-episodes |  ACTIVE  |
++--------------------------+----------+
+------------------------------------------
+|              DescribeTable             |
++------------------------------+---------+
+|             Name             | Status  |
++------------------------------+---------+
+|  boutique-aiops-rca-reports  |  ACTIVE |
++------------------------------+---------+
+-------------------------------------------
+|              DescribeTable              |
++-------------------------------+---------+
+|             Name              | Status  |
++-------------------------------+---------+
+|  boutique-aiops-remediations  |  ACTIVE |
++-------------------------------+---------+
+Backup CronJob:
+NAME                    SCHEDULE    TIMEZONE       SUSPEND   ACTIVE   LAST SCHEDULE   AGE
+postgres-backup-daily   0 2 * * *   Asia/Kolkata   False     0        10m             10h

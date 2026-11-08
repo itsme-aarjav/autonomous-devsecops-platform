@@ -1,0 +1,8 @@
+UTC: 2026-11-08T21:35:38Z
+Recreating isolated canary: boutique-canary-5c9d488bb5-x7qn6
+pod "boutique-canary-5c9d488bb5-x7qn6" deleted from boutique namespace
+deployment "boutique-canary" successfully rolled out
+Canary after recreation:
+NAME                               READY   STATUS    RESTARTS   AGE
+boutique-canary-5c9d488bb5-g6b2m   1/1     Running   0          6s
+PASS: Isolated canary recreated

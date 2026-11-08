@@ -1,0 +1,14 @@
+UTC: 2026-11-08T21:47:39Z
+GitHub remediation PR:
+{"files":[{"additions":2,"deletions":2,"path":"devops/gitops/overlays/production/canary.yml"}],"mergeable":"MERGEABLE","number":2,"state":"OPEN"}
+DynamoDB human approval audit:
+{
+  "proposal_id": "0abe485a55e34e73",
+  "status": "PR_CREATED",
+  "approved_by": "arn:aws:iam::592668326948:user/terra-admin",
+  "approved_at": "2026-11-08T21:45:21.073342Z",
+  "approval_mode": "AUTHENTICATED",
+  "is_approved_by_human": true,
+  "github_pr_number": 2,
+  "github_pr_url": "https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2"
+}

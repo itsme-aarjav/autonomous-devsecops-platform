@@ -1,0 +1,9 @@
+UTC: 2026-11-08T20:53:18Z
+AIOps incident processing logs:
+2026-11-08T20:47:36.513203684Z 2026-11-08 20:47:36,512 [INFO] [aiops.alert_queue] Successfully enqueued alert for episode 6af279e317a3dc5697621ddcde963bfa67102c246a1b82d9a92e6b123d27dd64 to SQS FIFO (MessageId: 534bcb58-9f2e-49c5-9592-440cd67cc515)
+2026-11-08T20:47:36.543752100Z 2026-11-08 20:47:36,543 [INFO] [aiops.runtime] Accepted alert batch: 1 new episodes enqueued, 0 deduplicated, 0 resolved. Queue depth: 0.
+2026-11-08T20:47:36.543784343Z 2026-11-08 20:47:36,543 [INFO] [aiops.runtime] 10.1.10.32 - "POST /api/v1/alerts HTTP/1.1" 202 -
+2026-11-08T20:47:36.729708800Z 2026-11-08 20:47:36,729 [INFO] [aiops.bedrock_client] Invoking Bedrock Converse API (attempt 1/3, model: amazon.nova-lite-v1:0)
+2026-11-08T20:47:39.734615455Z 2026-11-08 20:47:39,734 [INFO] [aiops.bedrock_client] Bedrock Converse invocation succeeded in 3.00s
+2026-11-08T20:47:39.747974284Z 2026-11-08 20:47:39,747 [INFO] [aiops.persistence] Successfully persisted RCA report for incident 6af279e317a3dc5697621ddcde963bfa67102c246a1b82d9a92e6b123d27dd64 to DynamoDB table boutique-aiops-rca-reports
+2026-11-08T20:47:39.766525345Z 2026-11-08 20:47:39,766 [INFO] [aiops.remediation.generator] Generated reviewable GitOps patch for canary (597a71c7dbb432d2). Awaiting explicit human approval before applying to 'main'.

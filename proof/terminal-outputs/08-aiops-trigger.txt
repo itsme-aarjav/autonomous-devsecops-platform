@@ -1,0 +1,3 @@
+UTC: 2026-11-08T20:45:59Z
+configmap/boutique-canary-trigger created
+Trigger: boutique-canary-trigger

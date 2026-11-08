@@ -1,0 +1,26 @@
+UTC: 2026-11-08T21:50:01Z
+Latest GitHub Actions:
+in_progress		autonomous-devsecops-platform	Platform Pipeline	main	push	42527069721	1m4s	2026-11-08T21:48:58Z
+completed	success	autonomous-devsecops-platform	Platform Pipeline	main	push	42524848105	5m30s	2026-11-08T21:22:04Z
+completed	success	autonomous-devsecops-platform	Platform Pipeline	main	push	42513945143	2m26s	2026-11-08T19:13:27Z
+Argo CD production status:
+{
+  "sync": "Synced",
+  "health": "Healthy",
+  "revision": "0a1fa26ca4a6fab7d4772d2539079b12213819db"
+}
+Actual EKS canary memory:
+{
+  "generation": 3,
+  "observedGeneration": 3,
+  "containers": [
+    {
+      "name": "canary",
+      "requests": "64Mi",
+      "limits": "128Mi"
+    }
+  ]
+}
+Canary pods:
+NAME                               READY   STATUS    RESTARTS      AGE
+boutique-canary-5c9d488bb5-g6b2m   1/1     Running   2 (10m ago)   14m

@@ -1,0 +1,37 @@
+UTC: 2026-11-08T21:42:51Z
+Fresh AIOps remediation human review:
+
+======================================================================
+  Proposal ID   : 0abe485a55e34e73
+  Incident ID   : adca68b31231cc32d12b977e65541d10f28ed90e8e0b77af10153d4198788773
+  Status        : PENDING_HUMAN_APPROVAL
+  Workload      : canary
+  Namespace     : boutique
+  Category      : Pod OOMKilled
+  Action Type   : SET_MEMORY_RESOURCES
+  Confidence    : 95%
+  Policy        : APPROVED
+  Policy Reason : Policy approval: Proposal for workload 'canary' satisfies all safety, bounding, and allowlist constraints.
+  Created At    : 2026-11-08 21:40:09Z
+  Justification : Scale container memory limits for canary to mitigate Pod OOMKilled condition.
+
+  Diff Preview:
+----------------------------------------------------------------------
+--- a/devops/gitops/overlays/production/canary.yml
++++ b/devops/gitops/overlays/production/canary.yml
+@@ -59,10 +59,10 @@
+           resources:
+             requests:
+               cpu: 50m
+-              memory: 64Mi
++              memory: 256Mi
+             limits:
+               cpu: 100m
+-              memory: 128Mi
++              memory: 512Mi
+           volumeMounts:
+             - name: canary-trigger-volume
+               mountPath: /etc/canary-trigger
+
+======================================================================
+

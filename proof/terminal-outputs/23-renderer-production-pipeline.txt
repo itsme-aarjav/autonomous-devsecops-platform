@@ -1,0 +1,154 @@
+UTC: 2026-11-08T21:24:44Z
+Refreshing run status every 10 seconds. Press Ctrl+C to quit.
+
+* main Platform Pipeline · 42524848105
+Triggered via push about 2 minutes ago
+
+JOBS
+✓ Ansible Syntax Validation in 9s (ID 128866066792)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Setup Python
+  ✓ Install Ansible Core
+  ✓ Syntax Check Playbooks
+  ✓ Post Setup Python
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ Trivy Filesystem Scan in 14s (ID 128866066943)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Run Trivy Vulnerability Scanner (FS)
+  ✓ Post Run Trivy Vulnerability Scanner (FS)
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ AIOps Unit & Security Regression Tests in 10s (ID 128866066964)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Setup Python
+  ✓ Install Dependencies
+  ✓ Run AIOps Unit & Security Tests
+  ✓ Post Setup Python
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ Build, Scan & Publish (boutique-frontend) in 50s (ID 128866066984)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Build Container Image
+  ✓ Verify Non-Root User Execution for Frontend
+  ✓ Scan Microservice Container with Trivy
+  ✓ Configure AWS Credentials via GitHub OIDC
+  ✓ Login to Amazon ECR
+  ✓ Publish Verified Image to ECR & Resolve Digest
+  ✓ Post Login to Amazon ECR
+  ✓ Post Configure AWS Credentials via GitHub OIDC
+  ✓ Post Scan Microservice Container with Trivy
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ Kustomize Manifest Validation in 7s (ID 128866066993)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Build and Validate GitOps Manifests
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ Build, Scan & Publish (boutique-gateway) in 45s (ID 128866067025)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Build Container Image
+  - Verify Non-Root User Execution for Frontend
+  ✓ Scan Microservice Container with Trivy
+  ✓ Configure AWS Credentials via GitHub OIDC
+  ✓ Login to Amazon ECR
+  ✓ Publish Verified Image to ECR & Resolve Digest
+  ✓ Post Login to Amazon ECR
+  ✓ Post Configure AWS Credentials via GitHub OIDC
+  ✓ Post Scan Microservice Container with Trivy
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ Shell Script Syntax Validation in 6s (ID 128866067037)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Validate Shell Script Syntax
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ Terraform Validation in 6s (ID 128866067043)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Verify Commit Message
+  ✓ Setup Terraform
+  ✓ Validate Terraform Formatting
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ Build, Scan & Publish (boutique-auth) in 46s (ID 128866067143)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Build Container Image
+  - Verify Non-Root User Execution for Frontend
+  ✓ Scan Microservice Container with Trivy
+  ✓ Configure AWS Credentials via GitHub OIDC
+  ✓ Login to Amazon ECR
+  ✓ Publish Verified Image to ECR & Resolve Digest
+  ✓ Post Login to Amazon ECR
+  ✓ Post Configure AWS Credentials via GitHub OIDC
+  ✓ Post Scan Microservice Container with Trivy
+  ✓ Post Checkout Code
+  ✓ Complete job
+✓ Build, Scan & Publish (boutique-aiops-assistant) in 1m9s (ID 128866067191)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Build Container Image
+  - Verify Non-Root User Execution for Frontend
+  ✓ Scan Microservice Container with Trivy
+  ✓ Configure AWS Credentials via GitHub OIDC
+  ✓ Login to Amazon ECR
+  ✓ Publish Verified Image to ECR & Resolve Digest
+  ✓ Post Login to Amazon ECR
+  ✓ Post Configure AWS Credentials via GitHub OIDC
+  ✓ Post Scan Microservice Container with Trivy
+  ✓ Post Checkout Code
+  ✓ Complete job
+* Deploy Platform (GitOps & EKS) (ID 128866374697)
+  ✓ Set up job
+  ✓ Checkout Code
+  ✓ Create GitHub Deployment Record
+  ✓ Configure AWS Credentials via GitHub OIDC
+  ✓ Resolve Immutable Container Image Digests in ECR
+  ✓ Reconcile GitOps Overlay Manifests
+  * Verify GitOps Parity, Argo CD & EKS Workloads (Strict Fail-Closed)
+  * Execute Live Application Smoke Tests
+  * Mark GitHub Deployment Successful
+  * Mark GitHub Deployment Failed
+  * Post Configure AWS Credentials via GitHub OIDC
+  * Post Checkout Code
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Ansible Syntax Validation: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Trivy Filesystem Scan: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+AIOps Unit & Security Regression Tests: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build, Scan & Publish (boutique-frontend): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Kustomize Manifest Validation: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build, Scan & Publish (boutique-gateway): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Shell Script Syntax Validation: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Terraform Validation: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build, Scan & Publish (boutique-auth): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build, Scan & Publish (boutique-aiops-assistant): .github#2
+
+failed to get run: Get "https://api.github.com/repos/itsme-aarjav/autonomous-devsecops-platform/actions/runs/42524848105?exclude_pull_requests=true": read tcp 192.168.0.167:49811->20.207.73.85:443: read: operation timed out

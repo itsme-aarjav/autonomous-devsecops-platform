@@ -1,0 +1,12 @@
+UTC: 2026-11-08T20:56:32Z
+Real AIOps remediation proposal:
+[
+    {
+        "ProposalID": "597a71c7dbb432d2",
+        "IncidentID": "6af279e317a3dc5697621ddcde963bfa67102c246a1b82d9a92e6b123d27dd64",
+        "Status": "PENDING_HUMAN_APPROVAL",
+        "Workload": "canary",
+        "Category": "Pod OOMKilled",
+        "Created": "2026-11-08T20:47:39.757717+00:00"
+    }
+]

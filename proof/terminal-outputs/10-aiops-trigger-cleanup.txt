@@ -1,0 +1,17 @@
+UTC: 2026-11-08T20:48:49Z
+Removing canary trigger:
+configmap "boutique-canary-trigger" deleted from boutique namespace
+Canary status:
+NAME                               READY   STATUS    RESTARTS      AGE
+boutique-canary-5c9d488bb5-x7qn6   1/1     Running   3 (45s ago)   69m
+Application status:
+NAME                                   READY   STATUS      RESTARTS      AGE
+aiops-assistant-868959bdb-5qstm        1/1     Running     0             69m
+auth-d688b584c-t5pld                   1/1     Running     0             93m
+boutique-canary-5c9d488bb5-x7qn6       1/1     Running     3 (46s ago)   69m
+boutique-postgres-0                    1/1     Running     0             30h
+frontend-576fcc8bd9-pmj4j              1/1     Running     0             93m
+frontend-576fcc8bd9-zsjn4              1/1     Running     0             93m
+gateway-84f8d5bc68-4rk6c               1/1     Running     0             93m
+gateway-84f8d5bc68-lb6h4               1/1     Running     0             93m
+postgres-backup-daily-29902830-fpfxb   0/1     Completed   0             18m

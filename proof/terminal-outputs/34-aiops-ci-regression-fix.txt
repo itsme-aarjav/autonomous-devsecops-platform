@@ -1,0 +1,139 @@
+UTC: 2026-11-08T21:53:25Z
+From https://github.com/itsme-aarjav/autonomous-devsecops-platform
+ * branch            main       -> FETCH_HEAD
+   4eb315c..20a507a  main       -> origin/main
+Updating 4eb315c..20a507a
+Fast-forward
+ devops/gitops/overlays/production/aiops.yml    | 2 +-
+ devops/gitops/overlays/production/auth.yml     | 2 +-
+ devops/gitops/overlays/production/canary.yml   | 4 ++--
+ devops/gitops/overlays/production/frontend.yml | 2 +-
+ devops/gitops/overlays/production/gateway.yml  | 2 +-
+ 5 files changed, 6 insertions(+), 6 deletions(-)
+PASS: Canary regression test updated
+Running all AIOps regression tests:
+test_atomic_finalize_conflict_never_overwrites_with_save (test_approval_safety.TestApprovalSafetyIntegration.test_atomic_finalize_conflict_never_overwrites_with_save)
+If the atomic transition to PR_CREATED fails, the engine raises ... ok
+test_audit_fields_population (test_approval_safety.TestApprovalSafetyIntegration.test_audit_fields_population)
+Applied and rejected proposals contain complete audit tracking fields. ... ok
+test_barrier_synchronized_simultaneous_approvals (test_approval_safety.TestApprovalSafetyIntegration.test_barrier_synchronized_simultaneous_approvals)
+Prove that two simultaneous threads arriving at the approval claim ... ok
+test_cli_list_status_pending_matches_both_pending_and_policy_approved (test_approval_safety.TestApprovalSafetyIntegration.test_cli_list_status_pending_matches_both_pending_and_policy_approved)
+CLI list --status pending must match PENDING_HUMAN_APPROVAL and POLICY_APPROVED. ... ok
+test_commit_failure_reverts_claim_to_pending (test_approval_safety.TestApprovalSafetyIntegration.test_commit_failure_reverts_claim_to_pending)
+When GitHub PR creation fails, the proposal reverts to PENDING. ... ok
+test_commit_success_reconciliation_via_github_evidence (test_approval_safety.TestApprovalSafetyIntegration.test_commit_success_reconciliation_via_github_evidence)
+Direct commit to main is prohibited by security policy. ... ok
+test_competing_approvals_idempotence (test_approval_safety.TestApprovalSafetyIntegration.test_competing_approvals_idempotence)
+Two concurrent approvals result in a single PR, not duplicate application. ... ok
+test_competing_approve_and_reject_concurrency (test_approval_safety.TestApprovalSafetyIntegration.test_competing_approve_and_reject_concurrency)
+Rejecting a proposal before approval commits prevents commit execution. ... ok
+test_direct_commit_to_main_forbidden (test_approval_safety.TestApprovalSafetyIntegration.test_direct_commit_to_main_forbidden)
+Passing commit_to_main=True strictly raises PermissionError under all modes. ... ok
+test_human_approval_creates_pull_request (test_approval_safety.TestApprovalSafetyIntegration.test_human_approval_creates_pull_request)
+Authenticated human approval creates a reviewed Pull Request instead of direct-main commit. ... ok
+test_iam_authenticator_denies_root_wildcards_and_worker (test_approval_safety.TestApprovalSafetyIntegration.test_iam_authenticator_denies_root_wildcards_and_worker)
+Strict verification that root, arbitrary wildcards, and worker identity are denied. ... ok
+test_iam_operator_identity_account_and_pattern_checks (test_approval_safety.TestApprovalSafetyIntegration.test_iam_operator_identity_account_and_pattern_checks)
+Ensures caller identity requires target account 592668326948 and authorized operator pattern. ... ok
+test_in_progress_proposal_cannot_be_reclaimed_without_commit (test_approval_safety.TestApprovalSafetyIntegration.test_in_progress_proposal_cannot_be_reclaimed_without_commit)
+An already APPLICATION_IN_PROGRESS proposal must not be acquired ... ok
+test_no_secret_leakage_in_proposal_or_audit (test_approval_safety.TestApprovalSafetyIntegration.test_no_secret_leakage_in_proposal_or_audit)
+Approval tokens and secrets must not be stored in proposal models or diff summaries. ... ok
+test_production_cli_yes_flag_rejected (test_approval_safety.TestApprovalSafetyIntegration.test_production_cli_yes_flag_rejected)
+In production mode (not simulation), --yes flag must be rejected with exit code 1. ... ok
+test_rca_report_preservation_on_shared_table (test_approval_safety.TestApprovalSafetyIntegration.test_rca_report_preservation_on_shared_table)
+On boutique-aiops-rca-reports table, store performs UpdateItem and never PutItem. ... ok
+test_reconciliation_preserves_original_authenticated_identity (test_approval_safety.TestApprovalSafetyIntegration.test_reconciliation_preserves_original_authenticated_identity)
+When reconciling a proposal that already created a PR, ... ok
+test_rejection_cannot_override_in_progress_or_applied (test_approval_safety.TestApprovalSafetyIntegration.test_rejection_cannot_override_in_progress_or_applied)
+Rejection is forbidden if proposal is already in-progress or applied. ... ok
+test_safe_operator_recovery_workflow (test_approval_safety.TestApprovalSafetyIntegration.test_safe_operator_recovery_workflow)
+Stale in-progress claims can be authoritatively recovered back to pending. ... ok
+test_simulation_cannot_commit_to_github (test_approval_safety.TestApprovalSafetyIntegration.test_simulation_cannot_commit_to_github)
+Simulation mode with commit_to_main=True raises PermissionError. ... ok
+test_simulation_cannot_modify_dynamodb_or_live_proposals (test_approval_safety.TestApprovalSafetyIntegration.test_simulation_cannot_modify_dynamodb_or_live_proposals)
+Simulation uses InMemoryRemediationStore and cannot touch production DynamoDB. ... ok
+test_terminal_rejection_cannot_be_applied (test_approval_safety.TestApprovalSafetyIntegration.test_terminal_rejection_cannot_be_applied)
+A proposal marked OPERATOR_REJECTED cannot be approved or committed. ... ok
+test_canary_diff_rendering (test_canary_remediation.TestCanaryRemediation.test_canary_diff_rendering)
+Tests that renderer creates a surgical unified diff for boutique-canary Deployment. ... ok
+test_canary_invalid_proposal_rejected (test_canary_remediation.TestCanaryRemediation.test_canary_invalid_proposal_rejected)
+Tests that out-of-bounds proposals or unknown workloads are strictly rejected. ... ok
+test_canary_manifest_command_bounding (test_canary_remediation.TestCanaryRemediation.test_canary_manifest_command_bounding)
+Tests that canary manifest defines bounded memory checks and avoids endless loops. ... ok
+test_canary_policy_approval (test_canary_remediation.TestCanaryRemediation.test_canary_policy_approval)
+Tests that a valid canary memory remediation proposal passes deterministic policy. ... ok
+test_canary_workload_resolution (test_canary_remediation.TestCanaryRemediation.test_canary_workload_resolution)
+Tests that both 'canary' and 'boutique-canary' resolve to valid workloads. ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.495s
+
+OK
+
+======================================================================
+  Proposal ID   : prop-cli-guard-01
+  Incident ID   : inc-prop-cli-guard-01
+  Status        : PENDING_HUMAN_APPROVAL
+  Workload      : auth
+  Namespace     : boutique
+  Category      : Pod OOMKilled
+  Action Type   : SET_MEMORY_RESOURCES
+  Confidence    : 95%
+  Policy        : APPROVED
+  Policy Reason : Resource limits within allowable threshold
+  Created At    : 2026-11-08 21:53:29Z
+  Justification : Mitigate Pod OOMKilled with higher memory limits.
+
+  Diff Preview:
+----------------------------------------------------------------------
+--- a/devops/gitops/k8s/backend/auth.yml
++++ b/devops/gitops/k8s/backend/auth.yml
+@@ -37,10 +37,10 @@
+           resources:
+             requests:
+               cpu: 100m
+-              memory: 128Mi
++              memory: 256Mi
+             limits:
+               cpu: 250m
+-              memory: 256Mi
++              memory: 512Mi
+           ports:
+             - containerPort: 3002
+           env:
+
+======================================================================
+
+Changes for review:
+diff --git a/aiops/tests/test_canary_remediation.py b/aiops/tests/test_canary_remediation.py
+index 3beeb21..cf5655d 100644
+--- a/aiops/tests/test_canary_remediation.py
++++ b/aiops/tests/test_canary_remediation.py
+@@ -4,6 +4,7 @@ Unit tests verifying Canary workload remediation, policy gating, and GitOps diff
+ 
+ import unittest
+ from pathlib import Path
++from tempfile import TemporaryDirectory
+ 
+ from aiops.agent.schemas import RootCauseAnalysis
+ from aiops.agent.remediation.policy import RemediationPolicyEngine, WORKLOAD_MANIFEST_MAP, ALLOWLISTED_WORKLOADS
+@@ -98,7 +99,16 @@ class TestCanaryRemediation(unittest.TestCase):
+             justification="Increase container memory limit.",
+             policy_decision=PolicyDecision.APPROVED,
+         )
+-        rendered = self.renderer.render_proposal_patch(proposal)
++        source = Path(self.repo_root) / proposal.target_manifest
++        baseline = source.read_text()
++        baseline = baseline.replace("memory: 256Mi", "memory: 64Mi", 1)
++        baseline = baseline.replace("memory: 512Mi", "memory: 128Mi", 1)
++
++        with TemporaryDirectory() as tmp:
++            fixture = Path(tmp) / proposal.target_manifest
++            fixture.parent.mkdir(parents=True, exist_ok=True)
++            fixture.write_text(baseline)
++            rendered = ManifestPatchRenderer(repo_root=tmp).render_proposal_patch(proposal)
+         self.assertIn("devops/gitops/overlays/production/canary.yml", rendered.modified_files)
+         self.assertTrue(len(rendered.diff) > 0)
+         self.assertIn("512Mi", rendered.diff)

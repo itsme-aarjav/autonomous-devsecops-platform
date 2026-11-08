@@ -1,0 +1,18 @@
+UTC: 2026-11-08T21:33:56Z
+Canary status:
+NAME                               READY   STATUS    RESTARTS      AGE
+boutique-canary-5c9d488bb5-x7qn6   1/1     Running   4 (44m ago)   114m
+OOM trigger ConfigMap:
+Existing Prometheus OOM alerts:
+[
+  {
+    "pod": "boutique-canary-5c9d488bb5-x7qn6",
+    "state": "firing"
+  }
+]
+Previous AIOps episode:
+{
+    "Episode": "6af279e317a3dc5697621ddcde963bfa67102c246a1b82d9a92e6b123d27dd64",
+    "Status": "firing",
+    "Investigation": "completed"
+}

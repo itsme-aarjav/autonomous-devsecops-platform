@@ -1,0 +1,6 @@
+UTC: 2026-11-08T20:46:54Z
+Pod: boutique-canary-5c9d488bb5-x7qn6
+Restarts: 1
+Last Reason: OOMKilled
+Exit Code: 137
+Current State: Running

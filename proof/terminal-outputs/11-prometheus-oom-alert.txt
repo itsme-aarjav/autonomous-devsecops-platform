@@ -1,0 +1,17 @@
+UTC: 2026-11-08T20:50:42Z
+Canary after cleanup:
+NAME                               READY   STATUS    RESTARTS      AGE
+boutique-canary-5c9d488bb5-x7qn6   1/1     Running   4 (95s ago)   71m
+Prometheus PodOOMKilled alerts:
+{
+  "status": "success",
+  "alerts": [
+    {
+      "alert": "PodOOMKilled",
+      "pod": "boutique-canary-5c9d488bb5-x7qn6",
+      "namespace": "boutique",
+      "state": "firing",
+      "value": "1"
+    }
+  ]
+}

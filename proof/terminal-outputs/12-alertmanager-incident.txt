@@ -1,0 +1,15 @@
+UTC: 2026-11-08T20:52:15Z
+Alertmanager PodOOMKilled events:
+[
+  {
+    "alert": "PodOOMKilled",
+    "pod": "boutique-canary-5c9d488bb5-x7qn6",
+    "namespace": "boutique",
+    "state": "active",
+    "startsAt": "2026-11-08T20:47:26.408Z",
+    "endsAt": "2026-11-08T20:55:56.408Z"
+  }
+]
+Canary current status:
+NAME                               READY   STATUS    RESTARTS        AGE
+boutique-canary-5c9d488bb5-x7qn6   1/1     Running   4 (3m11s ago)   72m

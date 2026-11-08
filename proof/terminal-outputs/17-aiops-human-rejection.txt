@@ -1,0 +1,136 @@
+
+======================================================================
+  Proposal ID   : 597a71c7dbb432d2
+  Incident ID   : 6af279e317a3dc5697621ddcde963bfa67102c246a1b82d9a92e6b123d27dd64
+  Status        : PENDING_HUMAN_APPROVAL
+  Workload      : canary
+  Namespace     : boutique
+  Category      : Pod OOMKilled
+  Action Type   : SET_MEMORY_RESOURCES
+  Confidence    : 95%
+  Policy        : APPROVED
+  Policy Reason : Policy approval: Proposal for workload 'canary' satisfies all safety, bounding, and allowlist constraints.
+  Created At    : 2026-11-08 20:47:39Z
+  Justification : Scale container memory limits for canary to mitigate Pod OOMKilled condition.
+
+  Diff Preview:
+----------------------------------------------------------------------
+--- a/devops/gitops/overlays/production/canary.yml
++++ b/devops/gitops/overlays/production/canary.yml
+@@ -18,63 +18,56 @@
+         app: canary
+     spec:
+       tolerations:
+-        - key: "role"
+-          operator: "Equal"
+-          value: "core-platform"
+-          effect: "NoSchedule"
++      - key: role
++        operator: Equal
++        value: core-platform
++        effect: NoSchedule
+       affinity:
+         nodeAffinity:
+           requiredDuringSchedulingIgnoredDuringExecution:
+             nodeSelectorTerms:
+-              - matchExpressions:
+-                  - key: role
+-                    operator: In
+-                    values:
+-                      - core-platform
++            - matchExpressions:
++              - key: role
++                operator: In
++                values:
++                - core-platform
+       containers:
+-        - name: canary
+-          image: public.ecr.aws/docker/library/alpine:3.19
+-          command:
+-            - /bin/sh
+-            - -ec
+-            - |
+-              echo "[$(date -u +%FT%TZ)] Starting Boutique Canary Worker..."
+-              trigger_check() {
+-                if [ -f /etc/canary-trigger/inject-oom ] && [ "$(cat /etc/canary-trigger/inject-oom 2>/dev/null)" = "true" ]; then
+-                  MEM_LIMIT=$(cat /sys/fs/cgroup/memory.max 2>/dev/null || cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo "134217728")
+-                  if [ "$MEM_LIMIT" != "max" ] && [ "$MEM_LIMIT" -le 134217728 ]; then
+-                    echo "[$(date -u +%FT%TZ)] Canary trigger active and memory limit is ${MEM_LIMIT} bytes (<= 128Mi). Simulating bounded memory load (~160MB)..."
+-                    awk 'BEGIN{for(i=0;i<4000000;i++) a[i]="oom_test";}'
+-                  else
+-                    echo "[$(date -u +%FT%TZ)] Canary memory limit is ${MEM_LIMIT} bytes (> 128Mi). Bounded workload resolved by remediation; running stably."
+-                  fi
+-                fi
+-              }
+-              trigger_check
+-              trap "exit 0" TERM INT
+-              while true; do
+-                trigger_check
+-                sleep 5
+-              done
+-          resources:
+-            requests:
+-              cpu: 50m
+-              memory: 64Mi
+-            limits:
+-              cpu: 100m
+-              memory: 128Mi
+-          volumeMounts:
+-            - name: canary-trigger-volume
+-              mountPath: /etc/canary-trigger
+-              readOnly: true
+-          securityContext:
+-            allowPrivilegeEscalation: false
+-            readOnlyRootFilesystem: true
+-            capabilities:
+-              drop:
+-                - ALL
++      - name: canary
++        image: public.ecr.aws/docker/library/alpine:3.19
++        command:
++        - /bin/sh
++        - -ec
++        - "echo \"[$(date -u +%FT%TZ)] Starting Boutique Canary Worker...\"\ntrigger_check()\
++          \ {\n  if [ -f /etc/canary-trigger/inject-oom ] && [ \"$(cat /etc/canary-trigger/inject-oom\
++          \ 2>/dev/null)\" = \"true\" ]; then\n    MEM_LIMIT=$(cat /sys/fs/cgroup/memory.max\
++          \ 2>/dev/null || cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null\
++          \ || echo \"134217728\")\n    if [ \"$MEM_LIMIT\" != \"max\" ] && [ \"$MEM_LIMIT\"\
++          \ -le 134217728 ]; then\n      echo \"[$(date -u +%FT%TZ)] Canary trigger\
++          \ active and memory limit is ${MEM_LIMIT} bytes (<= 128Mi). Simulating bounded\
++          \ memory load (~160MB)...\"\n      awk 'BEGIN{for(i=0;i<4000000;i++) a[i]=\"\
++          oom_test\";}'\n    else\n      echo \"[$(date -u +%FT%TZ)] Canary memory\
++          \ limit is ${MEM_LIMIT} bytes (> 128Mi). Bounded workload resolved by remediation;\
++          \ running stably.\"\n    fi\n  fi\n}\ntrigger_check\ntrap \"exit 0\" TERM\
++          \ INT\nwhile true; do\n  trigger_check\n  sleep 5\ndone\n"
++        resources:
++          requests:
++            cpu: 50m
++            memory: 256Mi
++          limits:
++            cpu: 100m
++            memory: 512Mi
++        volumeMounts:
++        - name: canary-trigger-volume
++          mountPath: /etc/canary-trigger
++          readOnly: true
++        securityContext:
++          allowPrivilegeEscalation: false
++          readOnlyRootFilesystem: true
++          capabilities:
++            drop:
++            - ALL
+       volumes:
+-        - name: canary-trigger-volume
+-          configMap:
+-            name: boutique-canary-trigger
+-            optional: true
++      - name: canary-trigger-volume
++        configMap:
++          name: boutique-canary-trigger
++          optional: true
+
+======================================================================
+
+Type REJECT to confirm rejection of this proposal: [OK] Proposal '597a71c7dbb432d2' successfully rejected by arn:aws:iam::592668326948:user/terra-admin.
+     Reason: Human review rejected excessive YAML reformatting. Only canary memory values should change.
+     Timestamp: 2026-11-08 21:08:54Z

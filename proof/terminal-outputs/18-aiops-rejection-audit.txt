@@ -1,0 +1,12 @@
+UTC: 2026-11-08T21:09:49Z
+Live DynamoDB human rejection audit:
+{
+  "proposal_id": "597a71c7dbb432d2",
+  "incident_id": "6af279e317a3dc5697621ddcde963bfa67102c246a1b82d9a92e6b123d27dd64",
+  "status": "OPERATOR_REJECTED",
+  "rejected_by": "arn:aws:iam::592668326948:user/terra-admin",
+  "rejected_at": "2026-11-08T21:08:54.944480Z",
+  "rejection_reason": "Human review rejected excessive YAML reformatting. Only canary memory values should change.",
+  "is_approved_by_human": false,
+  "github_pr_url": null
+}

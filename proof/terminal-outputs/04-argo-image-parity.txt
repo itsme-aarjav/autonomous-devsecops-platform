@@ -1,0 +1,26 @@
+UTC: 2026-11-08T19:48:51Z
+GitHub HEAD:
+e6170b43a2b583f62be52201d5a4b88a246fc5c8
+Argo CD Application:
+Path: devops/gitops/overlays/production
+Revision: e6170b43a2b583f62be52201d5a4b88a246fc5c8
+Sync: Synced
+Health: Healthy
+Frontend Argo Rollout:
+NAME       DESIRED   CURRENT   UP-TO-DATE   AVAILABLE   AGE
+frontend   2         2         2            2           29h
+Production GitOps Image Digests:
+devops/gitops/overlays/production/auth.yml:          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-auth@sha256:c1e6385af7d422090f72f3630dea8d010a6858df4c85ccb11a295f2658df93c6
+devops/gitops/overlays/production/gateway.yml:          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-gateway@sha256:ce7d68a560f65c8b96991bb012df6ee3e867832527744fcf4d52e7063379026f
+devops/gitops/overlays/production/frontend.yml:          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-frontend@sha256:48045d256194d3e68e2174a63fe95e5e2687b5ec1c43f9c67a5a2e178bda2040
+devops/gitops/overlays/production/aiops.yml:          image: 592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:78687df24864ecbaaf7aa214462a5f11e73cc14325dcdba19cf6a9b2c574838e
+Actual Running Container Image IDs:
+POD                                IMAGE_ID
+aiops-assistant-868959bdb-5qstm    592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-aiops-assistant@sha256:78687df24864ecbaaf7aa214462a5f11e73cc14325dcdba19cf6a9b2c574838e
+auth-d688b584c-t5pld               592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-auth@sha256:c1e6385af7d422090f72f3630dea8d010a6858df4c85ccb11a295f2658df93c6
+boutique-canary-5c9d488bb5-x7qn6   public.ecr.aws/docker/library/alpine@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1
+boutique-postgres-0                docker.io/library/postgres@sha256:aae6554de426ae1990f1a939ff183a0299146cf7142a6f4c379c3357af9cc2d8
+frontend-576fcc8bd9-pmj4j          592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-frontend@sha256:48045d256194d3e68e2174a63fe95e5e2687b5ec1c43f9c67a5a2e178bda2040
+frontend-576fcc8bd9-zsjn4          592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-frontend@sha256:48045d256194d3e68e2174a63fe95e5e2687b5ec1c43f9c67a5a2e178bda2040
+gateway-84f8d5bc68-4rk6c           592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-gateway@sha256:ce7d68a560f65c8b96991bb012df6ee3e867832527744fcf4d52e7063379026f
+gateway-84f8d5bc68-lb6h4           592668326948.dkr.ecr.us-east-2.amazonaws.com/boutique-gateway@sha256:ce7d68a560f65c8b96991bb012df6ee3e867832527744fcf4d52e7063379026f

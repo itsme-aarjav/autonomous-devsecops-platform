@@ -1,0 +1,6 @@
+UTC: 2026-11-08T21:48:52Z
+Verifying approved PR:
+{"files":[{"additions":2,"changeType":"MODIFIED","deletions":2,"path":"devops/gitops/overlays/production/canary.yml"}],"mergeable":"MERGEABLE","state":"OPEN"}
+Merging approved remediation:
+Merge verification:
+{"commit":"20a507a7190df9170fadc944f4facadb0cf352d9","mergedAt":"2026-11-08T21:48:56Z","state":"MERGED"}

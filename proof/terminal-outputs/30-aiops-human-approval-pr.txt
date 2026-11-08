@@ -1,0 +1,52 @@
+UTC: 2026-11-08T21:44:56Z
+GitHub authentication: available
+
+======================================================================
+  Proposal ID   : 0abe485a55e34e73
+  Incident ID   : adca68b31231cc32d12b977e65541d10f28ed90e8e0b77af10153d4198788773
+  Status        : PENDING_HUMAN_APPROVAL
+  Workload      : canary
+  Namespace     : boutique
+  Category      : Pod OOMKilled
+  Action Type   : SET_MEMORY_RESOURCES
+  Confidence    : 95%
+  Policy        : APPROVED
+  Policy Reason : Policy approval: Proposal for workload 'canary' satisfies all safety, bounding, and allowlist constraints.
+  Created At    : 2026-11-08 21:40:09Z
+  Justification : Scale container memory limits for canary to mitigate Pod OOMKilled condition.
+
+  Diff Preview:
+----------------------------------------------------------------------
+--- a/devops/gitops/overlays/production/canary.yml
++++ b/devops/gitops/overlays/production/canary.yml
+@@ -59,10 +59,10 @@
+           resources:
+             requests:
+               cpu: 50m
+-              memory: 64Mi
++              memory: 256Mi
+             limits:
+               cpu: 100m
+-              memory: 128Mi
++              memory: 512Mi
+           volumeMounts:
+             - name: canary-trigger-volume
+               mountPath: /etc/canary-trigger
+
+======================================================================
+
+Review the diff above carefully. Type APPROVE to confirm: 
+==> Applying proposal '0abe485a55e34e73' (mode=AUTHENTICATED)...
+[SUCCESS] Remediation Pull Request created successfully for human review!
+          Approved by : arn:aws:iam::592668326948:user/terra-admin
+          Mode        : AUTHENTICATED
+          Timestamp   : 2026-11-08 21:45:21Z
+          Branch      : fix/aiops-proposal-0abe485a
+          PR Number   : #2
+          PR URL      : https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2
+          Commit SHA  : e7820d51d0671c60b06175cec150be06bae81e0a
+
+[NEXT STEPS FOR OPERATOR]
+  1. Review the Pull Request at: https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2
+  2. Inspect the diff and merge into 'main' to trigger Argo CD / GitOps rollout.
+  3. Verify the deployment in EKS namespace 'boutique'.

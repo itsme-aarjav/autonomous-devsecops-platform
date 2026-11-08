@@ -1,0 +1,33 @@
+UTC: 2026-11-08T20:18:38Z
+Prometheus and Alertmanager:
+NAME                                                                VERSION              DESIRED   READY   RECONCILED   AVAILABLE   AGE
+prometheus.monitoring.coreos.com/kube-prometheus-stack-prometheus   v3.16.0-distroless   1         1       True         True        31h
+
+NAME                                                                    VERSION   REPLICAS   READY   RECONCILED   AVAILABLE   AGE
+alertmanager.monitoring.coreos.com/kube-prometheus-stack-alertmanager   v0.34.2   1          1       True         True        31h
+Monitoring Pods:
+NAME                                                       READY   STATUS    RESTARTS   AGE
+alertmanager-kube-prometheus-stack-alertmanager-0          2/2     Running   0          31h
+kube-prometheus-stack-grafana-844b68d89b-dsmv5             3/3     Running   0          31h
+kube-prometheus-stack-kube-state-metrics-9ddc489d8-htjf4   1/1     Running   0          31h
+kube-prometheus-stack-operator-6b56568775-rfhxn            1/1     Running   0          31h
+kube-prometheus-stack-prometheus-node-exporter-7qqx8       1/1     Running   0          41m
+kube-prometheus-stack-prometheus-node-exporter-jjx98       1/1     Running   0          12h
+kube-prometheus-stack-prometheus-node-exporter-mzj5c       1/1     Running   0          31h
+prometheus-kube-prometheus-stack-prometheus-0              2/2     Running   0          31h
+AIOps Alert Rule:
+NAME                  AGE
+aiops-pod-oomkilled   63m
+Monitoring Services:
+NAME                                             TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+alertmanager-operated                            ClusterIP   None             <none>        9093/TCP,9094/TCP,9094/UDP   31h
+kube-prometheus-stack-alertmanager               ClusterIP   172.20.222.121   <none>        9093/TCP,8080/TCP            31h
+kube-prometheus-stack-grafana                    ClusterIP   172.20.33.16     <none>        80/TCP                       31h
+kube-prometheus-stack-kube-state-metrics         ClusterIP   172.20.226.138   <none>        8080/TCP                     31h
+kube-prometheus-stack-operator                   ClusterIP   172.20.162.110   <none>        443/TCP                      31h
+kube-prometheus-stack-prometheus                 ClusterIP   172.20.80.44     <none>        9090/TCP,8080/TCP            31h
+kube-prometheus-stack-prometheus-node-exporter   ClusterIP   172.20.232.113   <none>        9100/TCP                     31h
+prometheus-operated                              ClusterIP   None             <none>        9090/TCP                     31h
+Argo CD:
+NAME       SYNC STATUS   HEALTH STATUS
+boutique   Synced        Healthy

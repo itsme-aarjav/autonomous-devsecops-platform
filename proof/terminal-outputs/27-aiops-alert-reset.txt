@@ -1,0 +1,14 @@
+UTC: 2026-11-08T21:36:46Z
+Current canary:
+NAME                               READY   STATUS    RESTARTS   AGE
+boutique-canary-5c9d488bb5-g6b2m   1/1     Running   0          61s
+Prometheus OOM alerts:
+{
+  "status": "success",
+  "alerts": []
+}
+Previous episode status:
+{
+    "Status": "resolved",
+    "Investigation": "completed"
+}

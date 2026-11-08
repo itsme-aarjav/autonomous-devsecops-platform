@@ -1,0 +1,66 @@
+UTC: 2026-11-08T19:44:23Z
+?? proof/terminal-outputs/01-github-ci-baseline.txt
+* main
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/main
+e6170b43a2b583f62be52201d5a4b88a246fc5c8 autonomous-devsecops-platform
+Platform Pipeline	active	411163086
+completed	success	autonomous-devsecops-platform	Platform Pipeline	main	push	42513945143	2m26s	2026-11-08T19:13:27Z
+completed	failure	chore(cleanup): remove dead code, obsolete in-cluster git files, and …	Platform Pipeline	main	push	42511039841	1m16s	2026-11-08T18:38:50Z
+completed	failure	fix(repo): restore deleted historical evaluations, dev overlays, and …	Platform Pipeline	main	push	42508877156	1m12s	2026-11-08T18:13:14Z
+completed	success	autonomous-devsecops-platform	Platform Pipeline	main	push	42493986262	3m49s	2026-11-08T15:16:44Z
+completed	success	autonomous-devsecops-platform	Platform Pipeline	main	push	42492357458	4m36s	2026-11-08T14:57:53Z
+
+✓ main Platform Pipeline · 42513945143
+Triggered via push about 31 minutes ago
+
+JOBS
+✓ Trivy Filesystem Scan in 13s (ID 128832744183)
+✓ Ansible Syntax Validation in 10s (ID 128832744429)
+✓ Terraform Validation in 8s (ID 128832744440)
+✓ Build, Scan & Publish (boutique-aiops-assistant) in 1m4s (ID 128832744491)
+✓ AIOps Unit & Security Regression Tests in 12s (ID 128832744497)
+✓ Kustomize Manifest Validation in 9s (ID 128832744575)
+✓ Build, Scan & Publish (boutique-gateway) in 35s (ID 128832744585)
+✓ Shell Script Syntax Validation in 5s (ID 128832744600)
+✓ Build, Scan & Publish (boutique-auth) in 44s (ID 128832744621)
+✓ Build, Scan & Publish (boutique-frontend) in 51s (ID 128832744647)
+✓ Deploy Platform (GitOps & EKS) in 1m17s (ID 128833023042)
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Trivy Filesystem Scan: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Ansible Syntax Validation: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Terraform Validation: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build, Scan & Publish (boutique-aiops-assistant): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+AIOps Unit & Security Regression Tests: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Kustomize Manifest Validation: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build, Scan & Publish (boutique-gateway): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Shell Script Syntax Validation: .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build, Scan & Publish (boutique-auth): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build, Scan & Publish (boutique-frontend): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683, aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Deploy Platform (GitOps & EKS): .github#2
+
+
+For more information about a job, try: gh run view --job=<job-id>
+View this run on GitHub: https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions/runs/42513945143

@@ -1,0 +1,17 @@
+UTC: 2026-11-08T21:42:03Z
+Fresh real OOMKilled verification:
+Pod: boutique-canary-5c9d488bb5-g6b2m
+Restarts: 2
+Last Reason: OOMKilled
+Exit Code: 137
+Current State: Running
+OOM trigger cleanup:
+PASS: OOM trigger absent
+Live DynamoDB remediation proposals:
+  0abe485a55e34e73    PENDING_HUMAN_APPROVAL      canary            Pod OOMKilled                     confidence=95%  2026-11-08 21:40:09Z
+  597a71c7dbb432d2    OPERATOR_REJECTED           canary            Pod OOMKilled                     confidence=95%  2026-11-08 20:47:39Z
+Recent AIOps processing:
+2026-11-08T21:40:06.489565731Z 2026-11-08 21:40:06,489 [INFO] [aiops.alert_queue] Successfully enqueued alert for episode adca68b31231cc32d12b977e65541d10f28ed90e8e0b77af10153d4198788773 to SQS FIFO (MessageId: b78a7af1-bbfb-4acc-b471-4743094af73b)
+2026-11-08T21:40:09.045086311Z 2026-11-08 21:40:09,044 [INFO] [aiops.bedrock_client] Bedrock Converse invocation succeeded in 2.38s
+2026-11-08T21:40:09.059480903Z 2026-11-08 21:40:09,059 [INFO] [aiops.persistence] Successfully persisted RCA report for incident adca68b31231cc32d12b977e65541d10f28ed90e8e0b77af10153d4198788773 to DynamoDB table boutique-aiops-rca-reports
+2026-11-08T21:40:09.081471470Z 2026-11-08 21:40:09,081 [INFO] [aiops.remediation.generator] Generated reviewable GitOps patch for canary (0abe485a55e34e73). Awaiting explicit human approval before applying to 'main'.
