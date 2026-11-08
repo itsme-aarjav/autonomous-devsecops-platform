@@ -18,7 +18,7 @@ Isolation Target: Temporary Pod 'postgres-restore-verified' in 'default' namespa
 Storage Engine: Ephemeral emptyDir (In-Memory / Node local scratch)
 Persistent Volumes Created: 0
 Public Services / LoadBalancers Created: 0
-Production Database Access: None (Completely Air-Gapped from boutique-postgres-0)
+Production Database Access: None (Isolated ephemeral container; no connection configured or opened to boutique-postgres-0; standard cluster network defaults apply, no custom NetworkPolicy isolation enforced)
 Target Database: auth_db_test
 
 3. RESTORE EXECUTION
@@ -72,8 +72,8 @@ $ kubectl exec -n default postgres-restore-verified -- psql -U postgres -d auth_
  Stiletto Designer Heels      |  420.00 | Milano Footwear
 (8 rows)
 
-7. RESTORE CLEANUP & ZERO COST FOOTPRINT CONFIRMATION
+7. RESTORE CLEANUP & RESOURCE FOOTPRINT CONFIRMATION
 Action: Temporary test pod postgres-restore-verified immediately deleted.
 Persistent Resources Retained: None.
-AWS Cost Incurred: $0.00 (Run on existing compute, ephemeral emptyDir storage).
-Integrity Verdict: VERIFIED SUCCESSFUL - Full database schema, indexes, catalog, and relational integrity verified.
+Additional AWS Cloud Resources Provisioned: None (Executed inside existing compute pool; ephemeral emptyDir storage; zero new persistent volumes or load balancers).
+Integrity Verdict: VERIFIED SUCCESSFUL - Restored 5 public tables, validated column definitions, confirmed row counts matching active store data, and queried 8 catalog products. (Note: explicit pg_amcheck index block verification and FK cascade stress tests were not run).
