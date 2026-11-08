@@ -99,10 +99,10 @@ const Checkout: React.FC = () => {
             Demo Order Confirmed!
           </Typography>
           <Typography variant="h6" color="text.secondary" paragraph>
-            Thank you for evaluating the platform, {address.fullName}.
+            Thank you for placing your demo order, {address.fullName}.
           </Typography>
           <Alert severity="success" sx={{ my: 3, textAlign: 'left' }}>
-            <strong>Demo Order Placed Successfully:</strong> Your order record has been created in PostgreSQL and inventory has been reserved.
+            <strong>Demo Order Confirmed:</strong> Your demonstration order has been placed successfully.
             <br />
             <strong>Order Reference ID:</strong> <code>{completedOrder.id}</code>
             <br />
@@ -110,7 +110,7 @@ const Checkout: React.FC = () => {
             <br />
             <strong>Status:</strong> {completedOrder.status?.toUpperCase()}
             <br />
-            <em>Note: This is a platform demonstration transaction. No real payment was collected and no physical shipment will occur.</em>
+            <em>Note: This is a demonstration order. No real payment was charged and no physical delivery will take place.</em>
           </Alert>
           <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'center' }}>
             <Button
@@ -174,7 +174,7 @@ const Checkout: React.FC = () => {
       <Alert severity="info" sx={{ mb: 4 }}>
         <strong>DEMO CHECKOUT &bull; NO REAL PAYMENT REQUIRED</strong>
         <br />
-        This is an autonomous cloud platform demonstration. Submitting an order creates an authenticated transaction in PostgreSQL and decrements real inventory.
+        This is a boutique storefront demonstration. Submitting an order creates a demo order in our system.
         <strong> No real payment is collected or processed</strong>, and no physical delivery will take place.
       </Alert>
 
@@ -266,7 +266,7 @@ const Checkout: React.FC = () => {
                 <SecurityIcon color="primary" /> Payment Method
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Simulated Demo Payment — Live PostgreSQL transactional verification. No payment card or financial data processed.
+                Simulated Demo Payment — No credit card or financial data required.
               </Typography>
             </Paper>
           </Grid>

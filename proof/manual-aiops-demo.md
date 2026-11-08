@@ -89,16 +89,13 @@ python3 aiops/operator_cli.py reject sim-prop-002 --simulate --yes --reason "Sca
 ## 3. How to Trigger a Safe Isolated Incident (User Verification)
 
 > [!IMPORTANT]
-> **Production Safety Invariant**: Never disrupt core services (`boutique-auth`, `boutique-gateway`, `boutique-frontend`, `boutique-postgres`) to demonstrate AIOps capabilities. The procedure below uses an isolated canary test pod in namespace `boutique` that safely breaches a 32Mi memory boundary without impacting live storefront customer traffic.
+> **Production Safety Invariant**: Never disrupt core storefront services (`boutique-auth`, `boutique-gateway`, `boutique-frontend`, `boutique-postgres`) to demonstrate AIOps capabilities. The procedure below uses an **isolated synthetic test workload** (`Deployment/boutique-canary`) in namespace `boutique`. The baseline container runs with memory requests `64Mi` and limits `128Mi`. Activating the test trigger causes the worker to simulate a bounded ~160MB memory allocation, reliably breaching the 128Mi limit without impacting live customer traffic.
 
 ### Step 1: Launch the Isolated Canary Memory Pressure Test
-Deploy the isolated canary incident trigger (`ConfigMap/boutique-canary-trigger`) into the `boutique` namespace. This trigger operates out-of-band without modifying the GitOps-managed `Deployment` object, ensuring zero conflict with Argo CD self-healing:
+Deploy the isolated canary incident trigger (`ConfigMap/boutique-canary-trigger`) into the `boutique` namespace. The canary container periodically evaluates `/etc/canary-trigger/inject-oom` every 5 seconds. Applying this ConfigMap operates out-of-band without modifying the GitOps-managed `Deployment` object, ensuring zero conflict with Argo CD self-healing:
 ```bash
-# 1. Apply trigger ConfigMap (activates memory allocation in canary worker)
+# 1. Apply trigger ConfigMap (activates memory allocation in canary worker within 5 seconds)
 kubectl apply -f devops/gitops/k8s/aiops/isolated-incident-test.yaml
-
-# 2. Restart canary pod to immediately trigger memory stress test
-kubectl rollout restart deployment/boutique-canary -n boutique
 ```
 
 Check the canary pod status:
@@ -133,12 +130,19 @@ Visit [`http://localhost:9093`](http://localhost:9093) to confirm the `PodOOMKil
    ```
 
 ### Step 4: Verify Proposal in DynamoDB
-The agent persists the structured RCA report and proposed GitOps manifest patch into DynamoDB with status `PENDING_HUMAN_APPROVAL`:
+The agent persists the structured RCA report and proposed GitOps manifest patch into DynamoDB (`boutique-aiops-remediations`) with status `PENDING_HUMAN_APPROVAL`:
 ```bash
 aws dynamodb scan --region us-east-2 --table-name boutique-aiops-remediations \
   --query 'Items[*].{ProposalID:proposal_id.S, Category:category.S, Status:status.S, Confidence:confidence_score.N}' \
   --output table
 ```
+> [!NOTE]
+> **Deterministic Remediation Proposal Details**:
+> For canary OOM incidents, the remediation generator proposes:
+> - **Memory Request**: `256Mi` (scaled up from baseline `64Mi`)
+> - **Memory Limit**: `512Mi` (scaled up from baseline `128Mi`)
+> - **Target Manifest**: `devops/gitops/overlays/dev/canary.yml`
+> The deterministic policy engine verifies that both values fall within permitted bounds (request <= 512Mi, limit <= 1024Mi) and approve the proposal for human review.
 
 ### Step 5: Review and Approve via Operator CLI
 Review the generated proposal using the operator CLI:
@@ -146,7 +150,7 @@ Review the generated proposal using the operator CLI:
 # List pending proposals
 python3 aiops/operator_cli.py list
 
-# View detailed RCA and unified diff
+# View detailed RCA and unified diff (inspect memory bump to 256Mi req / 512Mi lim)
 python3 aiops/operator_cli.py show <PROPOSAL_ID>
 
 # Review and approve (creates a GitHub Pull Request; strictly forbids direct commits to main)
@@ -154,20 +158,18 @@ python3 aiops/operator_cli.py approve <PROPOSAL_ID>
 ```
 Upon typing `APPROVE`:
 - A new git branch `fix/aiops-proposal-<id[:8]>` is created.
-- The validated remediation manifest patch is committed.
+- The validated remediation manifest patch (`canary.yml` bumped to 256Mi requests / 512Mi limits) is committed.
 - A GitHub Pull Request is opened with full RCA rationale.
 - The PR URL is printed to the operator console.
 
 ### Step 6: Restore Canary Baseline State
 Once human approval and Pull Request review is complete, delete the incident trigger ConfigMap:
 ```bash
-# 1. Delete trigger ConfigMap to stop memory stress simulation
+# 1. Delete trigger ConfigMap to stop synthetic memory stress simulation
 kubectl delete -f devops/gitops/k8s/aiops/isolated-incident-test.yaml
-
-# 2. Restart canary deployment to return to clean baseline operation
-kubectl rollout restart deployment/boutique-canary -n boutique
 ```
-Alternatively, merge the generated PR into `main` and let Argo CD automatically synchronize the updated memory limits to the `boutique-canary` deployment on EKS.
+Because the canary container checks the trigger volume every 5 seconds, deleting the ConfigMap immediately halts the simulated memory pressure without requiring a rollout restart.
+Alternatively, merge the generated PR into `main` and let Argo CD automatically synchronize the updated memory limits (256Mi requests / 512Mi limits) to the `boutique-canary` deployment on EKS, where the workload will continue running stably.
 Verify the boutique namespace has returned to clean running state:
 ```bash
 kubectl get pods -n boutique -l app=canary

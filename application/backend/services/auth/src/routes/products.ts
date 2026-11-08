@@ -14,7 +14,7 @@ function formatProduct(row: any) {
     category: row.category,
     brand: row.brand || 'Boutique',
     image_url: row.image_url,
-    rating: row.rating ? parseFloat(row.rating) : 4.8,
+    rating: row.rating !== null && row.rating !== undefined ? parseFloat(row.rating) : undefined,
     is_featured: Boolean(row.is_featured),
     inventory_quantity: row.quantity !== null && row.quantity !== undefined ? parseInt(row.quantity, 10) : 0,
     created_at: row.created_at,

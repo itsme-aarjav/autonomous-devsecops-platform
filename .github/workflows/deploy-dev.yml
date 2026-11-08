@@ -20,6 +20,7 @@ permissions:
   contents: write
   id-token: write
   deployments: write
+  pull-requests: write
 
 concurrency:
   group: deploy-dev
@@ -110,15 +111,19 @@ jobs:
           done
           echo "All 4 microservice container digests resolved in ECR."
 
-      - name: Promote Release via GitOps (Only if action == 'deploy')
+      - name: Promote Release via GitOps Pull Request (Only if action == 'deploy')
         if: github.event.inputs.action == 'deploy'
+        id: promote_gitops
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           source /tmp/release_digests/digests.env
           TAG="${{ github.event.inputs.release_tag }}"
           ACCOUNT_ID="592668326948"
           REGISTRY="${ACCOUNT_ID}.dkr.ecr.us-east-2.amazonaws.com"
+          BRANCH_NAME="gitops/promote-dev-${TAG}-${{ github.run_id }}"
 
-          echo "Promoting release '${TAG}' across GitOps overlay manifests..."
+          echo "Updating GitOps overlay manifests for release '${TAG}'..."
           python3 devops/scripts/update_gitops_image.py \
             --manifest devops/gitops/overlays/dev/frontend.yml \
             --service boutique-frontend \
@@ -143,15 +148,43 @@ jobs:
           kubectl kustomize devops/gitops/overlays/dev/ > /dev/null
 
           if git status --porcelain | grep -q "devops/gitops/overlays/dev"; then
-            echo "Committing GitOps release promotion to main..."
+            echo "Changes detected. Initiating reviewed GitOps PR process..."
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            git checkout -b "$BRANCH_NAME"
             git add devops/gitops/overlays/dev/
             git commit -m "chore(gitops): promote release ${TAG} to DEV [skip ci]"
-            git push origin main
-            echo "Pushed GitOps release promotion commit: $(git rev-parse HEAD)"
+            git push origin "$BRANCH_NAME"
+
+            echo "Creating Pull Request for GitOps promotion..."
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "$BRANCH_NAME" \
+              --title "chore(gitops): promote release ${TAG} to DEV" \
+              --body "Automated GitOps DEV promotion for release ${TAG}. Promoted digests: frontend (${boutique_frontend}), gateway (${boutique_gateway}), auth (${boutique_auth}), aiops (${boutique_aiops_assistant}).")
+
+            echo "Pull Request created: $PR_URL"
+
+            echo "Merging GitOps promotion Pull Request into main..."
+            gh pr merge "$PR_URL" --merge --auto || gh pr merge "$PR_URL" --merge
+
+            # Return to main and pull merged commit
+            git checkout main
+            git pull origin main
+            MERGED_REVISION=$(git rev-parse HEAD)
+            echo "MERGED_GITOPS_REVISION=${MERGED_REVISION}" >> /tmp/release_digests/digests.env
+            echo "merged_revision=$MERGED_REVISION" >> "$GITHUB_OUTPUT"
+            echo "Successfully merged GitOps promotion PR. Target GitOps commit: $MERGED_REVISION"
+
+            # Clean up remote promotion branch
+            git push origin --delete "$BRANCH_NAME" || true
           else
             echo "GitOps overlay manifests are already pinned to target release digests."
+            MERGED_REVISION=$(git rev-parse HEAD)
+            echo "MERGED_GITOPS_REVISION=${MERGED_REVISION}" >> /tmp/release_digests/digests.env
+            echo "merged_revision=$MERGED_REVISION" >> "$GITHUB_OUTPUT"
+            echo "Current main GitOps commit: $MERGED_REVISION"
           fi
 
       - name: Verify Release-to-GitOps-to-EKS Digest Parity and Argo CD Revision (Strict Fail-Closed)
@@ -200,47 +233,85 @@ jobs:
           echo "[2/3] Verifying Argo CD GitOps Application Synchronization..."
           MAX_WAIT=120
           ELAPSED=0
+          TARGET_REVISION="${MERGED_GITOPS_REVISION:-}"
+
+          # Trigger Argo CD refresh if a new GitOps promotion was merged
+          if [ -n "$TARGET_REVISION" ]; then
+            kubectl annotate application boutique -n argocd argocd.argoproj.io/refresh=normal --overwrite 2>/dev/null || true
+          fi
+
           while true; do
             SYNC_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
             HEALTH_STATUS=$(kubectl get application boutique -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
             SYNCED_REVISION=$(kubectl get application boutique -n argocd -o jsonpath='{.status.sync.revision}' 2>/dev/null || echo "Unknown")
             echo "  Argo CD status (elapsed ${ELAPSED}s): Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, Revision=${SYNCED_REVISION}"
 
-            if [ "${SYNC_STATUS}" = "Synced" ] && [ "${HEALTH_STATUS}" = "Healthy" ]; then
+            REVISION_MATCH=true
+            if [ -n "$TARGET_REVISION" ] && [ "$SYNCED_REVISION" != "$TARGET_REVISION" ]; then
+              REVISION_MATCH=false
+              echo "    Waiting for Argo CD to synchronize target revision ${TARGET_REVISION} (current: ${SYNCED_REVISION})..."
+            fi
+
+            if [ "${SYNC_STATUS}" = "Synced" ] && [ "${HEALTH_STATUS}" = "Healthy" ] && [ "$REVISION_MATCH" = "true" ]; then
               echo "  ✓ Argo CD boutique application is Synced and Healthy at revision ${SYNCED_REVISION}."
               break
             fi
 
             if [ "$ELAPSED" -ge "$MAX_WAIT" ]; then
-              echo "Error: Argo CD application failed to achieve Synced & Healthy state within ${MAX_WAIT}s (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS})!" >&2
+              echo "Error: Argo CD application failed to achieve Synced & Healthy state within ${MAX_WAIT}s (Sync=${SYNC_STATUS}, Health=${HEALTH_STATUS}, Revision=${SYNCED_REVISION}, Expected=${TARGET_REVISION})!" >&2
               exit 1
             fi
             sleep 5
             ELAPSED=$((ELAPSED + 5))
           done
 
-          # 3. Verify Live EKS Running Pod Image Parity
-          echo "[3/3] Verifying desired-versus-running release image parity on live EKS workloads..."
+          # 3. Verify Live EKS Running Pod Image Parity across EVERY Replica
+          echo "[3/3] Verifying desired-versus-running release image parity on live EKS workloads (EVERY replica)..."
           check_pod_parity() {
             local svc="$1"
             local label_selector="$2"
             local expected_digest="$3"
 
-            local pod_image_id
-            pod_image_id=$(kubectl get pods -n boutique -l "$label_selector" -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' 2>/dev/null || echo "missing")
-            local pod_digest
-            pod_digest=$(echo "$pod_image_id" | grep -oE "sha256:[a-f0-9]{64}" || echo "invalid")
-
-            echo "  Checking Live Pod: ${svc} (selector: ${label_selector})"
+            echo "  Checking All Live Pod Replicas: ${svc} (selector: ${label_selector})"
             echo "    Target ECR Digest: ${expected_digest}"
-            echo "    Live Pod Digest  : ${pod_digest}"
 
-            if [ "$pod_digest" != "$expected_digest" ]; then
-              echo "Error: Live workload parity mismatch for ${svc}! Running pod is on '${pod_digest}', but requested release '${TAG}' is '${expected_digest}'." >&2
-              echo "The requested release is NOT running on the cluster. Failing closed." >&2
+            local pod_data
+            pod_data=$(kubectl get pods -n boutique -l "$label_selector" -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.containerStatuses[*]}{.imageID}{"\t"}{.ready}{"\n"}{end}{end}' 2>/dev/null || echo "")
+
+            if [ -z "$pod_data" ]; then
+              echo "Error: No pods found for ${svc} matching selector '${label_selector}'!" >&2
               exit 1
             fi
-            echo "    ✓ Live running pod matches target release digest."
+
+            local replica_count=0
+            while IFS=$'\t' read -r pod_name pod_image_id is_ready; do
+              [ -z "$pod_name" ] && continue
+              replica_count=$((replica_count + 1))
+              local pod_digest
+              pod_digest=$(echo "$pod_image_id" | grep -oE "sha256:[a-f0-9]{64}" || echo "invalid")
+
+              echo "    Replica #${replica_count} [${pod_name}]:"
+              echo "      imageID : ${pod_image_id}"
+              echo "      Digest  : ${pod_digest}"
+              echo "      Ready   : ${is_ready}"
+
+              if [ "$pod_digest" != "$expected_digest" ]; then
+                echo "Error: Workload parity mismatch for ${svc} replica '${pod_name}'! Running digest is '${pod_digest}', but target release '${TAG}' is '${expected_digest}'." >&2
+                echo "EVERY replica must run the target release digest. Failing closed." >&2
+                exit 1
+              fi
+
+              if [ "$is_ready" != "true" ]; then
+                echo "Error: Workload replica '${pod_name}' is not Ready!" >&2
+                exit 1
+              fi
+            done <<< "$pod_data"
+
+            if [ "$replica_count" -lt 1 ]; then
+              echo "Error: Found 0 active replicas for ${svc}!" >&2
+              exit 1
+            fi
+            echo "    ✓ Verified all ${replica_count} replica(s) match target release digest and are Ready."
           }
 
           check_pod_parity "boutique-frontend" "app=frontend" "$boutique_frontend"
@@ -323,6 +394,11 @@ jobs:
           DEPLOYMENT_ID="${{ steps.create_deployment.outputs.deployment_id }}"
           ACTION="${{ github.event.inputs.action }}"
           TAG="${{ github.event.inputs.release_tag }}"
+          if [ "$ACTION" = "deploy" ]; then
+            DESC="DEV promotion & deployment PASSED for ${TAG}. GitOps PR merged, Argo CD synced, and all replicas verified running target digests."
+          else
+            DESC="DEV read-only verification PASSED for ${TAG}. Parity confirmed across ECR, GitOps & all running EKS replicas (no promotion executed)."
+          fi
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
@@ -330,7 +406,7 @@ jobs:
             -f state="success" \
             -f environment="development" \
             -f environment_url="https://demo.aarjav.site" \
-            -f description="DEV ${ACTION} verified healthy for ${TAG}. Parity confirmed across ECR, GitOps & EKS."
+            -f description="$DESC"
 
       - name: Mark GitHub Deployment Failed
         if: failure()
@@ -341,6 +417,11 @@ jobs:
           ACTION="${{ github.event.inputs.action }}"
           TAG="${{ github.event.inputs.release_tag }}"
           if [ -n "$DEPLOYMENT_ID" ]; then
+            if [ "$ACTION" = "deploy" ]; then
+              DESC="DEV promotion & deployment FAILED for ${TAG}."
+            else
+              DESC="DEV read-only verification FAILED for ${TAG}."
+            fi
             gh api \
               --method POST \
               -H "Accept: application/vnd.github+json" \
@@ -348,5 +429,5 @@ jobs:
               -f state="failure" \
               -f environment="development" \
               -f environment_url="https://demo.aarjav.site" \
-              -f description="DEV ${ACTION} failed verification for ${TAG}."
+              -f description="$DESC"
           fi

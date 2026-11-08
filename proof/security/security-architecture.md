@@ -116,3 +116,11 @@ The trust policy is now strictly pinned to the exact repository claims and accep
 ### EKS Access Entry Least-Privilege Scoping
 - **Redundant Policy Removal**: `AmazonEKSViewPolicy` was cleanly disassociated as it was redundant.
 - **AdminView Policy Rationale**: `AmazonEKSAdminViewPolicy` is retained as a strictly read-only cluster access policy. It grants read-only view access across cluster nodes and custom resource definitions (specifically Argo CD `applications.argoproj.io`), which are not aggregated into the default Kubernetes `view` ClusterRole. The role possesses zero write, mutation, exec, or deletion capabilities in Kubernetes.
+
+### Known EKS Control Plane Endpoint Exception
+- **Public & Private Endpoint Access**: The EKS cluster `boutique-dev-eks` has both public and private endpoint access enabled (`endpointPublicAccess: true`, `endpointPrivateAccess: true`).
+- **Public CIDR Configuration (`0.0.0.0/0`)**: The public control plane CIDR block is configured to `0.0.0.0/0`. This is a documented operational necessity for this AWS DEV environment:
+  1. **GitHub-Hosted Runners**: GitHub Actions workflows run on dynamic public IPs across Azure/GitHub pools that change per job execution.
+  2. **Operator Access**: The human operator manages and verifies the cluster from dynamic ISP IP addresses without a corporate VPN gateway.
+  Restricting public CIDRs in DEV would immediately sever GitHub Actions deployment verification and operator kubectl access.
+- **Defense in Depth**: The Kubernetes API server never allows anonymous requests. Every API call is authenticated and authorized via AWS IAM OIDC web identity tokens, EKS Access Entries, and Kubernetes RBAC, with GitHub Actions restricted strictly to read-only `AmazonEKSAdminViewPolicy`.

@@ -146,7 +146,7 @@ router.post('/', async (req: Request, res: Response) => {
           imageUrl: product.image_url,
           category: product.category,
           brand: product.brand,
-          rating: parseFloat(product.rating || '4.8'),
+          rating: product.rating !== null && product.rating !== undefined ? parseFloat(product.rating) : undefined,
         },
       });
     }
@@ -259,7 +259,7 @@ router.get('/my-orders', async (req: Request, res: Response) => {
           imageUrl: itemRow.image_url,
           category: itemRow.category,
           brand: itemRow.brand,
-          rating: parseFloat(itemRow.rating || '4.8'),
+          rating: itemRow.rating !== null && itemRow.rating !== undefined ? parseFloat(itemRow.rating) : undefined,
         },
       });
     }
@@ -330,7 +330,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         imageUrl: itemRow.image_url,
         category: itemRow.category,
         brand: itemRow.brand,
-        rating: parseFloat(itemRow.rating || '4.8'),
+        rating: itemRow.rating !== null && itemRow.rating !== undefined ? parseFloat(itemRow.rating) : undefined,
       },
     }));
 

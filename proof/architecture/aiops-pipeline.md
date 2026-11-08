@@ -63,5 +63,5 @@ The agent collects deterministic, factual diagnostic data before engaging the ge
 - **Model Selected**: `amazon.nova-lite-v1:0`
 - **Latency**: Sub-4 second response time (measured 3.93s on live evaluation).
 - **Cost Efficiency**: Incurs negligible fractions of a cent per incident compared to self-hosted models or large heavyweight models.
-- **Safety**: Purely diagnostic reasoning; autonomous remediation is controlled by a hard safety switch (`AIOPS_REMEDIATION_ENABLED=false`).
+- **Safety**: Safe two-stage architecture: proposal generation is active (`AIOPS_REMEDIATION_ENABLED=true`), but autonomous direct mutation to `main` is strictly forbidden. Proposals require operator review and generate a reviewed GitHub Pull Request.
 - **Idempotency**: All incident episodes and reports are indexed by deterministic hash in DynamoDB with a 30-day TTL.

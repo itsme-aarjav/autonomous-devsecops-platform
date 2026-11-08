@@ -254,8 +254,10 @@ The platform uses decoupled, single-responsibility GitHub Actions workflows:
    - Assumes AWS IAM role via GitHub OIDC (`arn:aws:iam::592668326948:role/github-actions-ecr-publisher`).
    - Builds multi-platform container images, performs Trivy vulnerability scanning, and publishes immutable image digests (`sha256:...`) to Amazon ECR.
 3. **`deploy-dev.yml` (GitOps Deployment & Live Verification)**:
-   - Synchronizes Kubernetes manifests to Amazon EKS DEV cluster.
-   - Records genuine GitHub Deployment events (`environment: development`, tracking statuses: `in_progress`, `success`, `failure`).
+   - Supports two explicit execution modes:
+     - `action: verify` (read-only audit): Verifies that current GitOps overlay manifests and every live running pod replica on EKS match target ECR digests, validates Argo CD revision health, and runs live smoke tests.
+     - `action: deploy` (automated GitOps promotion): Updates overlay manifests, creates a reviewed GitOps Pull Request, merges to `main`, synchronizes Argo CD to the merged commit, and verifies that all replicas roll out cleanly.
+   - Records genuine GitHub Deployment events (`environment: development`, tracking statuses: `in_progress`, `success`, `failure`), with distinct status descriptions between verification and promotion.
    - Executes live post-deployment HTTP smoke tests against `https://demo.aarjav.site`.
 4. **`promote-prod.yml` (Production Gate - Fails Closed)**:
    - Strictly fails-closed (`exit 1`) with an explicit alert indicating production infrastructure is NOT provisioned. Never reports false green.
