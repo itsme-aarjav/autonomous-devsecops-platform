@@ -37,13 +37,18 @@ jobs:
             --method POST \
             -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/deployments \
-            -f ref="${{ github.ref }}" \
-            -f environment="development" \
-            -f description="DEV deployment verification for release ${{ github.event.inputs.release_tag }}" \
-            -F transient_environment=false \
-            -F production_environment=false \
-            -F auto_merge=false \
-            -F required_contexts='[]')
+            --input - <<EOF
+{
+  "ref": "${{ github.ref }}",
+  "environment": "development",
+  "description": "DEV deployment verification for release ${{ github.event.inputs.release_tag }}",
+  "transient_environment": false,
+  "production_environment": false,
+  "auto_merge": false,
+  "required_contexts": []
+}
+EOF
+)
 
           DEPLOYMENT_ID=$(echo "$DEPLOYMENT_JSON" | jq -r .id)
           echo "deployment_id=$DEPLOYMENT_ID" >> "$GITHUB_OUTPUT"
