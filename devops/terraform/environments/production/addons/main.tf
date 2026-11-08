@@ -1,5 +1,3 @@
-# Addons stage applied after the EKS cluster is provisioned
-
 provider "kubernetes" {
   host                   = data.terraform_remote_state.dev.outputs.eks_cluster_endpoint
   cluster_ca_certificate = base64decode(data.terraform_remote_state.dev.outputs.cluster_certificate_authority_data)

@@ -117,9 +117,7 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
-# -----------------------------------------------------------------------------
 # S3 Gateway VPC Endpoint (100% Free - Eliminates NAT charges for ECR blobs)
-# -----------------------------------------------------------------------------
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.vpc.id
   service_name      = "com.amazonaws.${var.region}.s3"
@@ -131,9 +129,7 @@ resource "aws_vpc_endpoint" "s3" {
   }
 }
 
-# -----------------------------------------------------------------------------
 # ECR Private Interface VPC Endpoints (ecr.api and ecr.dkr)
-# -----------------------------------------------------------------------------
 resource "aws_security_group" "vpc_endpoints" {
   name        = "${var.vpc_name}-endpoints-sg"
   description = "Security group for private VPC endpoints"

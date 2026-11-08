@@ -404,9 +404,7 @@ resource "helm_release" "monitoring" {
   depends_on = [kubernetes_namespace_v1.monitoring]
 }
 
-# ------------------------------------------------------------------------------
-# Argo Rollouts Controller & CRDs Release (Stage 3B.4)
-# ------------------------------------------------------------------------------
+# Argo Rollouts
 resource "kubernetes_namespace_v1" "argo_rollouts" {
   metadata {
     name = "argo-rollouts"

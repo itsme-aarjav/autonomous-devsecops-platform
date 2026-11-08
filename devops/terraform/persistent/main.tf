@@ -177,9 +177,7 @@ resource "aws_s3_bucket_policy" "node_diagnostics_enforce_tls" {
   })
 }
 
-# ------------------------------------------------------------------------------
-# Dedicated S3 Bucket for Scheduled PostgreSQL Database Backups
-# ------------------------------------------------------------------------------
+# PostgreSQL backups
 resource "aws_s3_bucket" "database_backup" {
   bucket        = var.database_backup_bucket_name
   force_destroy = false
@@ -304,9 +302,7 @@ resource "aws_s3_bucket_policy" "database_backup_enforce_tls" {
   })
 }
 
-# ------------------------------------------------------------------------------
-# GitHub Actions AWS OIDC Identity Provider & Least-Privilege Publishing Role
-# ------------------------------------------------------------------------------
+# GitHub OIDC
 data "aws_caller_identity" "current" {}
 
 # Read existing GitHub Actions AWS OIDC Identity Provider (Shared account resource)
@@ -394,9 +390,7 @@ resource "aws_iam_role_policy_attachment" "github_actions_ecr_publisher" {
   policy_arn = aws_iam_policy.github_actions_ecr_publisher.arn
 }
 
-# ------------------------------------------------------------------------------
-# Autonomous AIOps Durable Alert Queue (SQS FIFO + DLQ)
-# ------------------------------------------------------------------------------
+# AIOps queues
 resource "aws_sqs_queue" "aiops_alert_dlq" {
   name                        = "boutique-aiops-alert-dlq.fifo"
   fifo_queue                  = true
@@ -434,9 +428,7 @@ resource "aws_sqs_queue" "aiops_alert_queue" {
   }
 }
 
-# ------------------------------------------------------------------------------
-# Autonomous AIOps Durable State & RCA Storage (DynamoDB)
-# ------------------------------------------------------------------------------
+# AIOps DynamoDB
 resource "aws_dynamodb_table" "aiops_episodes" {
   name         = "boutique-aiops-episodes"
   billing_mode = "PAY_PER_REQUEST"

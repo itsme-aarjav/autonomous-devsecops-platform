@@ -317,9 +317,7 @@ resource "aws_eks_pod_identity_association" "aiops_agent" {
   role_arn        = aws_iam_role.aiops_agent_role.arn
 }
 
-# ------------------------------------------------------------------------------
-# PostgreSQL Backup IAM Role & Pod Identity Association
-# ------------------------------------------------------------------------------
+# PostgreSQL backup identity
 resource "aws_iam_role" "postgres_backup_role" {
   name        = "${var.cluster_name}-postgres-backup-role"
   description = "Dedicated least-privilege IAM role for PostgreSQL S3/KMS backup CronJob via EKS Pod Identity"
@@ -392,9 +390,7 @@ resource "aws_eks_pod_identity_association" "postgres_backup" {
   role_arn        = aws_iam_role.postgres_backup_role.arn
 }
 
-# ------------------------------------------------------------------------------
-# EKS Auto Mode Native System Capabilities
-# ------------------------------------------------------------------------------
+# EKS Auto Mode
 # In EKS Auto Mode (compute_config.enabled = true), CoreDNS, kube-proxy, and the
 # EKS Pod Identity Agent are natively built-in and automatically managed by AWS
 # as system-level components directly on the Bottlerocket worker node architecture.

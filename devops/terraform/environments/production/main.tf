@@ -1,5 +1,3 @@
-# Dev environment: VPC and EKS Auto Mode cluster
-
 module "vpc" {
   source = "../../modules/vpc"
 

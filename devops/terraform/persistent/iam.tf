@@ -1,6 +1,4 @@
-# ------------------------------------------------------------------------------
 # Dedicated Human Operator IAM Role for Remediation Approval
-# ------------------------------------------------------------------------------
 # Strictly scoped role for authorized human operators (Phase 4.5 Task C / Phase 5.1).
 # Background AIOps workers run under separate worker execution roles and CANNOT
 # assume this role or perform remediation approval.

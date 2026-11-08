@@ -279,9 +279,7 @@ def _build_engine(store, github_provider=None, authenticator=None):
     )
 
 
-# ---------------------------------------------------------------------------
 # Sub-commands
-# ---------------------------------------------------------------------------
 
 def cmd_list(args, store):
     """Lists remediation proposals."""
@@ -368,7 +366,7 @@ def cmd_approve(args, store):
 
     is_simulation = getattr(args, "simulate", False)
 
-    # Guard: --yes is strictly forbidden in production mode
+    # No --yes in production.
     if not is_simulation and getattr(args, "yes", False):
         print(
             "[ERROR] Security policy violation: '--yes' flag is forbidden in production mode. "
@@ -386,7 +384,7 @@ def cmd_approve(args, store):
         github_provider = None
         print(f"[NOTICE] Running in SIMULATION mode with operator '{operator_id}'.")
     else:
-        # In real mode, approval proceeds strictly via reviewed GitHub Pull Request (NEVER direct main mutation)
+        # Production approval uses a reviewed PR.
         should_pr = True
         operator_id = None
         authenticator = _resolve_authenticator(is_simulation=False)
@@ -469,7 +467,7 @@ def cmd_reject(args, store):
 
     is_simulation = getattr(args, "simulate", False)
 
-    # Guard: --yes is strictly forbidden in production mode
+    # No --yes in production.
     if not is_simulation and getattr(args, "yes", False):
         print(
             "[ERROR] Security policy violation: '--yes' flag is forbidden in production mode. "
@@ -595,9 +593,7 @@ def cmd_status(args, store):
         print(f"  Applied commit: {proposal.applied_commit_sha}")
 
 
-# ---------------------------------------------------------------------------
 # CLI Entry Point
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(

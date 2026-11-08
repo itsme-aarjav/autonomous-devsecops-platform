@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Promotes a microservice container image by immutable ECR digest directly to main with operator approval.
+# Operator-approved ECR digest promotion.
 set -euo pipefail
 
 APPROVED=false

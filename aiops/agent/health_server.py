@@ -239,9 +239,7 @@ class HealthRequestHandler(BaseHTTPRequestHandler):
     def do_PATCH(self):
         self._send_405("GET, POST")
 
-    # --------------------------------------------------------------------------
-    # Alertmanager Webhook Ingestion Logic
-    # --------------------------------------------------------------------------
+    # Alertmanager webhook
     def _handle_alerts_webhook(self):
         """
         Validates, authenticates, deduplicates, and enqueues Alertmanager notifications.

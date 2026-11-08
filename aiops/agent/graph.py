@@ -44,9 +44,7 @@ def create_aiops_graph(
 
     workflow = StateGraph(AgentState)
 
-    # -------------------------------------------------------------
-    # Node 1: Incident Input Validation
-    # -------------------------------------------------------------
+    # Incident Input Validation
     def validate_input_node(state: AgentState) -> Dict[str, Any]:
         raw = state.get("raw_incident") or {}
         try:
@@ -65,9 +63,7 @@ def create_aiops_graph(
                 "errors": [f"Input validation error: {str(e)}"],
             }
 
-    # -------------------------------------------------------------
-    # Node 2: Incident Normalization & Deduplication
-    # -------------------------------------------------------------
+    # Incident Normalization & Deduplication
     def normalize_incident_node(state: AgentState) -> Dict[str, Any]:
         raw = state.get("raw_incident") or {}
         try:
@@ -92,9 +88,7 @@ def create_aiops_graph(
                 "errors": state.get("errors", []) + [f"Normalization error: {str(e)}"],
             }
 
-    # -------------------------------------------------------------
-    # Node 3: Evidence Collection
-    # -------------------------------------------------------------
+    # Evidence Collection
     def collect_evidence_node(state: AgentState) -> Dict[str, Any]:
         norm_dict = state.get("normalized_incident", {})
         namespace = norm_dict.get("namespace", "default")
@@ -121,9 +115,7 @@ def create_aiops_graph(
                 "errors": state.get("errors", []) + [f"Evidence collection error: {str(e)}"],
             }
 
-    # -------------------------------------------------------------
-    # Node 4: Evidence Sanitization
-    # -------------------------------------------------------------
+    # Evidence Sanitization
     def sanitize_evidence_node(state: AgentState) -> Dict[str, Any]:
         raw_bundle = state.get("raw_evidence", {})
         try:
@@ -140,9 +132,7 @@ def create_aiops_graph(
                 "errors": state.get("errors", []) + [f"Sanitization error: {str(e)}"],
             }
 
-    # -------------------------------------------------------------
-    # Node 5: Bedrock Root Cause Analysis
-    # -------------------------------------------------------------
+    # Bedrock Root Cause Analysis
     def analyze_with_bedrock_node(state: AgentState) -> Dict[str, Any]:
         incident_id = state.get("incident_id", "")
         # Pre-inference check: skip model inference if episode was resolved while in-flight
@@ -172,9 +162,7 @@ def create_aiops_graph(
                 "errors": state.get("errors", []) + [f"Bedrock analysis error: {str(e)}"],
             }
 
-    # -------------------------------------------------------------
-    # Node 6: RCA Validation & Safety Gate
-    # -------------------------------------------------------------
+    # RCA Validation & Safety Gate
     def validate_rca_node(state: AgentState) -> Dict[str, Any]:
         rca_dict = state.get("root_cause_analysis") or {}
         try:
@@ -191,9 +179,7 @@ def create_aiops_graph(
                 "errors": state.get("errors", []) + [f"RCA validation failed: {str(e)}"],
             }
 
-    # -------------------------------------------------------------
-    # Node 7: Result Persistence
-    # -------------------------------------------------------------
+    # Result Persistence
     def persist_result_node(state: AgentState) -> Dict[str, Any]:
         incident_id = state.get("incident_id", "")
         # Pre-persistence check: skip RCA persistence if episode was resolved while in-flight
@@ -222,9 +208,7 @@ def create_aiops_graph(
                 "errors": state.get("errors", []) + [f"Persistence failed: {str(e)}"],
             }
 
-    # -------------------------------------------------------------
-    # Node 8: GitOps Remediation Proposal (Stage 6.5)
-    # -------------------------------------------------------------
+    # GitOps Remediation Proposal (Stage 6.5)
     def propose_remediation_node(state: AgentState) -> Dict[str, Any]:
         incident_id = state.get("incident_id", "")
         # Pre-remediation check: skip remediation if episode was resolved while in-flight
@@ -261,9 +245,7 @@ def create_aiops_graph(
                 "remediation_proposal": None,
             }
 
-    # -------------------------------------------------------------
-    # Fallback / Error Handling Node
-    # -------------------------------------------------------------
+    # Error handling
     def handle_error_node(state: AgentState) -> Dict[str, Any]:
         return {
             "current_step": "handle_error",
