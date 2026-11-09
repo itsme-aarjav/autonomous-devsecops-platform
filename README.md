@@ -1,383 +1,125 @@
 # Autonomous DevSecOps & Cloud Operations Platform
 
-[![Platform Pipeline](https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions/workflows/platform.yml/badge.svg)](https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions/workflows/platform.yml)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-v1.36.4-326CE5.svg?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
-[![Argo CD](https://img.shields.io/badge/GitOps-Argo%20CD-EF7B4D.svg?logo=argo&logoColor=white)](https://argo-cd.readthedocs.io/)
-[![Argo Rollouts](https://img.shields.io/badge/Progressive%20Delivery-Argo%20Rollouts-blueviolet.svg?logo=argo&logoColor=white)](https://argoproj.github.io/argo-rollouts/)
-[![Terraform](https://img.shields.io/badge/IaC-Terraform%201.11-7B42BC.svg?logo=terraform&logoColor=white)](https://www.terraform.io/)
-[![AWS Bedrock](https://img.shields.io/badge/AIOps-Amazon%20Bedrock%20Nova%20Lite-232F3E.svg?logo=amazon-aws&logoColor=white)](https://aws.amazon.com/bedrock/)
-[![Observability](https://img.shields.io/badge/Observability-Prometheus%20%2B%20Grafana-E6522C.svg?logo=prometheus&logoColor=white)](https://prometheus.io/)
-[![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL%2015-4169E1.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Platform CI](https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions/workflows/platform.yml/badge.svg)](https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions/workflows/platform.yml)
 
-An enterprise-grade, cloud-native **Autonomous DevSecOps and Platform Engineering platform** featuring a **3-Tier Microservices Architecture**, declarative GitOps with **Argo CD**, zero-downtime **Progressive Canary Delivery** via **Argo Rollouts**, full-stack telemetry using **Prometheus & Grafana**, and an event-driven **AIOps SRE Agent (LangGraph + Amazon Bedrock Nova Lite)** with **Human-Approved GitOps Self-Healing**:
-1. **Automated Incident Root Cause Diagnosis**: An in-cluster diagnostic agent consumes deduplicated Alertmanager alerts via SQS FIFO, gathers read-only cluster telemetry, sanitizes sensitive tokens, and executes structured root cause analysis via Amazon Bedrock Nova Lite (`amazon.nova-lite-v1:0`).
-2. **Human-in-the-Loop GitOps Remediation**: Proposes surgical YAML manifest patches evaluated against strict deterministic policy bounds. A cloud operator reviews proposals via a secure CLI (`aiops/operator_cli.py`), authenticates using constant-time HMAC tokens (`hmac.compare_digest`), and approves patches that automatically open reviewed GitHub Pull Requests for human merge and declarative Argo CD reconciliation.
+A hands-on DevOps and cloud engineering project built around a small e-commerce application on AWS. It combines infrastructure automation, CI/CD, Kubernetes monitoring, and an AI-assisted incident response workflow.
 
----
+**The main idea:** when a Kubernetes workload fails, the platform gathers evidence and suggests a fix. A human must review and approve the proposed change before it can reach the cluster through GitOps.
 
-> [!NOTE]
-> **Cloud Deployment & Operational Status**:
-> - **Live Cloud Deployment & Verification**: The platform was historically deployed and comprehensively verified on live AWS infrastructure in account `592668326948` (`us-east-2`) on Amazon EKS Auto Mode (`boutique-dev-eks`) with public HTTPS routing via Route 53 and AWS ALB at `https://demo.aarjav.site`.
-> - **Operational Verification**: Completed full 16-step operational testing, including live e-commerce transactions, Prometheus OOMKilled alert dispatch, Bedrock Nova Lite RCA generation, operator CLI approval/rejection, reviewed GitHub PR creation, GitOps sync, and an isolated KMS-encrypted PostgreSQL database restore.
-> - **Cost Governance Decommissioning**: Following complete operational verification, all active cloud resources were intentionally decommissioned to eliminate ongoing cloud costs (estimated project-only residual cost < $0.01/month, pending confirmation from AWS billing, excluding pre-existing account resources).
-> - **Permanent Proof Package**: All 28 live high-resolution screenshots are organized across categorized folders in `proof/` (with a master index in [`proof/screenshots/README.md`](proof/screenshots/README.md)) and 36 numbered proof stages documented across 38 genuine terminal output logs in [`proof/terminal-outputs/README.md`](proof/terminal-outputs/README.md).
+**Project status:** The application was deployed and tested on AWS EKS in `us-east-2`. After collecting live evidence, the project-owned cloud infrastructure was intentionally deleted to limit costs. **The demo URLs are no longer live.** GitHub code, CI checks, screenshots, and terminal proofs remain available.
 
----
+## What this project demonstrates
 
-## 1. High-Level Architecture
+- **Cloud infrastructure:** Terraform provisioned the VPC, EKS Auto Mode cluster, networking, and supporting AWS services.
+- **CI/CD:** GitHub Actions validated code, ran tests, scanned container images with Trivy, and previously published images to Amazon ECR.
+- **GitOps:** Argo CD applied Kubernetes configuration from Git. Argo Rollouts was configured for a frontend canary release with 50% and 100% traffic steps.
+- **Monitoring:** Prometheus and Alertmanager detected Kubernetes incidents; Grafana displayed cluster and application metrics.
+- **AIOps:** A Python/LangGraph agent used Amazon Bedrock Nova Lite to help diagnose incidents and prepare bounded remediation proposals.
+- **Human approval:** The operator reviewed the proposal and its YAML diff before the system opened a GitHub pull request. AI did not directly change the running cluster.
+- **Recovery:** PostgreSQL backups were stored in S3 using AWS KMS encryption, and a separate restore test verified the saved data.
+
+## Architecture
+
+This diagram shows how the platform worked **while deployed**:
 
 ```mermaid
 flowchart TD
-    subgraph Traffic["Inbound Client Traffic"]
-        User["End Users / Evaluators"]
-    end
+    User[Browser] --> ALB[AWS Application Load Balancer]
+    ALB --> Frontend[React frontend]
+    ALB --> Gateway[Node.js API gateway]
+    Gateway --> Auth[Authentication service]
+    Auth --> Postgres[(PostgreSQL)]
 
-    subgraph AWS_Cloud["AWS Cloud (us-east-2 | VPC: 10.1.0.0/16)"]
-        ALB["AWS Application Load Balancer\n(ACM TLS 1.3 / Route 53 Alias)"]
-
-        subgraph EKS_Cluster["Amazon EKS Auto Mode (boutique-dev-eks)"]
-            Ingress["AWS Load Balancer Controller (Ingress)"]
-
-            subgraph Canary_Delivery["Progressive Delivery (Argo Rollouts)"]
-                FrontendRollout["Frontend Rollout\n(Canary: 50% → 100%)"]
-                FrontendActive["frontend-active (Stable)"]
-                FrontendPreview["frontend-preview (Canary)"]
-            end
-
-            subgraph Core_Services["Core Microservices Tier (Namespace: boutique)"]
-                Gateway["API Gateway\n(Express Routing & Rate Limiting)"]
-                Auth["Auth Service\n(JWT Issuance & Verification)"]
-                Postgres[("PostgreSQL 15 StatefulSet\n(20GB gp3 PVC / KMS Encrypted)")]
-            end
-
-            subgraph Telemetry["Observability Stack (kube-prometheus-stack)"]
-                Prometheus["Prometheus Server\n(Metric Scraping & Custom Rules)"]
-                Alertmanager["Alertmanager\n(Deduplication & Grouping)"]
-            end
-
-            subgraph AIOps_Platform["AIOps Diagnostic Engine"]
-                AIOpsAgent["AIOps Assistant Pod\n(8-Node LangGraph DAG / Python 3.11)"]
-            end
-        end
-
-        subgraph AWS_Managed_Services["Managed Cloud & AI Services"]
-            AlertQueue["Amazon SQS FIFO Queue\n(boutique-aiops-alert-queue.fifo)"]
-            Bedrock["Amazon Bedrock\n(Nova Lite amazon.nova-lite-v1:0)"]
-            DynamoDB[("Amazon DynamoDB\n(Episodes, RCA Reports, Proposals)")]
-            S3Backups[("Amazon S3 (SSE-KMS)\n(Daily Encrypted DB Snapshots)")]
-            KMSKey["AWS KMS Customer Managed Key\n(Alias: boutique-aiops-key)"]
-        end
-    end
-
-    subgraph GitOps_Control["GitOps & Version Control (GitHub)"]
-        GitRepo["GitHub Repository\n(itsme-aarjav/autonomous-devsecops-platform)"]
-        OperatorCLI["Operator Approval CLI\n(Constant-Time HMAC Token Gate)"]
-        ArgoCD["Argo CD Controller\n(Automated GitOps Reconciliation)"]
-    end
-
-    %% Inbound Traffic
-    User --> ALB
-    ALB --> Ingress
-    Ingress -->|/| FrontendActive
-    Ingress -.->|Canary Weight 50%| FrontendPreview
-    FrontendRollout --> FrontendActive & FrontendPreview
-    Ingress -->|/api| Gateway
-    Gateway --> Auth
-    Auth --> Postgres
-
-    %% Observability Loop
-    Core_Services & Canary_Delivery -->|Metrics /metrics| Prometheus
-    Prometheus -->|Fires OOM / Error Alerts| Alertmanager
-    Alertmanager -->|Webhook Dispatch| AlertQueue
-    AlertQueue -->|Consume FIFO Message| AIOpsAgent
-
-    %% AIOps Investigation & Reasoning
-    AIOpsAgent <-->|Sanitized RCA Inference| Bedrock
-    AIOpsAgent -->|Persist Episodes & Proposals| DynamoDB
-    AIOpsAgent -.->|Read-Only Cluster Telemetry| EKS_Cluster
-
-    %% Human-Approved GitOps Remediation
-    DynamoDB -->|Read Pending Proposals| OperatorCLI
-    OperatorCLI -->|Human HMAC Approval| GitRepo
-    GitRepo -.->|Trigger GitOps Sync| ArgoCD
-    ArgoCD -.->|Declarative Manifest Reconcile| EKS_Cluster
-
-    %% KMS Encryption Links
-    KMSKey -.->|Envelope Encryption| S3Backups & AlertQueue & Postgres
+    EKS[Amazon EKS workloads] -->|Metrics| Prom[Prometheus]
+    Prom --> Alert[Alertmanager]
+    Alert --> Queue[Amazon SQS FIFO]
+    Queue --> Agent[AIOps agent: LangGraph]
+    Agent -->|Root cause analysis| Bedrock[Amazon Bedrock Nova Lite]
+    Agent -->|Save reports and proposals| Dynamo[(DynamoDB)]
+    Dynamo --> Operator[Human approval CLI]
+    Operator --> PR[GitHub pull request]
+    PR --> Argo[Argo CD / GitOps]
+    Argo --> EKS
 ```
 
----
+Terraform created the AWS infrastructure. GitHub Actions built and checked the application, while Argo CD managed the Kubernetes deployment from version-controlled manifests.
 
-## 2. Visual Proof Gallery
+## Technology stack
 
-The platform's live cloud operation was captured across 28 high-resolution visual proofs prior to cloud decommissioning. Below are key highlights from the categorized evidence package (see [Master Screenshots Index](proof/screenshots/README.md)):
+| Area | Technologies | Why they were used |
+| --- | --- | --- |
+| Infrastructure | AWS, Terraform, VPC, EKS Auto Mode, S3 remote state | Create and track cloud resources as code |
+| Application | React, Node.js/Express, PostgreSQL | Provide a real multi-service application to operate |
+| CI/CD | GitHub Actions, Docker, ECR, Trivy | Build, test, scan, and publish container images |
+| Delivery | Kubernetes, Kustomize, Argo CD, Argo Rollouts | Manage deployments through Git and configure canary releases |
+| Monitoring | Prometheus, Alertmanager, Grafana | Collect metrics, send alerts, and view system health |
+| AIOps | Python, LangGraph, Bedrock Nova Lite, SQS, DynamoDB | Analyze incidents and record proposed fixes |
+| Security & backup | IAM, OIDC, KMS, Secrets Manager, S3, Ansible | Control access, protect secrets, and automate backups |
 
-| Storefront UI (`demo.aarjav.site`) | Argo CD GitOps Application Topology |
-| :---: | :---: |
-| [![Storefront UI](proof/architecture/01-storefront-ui-demo.png)](proof/architecture/01-storefront-ui-demo.png) | [![Argo CD Topology](proof/ci-cd/03-argocd-network-topology.png)](proof/ci-cd/03-argocd-network-topology.png) |
-| *8 seeded luxury products with real USD pricing & cart* | *Declarative ALB Ingress → Service → Pod tree* |
+## Real incident: OOMKilled to an approved fix
 
-| Grafana Cluster Compute Metrics | AWS EKS Cluster Console |
-| :---: | :---: |
-| [![Grafana Metrics](proof/monitoring/04-grafana-cluster-compute-resources.png)](proof/monitoring/04-grafana-cluster-compute-resources.png) | [![AWS EKS Console](proof/kubernetes/20-aws-eks-cluster-info.png)](proof/kubernetes/20-aws-eks-cluster-info.png) |
-| *Real-time CPU (2.74%), RAM (20.5%), 0 packet drops* | *Active EKS cluster, k8s v1.36, 26 pods, 3 nodes* |
+The strongest end-to-end test used a **separate canary test workload** to reproduce an out-of-memory failure.
 
-| AWS VPC Resource Map | AWS Application Load Balancers |
-| :---: | :---: |
-| [![AWS VPC](proof/architecture/19-aws-vpc-resource-map.png)](proof/architecture/19-aws-vpc-resource-map.png) | [![AWS ALBs](proof/architecture/22-aws-alb-load-balancers.png)](proof/architecture/22-aws-alb-load-balancers.png) |
-| *2 public + 2 private subnets across 2 AZs, NAT GW, IGW* | *3 active ALBs for Storefront, Argo CD, and Grafana* |
+1. **Failure:** The canary ran with a `64Mi` memory request and `128Mi` limit. A controlled memory-load trigger caused a real `OOMKilled` termination (exit code `137`).
+2. **Detection:** Prometheus identified the problem. Alertmanager routed the alert through an SQS FIFO queue.
+3. **Diagnosis:** The AIOps agent collected relevant telemetry, sanitized it, called **Amazon Bedrock Nova Lite** (`amazon.nova-lite-v1:0`), and stored the root cause analysis and proposal in DynamoDB.
+4. **Safety check:** The proposal went through a rule-based policy check and an operator approval process. The project also tested rejection of an earlier proposal.
+5. **GitOps fix:** After the operator reviewed the diff and approved it, the system opened [remediation PR #2](https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2). The change raised the canary's memory request from `64Mi` to `256Mi` and its limit from `128Mi` to `512Mi`.
+6. **Verification:** The PR was merged, CI passed, and later live verification recorded a healthy canary with no restarts. The final values remain in [the production canary manifest](devops/gitops/overlays/production/canary.yml).
 
----
+This is **human-approved remediation**, not an unrestricted AI system that modifies production on its own. The frontend's Argo Rollouts canary configuration is a separate feature from this OOMKilled test.
 
-## 3. Core Technical Capabilities
+**Evidence:** [OOMKilled log](proof/terminal-outputs/09-aiops-oomkilled.txt) · [Human approval and PR](proof/terminal-outputs/30-aiops-human-approval-pr.txt) · [Merged PR #2](https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2) · [Successful live pipeline](https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions/runs/42529170045)
 
-### A. 3-Tier Cloud-Native Microservices
-- **Frontend (`frontend`)**: React 19 single-page application built on Node.js 24 LTS, packaged as a lightweight, hardened container running under non-root UID 10001.
-- **API Gateway (`gateway`)**: Express reverse proxy handling path routing, rate limiting, and request sanitization.
-- **Authentication Service (`auth`)**: Issues and validates cryptographically signed JWTs, managing password hashing (`bcrypt`) and user sessions.
-- **Database (`boutique-postgres`)**: PostgreSQL 15.19 StatefulSet backed by a 20GB AWS EBS `gp3` volume with KMS envelope encryption. Catalogs 8 seeded luxury products: Silk Evening Gown, Cashmere Blend Overcoat, Italian Leather Handbag, Stiletto Designer Heels, Diamond Solitaire Necklace, Classic Tailored Wool Blazer, Signature Leather Wallet, and Akoya Pearl Drop Earrings.
+## CI/CD and security
 
-### B. Declarative GitOps & Progressive Delivery
-- **Argo CD**: Master GitOps operator continuously synchronizing Kubernetes manifests from `devops/gitops/` into the EKS cluster, eliminating configuration drift.
-- **Argo Rollouts**: Zero-downtime canary progressive delivery (per production overlay `devops/gitops/overlays/production/frontend.yml`):
-  - `Step 1`: Shift **50%** of inbound traffic to `frontend-preview`; pause for health analysis.
-  - `Step 2`: Promote to **100%** full cutover on `frontend-active`.
+The historical deployment flow was: **push code → validate and test → scan and build containers → publish to ECR → update GitOps manifests → verify deployment on EKS**.
 
-### C. Full-Stack Observability & Telemetry
-- **Prometheus Operator**: Custom `ServiceMonitor` definitions scraping application metrics, cgroup utilization, and cluster resource quotas.
-- **Node Exporter**: Host-level telemetry on EKS Bottlerocket worker nodes (CPU, RAM, ENI packet rates, disk IOPS).
-- **Alertmanager**: Deduplication and alert grouping engine routing actionable alerts to SQS FIFO.
+The pipeline includes Terraform formatting, Ansible and shell syntax checks, Kustomize validation, **27 AIOps unit/security tests**, Trivy scanning, and builds for four container images. GitHub Actions used AWS OpenID Connect (OIDC) to obtain short-lived AWS credentials instead of storing permanent AWS access keys in the repository.
 
-### D. In-Cluster AIOps Assistant (LangGraph + Amazon Bedrock)
-An autonomous diagnostic agent built as an **8-node LangGraph DAG**:
-```
-validate_input → normalize_incident → collect_evidence → sanitize_evidence → analyze_with_llm → validate_rca → propose_remediation → persist_result
-```
-- **Read-Only Telemetry Gathering**: Collects pod events, recent container logs, and PromQL metric rates without cluster write privileges.
-- **Safety & Prompt Sanitization**: Redacts JWTs, database connection strings, bearer tokens, and private keys prior to LLM inference.
-- **Inference with Amazon Bedrock Nova Lite**: Uses `amazon.nova-lite-v1:0` for low-latency, cost-effective structured root cause analysis.
-- **Deterministic Policy Engine**: Enforces strict allowlists (e.g., container memory limit adjustments up to bounded thresholds) and rejects destructive commands (`rm -rf`, `DROP TABLE`, pod deletion loops).
+**After teardown:** The CI jobs still run, but ECR publishing and the EKS deployment job are disabled. See the [current GitHub Actions runs](https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions) and [workflow configuration](.github/workflows/platform.yml).
 
-### E. Human-in-the-Loop GitOps Self-Healing
-```
-Incident Detected (Pod OOMKilled)
-       │
-       ▼
-Prometheus Alert → Alertmanager → SQS FIFO Queue
-       │
-       ▼
-AIOps LangGraph Agent (Amazon Bedrock Nova Lite RCA)
-       │
-       ▼
-Deterministic Policy Engine & DynamoDB Proposal Storage
-       │
-       ▼
-Cloud Operator CLI Review (`aiops/operator_cli.py list / show`)
-       │
-       ▼
-Constant-Time HMAC Token Approval (`aiops/operator_cli.py approve`)
-       │
-       ▼
-Reviewed GitHub Pull Request Opened (`fix/aiops-proposal-<id>`)
-       │
-       ▼
-Human Code Review & Merge into `main`
-       │
-       ▼
-Argo CD Automatic Synchronization & Cluster Recovery
-```
-- **Constant-Time HMAC Token Gate**: The approval CLI validates operator identity using `hmac.compare_digest` against authorized credentials, preventing timing attacks.
-- **Reviewed Pull Request Policy**: The platform never performs direct writes to `main`. Every remediation is staged as a pull request with full audit provenance (Incident ID, Episode ID, diagnosis, diff).
+## Backup and recovery
 
-### F. Disaster Recovery & DevSecOps Hardening
-- **Automated S3 SQL Backups**: Two-stage Kubernetes CronJob executing daily compressed PostgreSQL backups encrypted with AWS KMS CMK `1e4e2ce3-e642-47a9-a20d-3a47b052918b`.
-- **Isolated S3 SQL Restore Verification**: Verified point-in-time database restoration of the KMS-encrypted S3 SQL dump (`auth_db_backup_20261108_203012Z.sql.gz`) in an ephemeral, network-isolated pod (verified schema, 8 products catalog, customer records in [`proof/terminal-outputs/35-isolated-backup-restore-verification.txt`](proof/terminal-outputs/35-isolated-backup-restore-verification.txt)).
-- **EBS Volume Snapshot Recovery**: Verified raw AWS EBS volume snapshot restoration (`snap-05a3b0ffe3463e280`) in [`proof/backup-recovery/restore-verification.md`](proof/backup-recovery/restore-verification.md).
-- **Zero Static AWS Keys**: GitHub Actions authenticates to AWS exclusively through OpenID Connect (OIDC) federation.
-- **Trivy Vulnerability Scanning**: Automated vulnerability scans on filesystem and multi-stage container images in CI.
+A scheduled job created a compressed PostgreSQL SQL backup at **2:00 AM IST** and stored it in S3 with AWS KMS encryption. In the live restore test, the backup was loaded into a temporary PostgreSQL pod, without connecting to the running application database. The test confirmed **five tables**, their row counts, and **eight catalog products**. The temporary pod was then removed.
 
----
+The restore pod used normal cluster networking; the test did **not** demonstrate complete network isolation. A separate [EBS snapshot recovery test](proof/backup-recovery/restore-verification.md) is also documented.
 
-## 4. The 16-Step Verification Evidence Chain
+**Evidence:** [S3 SQL backup and restore verification](proof/terminal-outputs/35-isolated-backup-restore-verification.txt)
 
-The platform was verified on live cloud infrastructure across 16 sequential operational milestones (documented across 36 numbered proof stages and 38 genuine `.txt` terminal logs in [`proof/terminal-outputs/`](proof/terminal-outputs/)):
+## Screenshots and verification
 
-```
-[01-06] Baseline Health: CI/CD clean 10/10 → EKS active → 26 pods running → Public HTTPS 200 OK
-   │
-[07-10] Incident Injection: Safety preflight → Canary memory stress triggered → Pod OOMKilled (Exit 137)
-   │
-[11-15] Diagnosis & Persistence: Prometheus alert → Alertmanager webhook → SQS FIFO → Bedrock RCA → DynamoDB
-   │
-[16-18] Operator Rejection Flow: Operator inspects proposal in CLI → Exercises rejection with audit log
-   │
-[19-24] Renderer Verification: Manifest patcher validated locally → 27/27 unit tests green → CI verified
-   │
-[25-31] Operator Approval Flow: Fresh incident triggered → Operator verifies diff → HMAC approved → PR opened
-   │
-[32-34] GitOps Recovery: PR merged to main → Argo CD reconciles → Cluster health restored (Note: log 33
-   │    captures PR merge checkpoint 64Mi/128Mi; subsequent overlay records verify final 256Mi/512Mi state)
-   │
-[35-36] Recovery & Cost Governance: KMS S3 DB restore verified → Infrastructure decommissioned (< $0.01/mo)
-```
+These screenshots were captured during the live AWS deployment, **before the cloud resources were deleted**.
 
----
+| Storefront | Argo CD |
+| --- | --- |
+| [![Storefront screenshot](proof/architecture/01-storefront-ui-demo.png)](proof/architecture/01-storefront-ui-demo.png) | [![Argo CD screenshot](proof/ci-cd/02-argocd-application-overview.png)](proof/ci-cd/02-argocd-application-overview.png) |
+| Grafana monitoring | AWS EKS |
+| [![Grafana dashboard](proof/monitoring/04-grafana-cluster-compute-resources.png)](proof/monitoring/04-grafana-cluster-compute-resources.png) | [![EKS cluster](proof/kubernetes/20-aws-eks-cluster-info.png)](proof/kubernetes/20-aws-eks-cluster-info.png) |
 
-## 5. ATS Resume Bullets (DevOps / Cloud / SRE / Platform Engineer)
+- [All 28 screenshots, organized by category](proof/screenshots/README.md)
+- [36 numbered verification stages across 38 terminal log files](proof/terminal-outputs/README.md)
+- [AWS teardown evidence](proof/terminal-outputs/36-aws-teardown-and-cost-elimination.txt)
+- [Complete proof index](proof/README.md)
 
-Copy-paste ready bullet points optimized for Applicant Tracking Systems (ATS) and tech recruiters:
+## Repository layout
 
-- **Architected and deployed a cloud-native DevSecOps platform on AWS EKS (Kubernetes 1.36)** using 3-layer modular Terraform, provisioning VPC networking, ALB ingress, Bottlerocket nodes, and AWS KMS envelope encryption.
-- **Implemented declarative GitOps and progressive delivery using Argo CD and Argo Rollouts**, enabling zero-downtime canary deployments (50% → 100% traffic shifting) with automated rollback safeguards.
-- **Engineered an event-driven AIOps self-healing pipeline** using Prometheus, Alertmanager, SQS FIFO, and an 8-node LangGraph DAG integrated with Amazon Bedrock Nova Lite (`amazon.nova-lite-v1:0`) for automated root cause analysis.
-- **Built a secure Human-in-the-Loop GitOps remediation engine** with constant-time HMAC token authentication (`hmac.compare_digest`), generating reviewed GitHub Pull Requests for operator-approved declarative manifest patching.
-- **Configured full-stack observability and automated disaster recovery**, deploying Prometheus Operator, Grafana dashboards, and daily KMS-encrypted PostgreSQL S3 backups with verified point-in-time restoration.
+| Directory | What is inside |
+| --- | --- |
+| [`application/`](application/) | React frontend, API gateway, and authentication service |
+| [`aiops/`](aiops/) | Incident analysis, policy checks, operator CLI, and tests |
+| [`devops/terraform/`](devops/terraform/) | AWS infrastructure definitions and remote state configuration |
+| [`devops/gitops/`](devops/gitops/) | Kubernetes manifests and Argo CD configuration |
+| [`devops/`](devops/) | CI/CD support, Ansible, observability, and platform configuration |
+| [`proof/`](proof/) | Screenshots, incident logs, backup tests, and teardown evidence |
 
----
+For implementation details, start with the [AIOps README](aiops/README.md), [Terraform README](devops/terraform/README.md), [system architecture](proof/architecture/system-architecture.md), or [CI/CD explanation](proof/ci-cd/ci-cd-architecture.md).
 
-## 6. Interview Preparation & Technical Defense
+## Current status and limits
 
-### The 30-Second Elevator Pitch
-> *"I designed and built an Autonomous DevSecOps and Platform Engineering platform on AWS EKS. It runs a 3-tier microservices e-commerce application with declarative GitOps via Argo CD and canary rollouts via Argo Rollouts.
->
-> What makes the project unique is its autonomous SRE incident recovery engine: when Prometheus detects an issue like a Pod OOMKilled, an in-cluster LangGraph agent sanitizes telemetry and queries Amazon Bedrock Nova Lite for root cause analysis.
->
-> Rather than letting AI blindly modify production, I implemented a Human-in-the-Loop GitOps approval CLI secured with constant-time HMAC tokens. Once an operator approves the proposal, it automatically opens a reviewed GitHub Pull Request, which syncs through Argo CD upon merge."*
+- **Live verification completed:** EKS deployment, public HTTPS application, monitoring, AI-assisted diagnosis, human-approved PR, GitOps recovery, and database restore.
+- **AWS demo decommissioned:** Project-owned resources were removed after testing. A small Terraform state bucket was retained. The estimated remaining **project-only** recurring AWS cost is **under $0.01/month**, pending AWS billing confirmation; unrelated older resources are excluded.
+- **No live demo:** The historical application, Grafana, and Argo CD URLs should not be treated as active endpoints.
+- **Scope:** This is a portfolio demonstration with controlled incidents and recorded evidence, not a claim of commercial production usage or measured service availability.
 
-### The 2-Minute Architecture Walkthrough
-1. **Infrastructure Foundation**: Provisioned via Terraform across 3 modular layers (Bootstrap S3 state, Persistent KMS/ECR/DynamoDB/SQS, and Production VPC/EKS). Runs on EKS Auto Mode with Bottlerocket worker nodes across 2 Availability Zones.
-2. **Application & Progressive Delivery**: 3-tier microservices (React 19, Express Gateway, Auth JWT service, PostgreSQL 15 StatefulSet). Traffic enters through AWS ALB with ACM TLS. Argo Rollouts manages canary traffic shifting (50% → 100%).
-3. **Observability**: Prometheus Operator scrapes cgroup metrics and custom ServiceMonitors. Preconfigured Alertmanager rules detect memory saturation, CrashLoopBackOff, and HTTP 5xx spikes.
-4. **Autonomous AIOps Engine**: Alertmanager sends alerts to an encrypted AWS SQS FIFO queue for deduplication. A FastAPI agent executes an 8-node LangGraph DAG that collects read-only telemetry, sanitizes secrets, and invokes Amazon Bedrock Nova Lite.
-5. **Remediation & Governance**: Proposals are bounded by a deterministic policy engine and persisted to DynamoDB. Operators use the `operator_cli.py` to inspect diffs and approve fixes via HMAC bearer tokens, opening a reviewed Pull Request that Argo CD reconciles. Post-verification, cloud resources were cleanly decommissioned to ensure an estimated project-only residual cost < $0.01/month.
-
-### Technical Deep-Dive Q&A
-
-<details>
-<summary><strong>Q1: Why did you choose Amazon Bedrock Nova Lite instead of a general commercial LLM like Claude 3.5 Sonnet?</strong></summary>
-
-**Answer**:
-1. **Cost & Latency Optimization**: For automated SRE diagnostics, we need fast structured JSON output and low latency to minimize Mean Time to Detect (MTTD). Nova Lite provides sub-second inference at a fraction of the token cost.
-2. **Native AWS IAM Integration**: Bedrock integrates seamlessly with AWS IAM and EKS Pod Identities, eliminating the need to manage third-party API keys or static credentials.
-3. **Prompt Sanitization Safeguards**: Before sending telemetry to Bedrock, our LangGraph pipeline scrubs all JWTs, database passwords, bearer tokens, and internal IPs using regex-based sanitizers.
-</details>
-
-<details>
-<summary><strong>Q2: Why did you implement Human-in-the-Loop approval instead of letting the AI auto-heal directly?</strong></summary>
-
-**Answer**:
-Fully autonomous writes to production clusters present significant availability risks (hallucinations, destructive deletions, resource thrashing). By enforcing a **Human-in-the-Loop GitOps model**:
-1. All changes are declarative manifest diffs, not runtime imperative commands (`kubectl patch`).
-2. Proposals are gated by a deterministic policy engine that rejects invalid or dangerous changes.
-3. Operators authenticate with constant-time HMAC tokens to prevent timing attacks.
-4. Changes are committed to a reviewed GitHub Pull Request, preserving Git as the single source of truth and maintaining an immutable audit log.
-</details>
-
-<details>
-<summary><strong>Q3: How did you test database disaster recovery?</strong></summary>
-
-**Answer**:
-We verified database recoverability across two separate mechanisms:
-1. **Automated S3 SQL Restore**: A daily Kubernetes CronJob executes compressed `pg_dump` snapshots encrypted with AWS KMS CMK and uploads to S3. In our restore verification (`proof/terminal-outputs/35-isolated-backup-restore-verification.txt`), an ephemeral PostgreSQL 15 pod was spun up, downloaded the KMS-encrypted SQL archive, restored the schema, and verified table integrity (5 tables, 8 seeded products, customer records).
-2. **EBS Volume Snapshot Restoration**: Documented in `proof/backup-recovery/restore-verification.md`, proving raw AWS EBS volume recreation from snapshot `snap-05a3b0ffe3463e280`.
-</details>
-
-<details>
-<summary><strong>Q4: How do you handle secrets and CI/CD security?</strong></summary>
-
-**Answer**:
-1. **Zero Static AWS Keys**: GitHub Actions assumes an IAM role via OpenID Connect (OIDC) with short-lived STS tokens.
-2. **KMS Envelope Encryption**: All S3 backups, SQS FIFO queues, ECR repositories, and EBS volumes are encrypted using a Customer Managed Key (CMK).
-3. **Container Hardening**: All microservice containers run with non-root UID 10001, read-only root filesystems where applicable, and drop all Linux capabilities (`ALL`).
-4. **Automated Vulnerability Scanning**: Trivy runs in GitHub Actions, scanning both filesystem dependencies and built container images prior to publishing.
-</details>
-
----
-
-## 7. Role-Based Repository Structure
-
-```
-autonomous-devsecops-platform/
-├── .github/workflows/          # CI/CD pipelines (GitHub Actions, OIDC, Trivy)
-├── application/                # Application microservices source code
-│   ├── backend/services/       # Node.js API Gateway & Auth microservices
-│   └── frontend/               # React 19 single page application
-├── aiops/                      # Autonomous AIOps Agent (LangGraph + Amazon Bedrock)
-│   ├── agent/                  # 8-node LangGraph DAG, schemas, runtime & remediation
-│   ├── Dockerfile.agent        # Hardened non-root container image definition
-│   ├── operator_cli.py         # Cloud Operator Approval CLI (HMAC token gate)
-│   ├── requirements-agent.txt  # Pinned Python dependencies
-│   └── tests/                  # Approval gate and canary remediation regression tests
-├── devops/                     # DevOps, Cloud Infrastructure & Platform Engineering
-│   ├── ansible/                # Operational Day-2 playbooks & inventory
-│   ├── gitops/                 # Declarative Kubernetes manifests (Kustomize & Argo CD)
-│   │   ├── argo-cd.yml         # Argo CD root Application
-│   │   ├── kustomization.yml   # Master Kustomize manifest
-│   │   └── k8s/                # Microservices, canary rollouts, monitoring manifests
-│   ├── local/                  # Local docker-compose stack for offline development
-│   ├── observability/          # Prometheus & Grafana dashboard configurations
-│   ├── scripts/                # Database restore and image promotion scripts
-│   └── terraform/              # 3-Layer Infrastructure as Code (AWS us-east-2)
-│       ├── bootstrap/          # Layer 1: S3 remote state storage
-│       ├── persistent/         # Layer 2: KMS CMK, ECR, SQS FIFO, DynamoDB
-│       ├── environments/production/ # Layer 3: VPC & EKS Auto Mode cluster
-│       └── modules/            # Reusable modules (vpc, eks, ecr, argocd)
-├── proof/                      # Permanent Evaluator Evidence Package
-│   ├── ci-cd/                  # 7 GitOps, Argo CD, and ECR visual proofs & pipeline specs
-│   ├── monitoring/             # 11 Grafana dashboards & Prometheus telemetry proofs
-│   ├── kubernetes/             # 2 EKS cluster info & workload status visual proofs
-│   ├── architecture/           # 6 Storefront UI, VPC map, ALB, NAT GW, SQS & DynamoDB proofs
-│   ├── backup-recovery/        # 1 S3 storage proof & technical restore reports
-│   ├── security/               # 1 AWS KMS CMK visual proof & security specs
-│   ├── cost/                   # FinOps economic model & teardown verification
-│   ├── screenshots/            # Master Screenshots Index (README.md)
-│   └── terminal-outputs/       # 36 stages (38 .txt logs) verifying 16-step operational chain
-├── README.md                   # Platform engineering documentation
-├── .gitignore                  # Git exclusions (credentials, caches, tfstate)
-└── .trivyignore                # Security vulnerability scanner exclusions
-```
-
----
-
-## 8. Local Development & Verification Commands
-
-Developers can validate the platform locally without connecting to live cloud resources:
-
-### 1. Validate Kubernetes Manifests
-```bash
-kubectl kustomize devops/gitops/
-```
-
-### 2. Syntax-Check Ansible Self-Healing Playbooks
-```bash
-ansible-playbook -i devops/ansible/inventory.ini devops/ansible/playbooks/*.yml --syntax-check
-```
-
-### 3. Validate Terraform Formatting
-```bash
-terraform fmt -recursive -check devops/terraform
-```
-
-### 4. Build Microservices Locally
-```bash
-# Build React 19 Frontend
-cd application/frontend && npm run build
-
-# Build Gateway and Auth Microservices
-cd application/backend && npm run build
-```
-
-### 5. Run AIOps Security Regression Test Suite
-```bash
-# Executes 27 unit & security tests (22 approval gate safety tests + 5 canary patch tests)
-python3 -m unittest discover -s aiops/tests -p "test_*.py" -v
-```
-
----
-
-## 9. Contact & Author
-
-- **Author**: Aarjav Jain
-- **Role**: DevOps / Cloud / SRE / Platform Engineer
-- **GitHub**: [@itsme-aarjav](https://github.com/itsme-aarjav)
-- **Domain**: `aarjav.site`
+The code, Git history, [remediation PR](https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2), and saved proofs show what was implemented and tested.
