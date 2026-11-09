@@ -4,18 +4,7 @@ The platform used monitoring alerts and Amazon Bedrock to help an operator diagn
 
 ## Flow
 
-```mermaid
-flowchart TD
-    P[Prometheus detects an issue] --> A[Alertmanager]
-    A --> Q[SQS FIFO queue]
-    Q --> G[Python / LangGraph assistant]
-    G --> E[Collect and sanitize evidence]
-    E --> B[Amazon Bedrock Nova Lite]
-    B --> D[DynamoDB: RCA and proposal]
-    D --> H[Human review and policy check]
-    H --> PR[GitHub pull request]
-    PR --> Argo[Argo CD applies merged change]
-```
+![AIOps - Incident Detection & Automated Remediation Flow](aiops-workflow.png)
 
 ## Why each service was used
 

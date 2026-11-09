@@ -83,23 +83,7 @@ The storefront and backend were **supporting demo workloads** for testing deploy
 
 ### From alert to human-approved change
 
-```mermaid
-flowchart TD
-    A["Kubernetes incident / OOMKilled"] --> B["Prometheus detects an issue"]
-    B --> C["Alertmanager sends notification"]
-    C --> D["SQS FIFO queue + DLQ"]
-    D --> E["Python / LangGraph AIOps assistant"]
-    E --> F["Collect K8s events, logs and Prometheus metrics"]
-    F --> G["Sanitize and validate evidence"]
-    G --> H["Amazon Bedrock Nova Lite: RCA"]
-    H --> I["DynamoDB: incident, report and proposal"]
-    I --> J["Deterministic remediation policy"]
-    J --> K{"Human operator decision"}
-    K -->|"Reject"| L["Audit rejection; no cluster change"]
-    K -->|"Approve"| M["GitHub remediation pull request"]
-    M --> N["Human PR review and merge"]
-    N --> O["Argo CD GitOps synchronization"]
-```
+![AIOps - Incident Detection & Automated Remediation Flow](proof/architecture/aiops-workflow.png)
 
 The AIOps system follows an **investigate → propose → review → deploy** model. It is not an AI bot with unrestricted Kubernetes write access.
 
