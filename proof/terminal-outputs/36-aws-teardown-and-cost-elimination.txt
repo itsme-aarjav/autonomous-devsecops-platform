@@ -102,3 +102,4 @@ Target: Recurring Project Cost < $2.00 / month (Achieved: < $0.01 / month)
 - KMS CMK (PendingDeletion): $0.00 / month
 - S3 (tfstate bucket < 1 MB): < $0.01 / month
 - TOTAL PROJECT RECURRING COST: < $0.01 / month (Goal < $2.00 / month: MET)
+
