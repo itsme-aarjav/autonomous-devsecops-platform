@@ -1,47 +1,26 @@
-# Evaluator Evidence Package
+# Project Evidence
 
-This directory contains the verified proof artifacts for the **Autonomous DevSecOps & Cloud Operations Platform**.
+This folder contains screenshots, logs and technical explanations from a **real AWS deployment** of the Autonomous DevSecOps Platform. The cloud infrastructure was deleted after testing to control costs. These are historical proofs, not links to a currently running demo.
 
----
+## Start here
 
-## 1. Cloud Deployment Status
+- [Screenshot index](screenshots/README.md) — **28** screenshots stored in the relevant folders.
+- [Terminal evidence index](terminal-outputs/README.md) — **36** numbered stages represented by **38** text files.
+- [Historical verification walkthrough](demo-guide.md) — a short guide to the most useful proofs.
+- [AIOps approval evidence](terminal-outputs/30-aiops-human-approval-pr.txt) and [GitHub PR #2](https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2).
+- [PostgreSQL SQL backup restore](terminal-outputs/35-isolated-backup-restore-verification.txt).
+- [AWS teardown record](terminal-outputs/36-aws-teardown-and-cost-elimination.txt).
 
-The platform was historically deployed, integrated, and fully verified on AWS in account `592668326948` (region `us-east-2`) on EKS cluster `boutique-dev-eks`.
+## By topic
 
-After complete end-to-end testing—including live e-commerce transactions, Prometheus incident detection, Amazon Bedrock root cause analysis, operator approval, GitOps reconciliation, and KMS database restoration—all active cloud resources were safely decommissioned.
+| Folder | Evidence |
+| --- | --- |
+| [`architecture/`](architecture/) | Application, VPC, ALBs, SQS, DynamoDB, AIOps flow |
+| [`ci-cd/`](ci-cd/) | Argo CD, deployment topology, ECR |
+| [`kubernetes/`](kubernetes/) | EKS cluster and workload status |
+| [`monitoring/`](monitoring/) | Grafana and monitoring screenshots |
+| [`backup-recovery/`](backup-recovery/) | S3 backup, SQL restore and EBS snapshot documentation |
+| [`security/`](security/) | KMS and security design |
+| [`cost/`](cost/) | Cost estimates and decommissioning context |
 
-- **Current Status**: Cloud infrastructure decommissioned to eliminate ongoing hosting costs.
-- **Project Residual Cost**: Estimated at **< $0.01/month** (only the Terraform S3 state bucket < 1 MB remains, pending AWS billing confirmation).
-- **Public Endpoints**: Public URLs (`demo.aarjav.site`, `argocd.demo.aarjav.site`, `grafana.demo.aarjav.site`) are no longer active.
-- **Evidence Review**: Recruiters and evaluators should review the verified visual screenshots, terminal execution logs, GitHub Actions records, and technical reports cataloged below.
-
----
-
-## 2. Evidence Directory Map
-
-All evidence is organized into dedicated categories:
-
-| Category | Description | Primary Evidence Link |
-| :--- | :--- | :--- |
-| **Visual Proofs** | 28 high-resolution screenshots organized across categories. | [Screenshots Index](screenshots/README.md) |
-| **Execution Logs** | 36 numbered verification stages across 38 genuine terminal logs. | [Terminal Outputs Index](terminal-outputs/README.md) |
-| **CI/CD & GitOps** | GitHub Actions pipeline design, ECR inventory, and 7 visual proofs. | [CI/CD Documentation](ci-cd/ci-cd-architecture.md) |
-| **Observability** | Prometheus, Alertmanager, ServiceMonitors, and 11 Grafana dashboards. | [Observability Documentation](monitoring/observability-stack.md) |
-| **Kubernetes Health** | Worker nodes, 26 workload pods, and 2 AWS EKS console screenshots. | [Cluster Inventory](kubernetes/cluster-inventory.md) |
-| **Architecture** | Cloud topology, VPC resource map, ALBs, NAT GW, SQS, and DynamoDB. | [System Architecture](architecture/system-architecture.md) |
-| **AIOps Engine** | Sequence diagram, LangGraph DAG flow, and deduplication logic. | [AIOps Pipeline](architecture/aiops-pipeline.md) |
-| **Disaster Recovery** | Automated S3 SQL backup specs and isolated point-in-time restore test. | [Restore Verification](backup-recovery/restore-verification.md) |
-| **Security** | Pod Security Standards, non-root UID 10001, KMS CMK, and OIDC trust. | [Security Architecture](security/security-architecture.md) |
-| **FinOps Governance** | Economic analysis of operational run-rates and teardown cost verification. | [FinOps Cost Model](cost/finops-cost-model.md) |
-
----
-
-## 3. Historical Verification Guides
-
-These documents provide details on how the platform was inspected and validated during live operations:
-
-- [Access & Service Inventory](access-inventory.md): Technical parameters of endpoints and internal service topology.
-- [Dashboard & Port-Forwarding Guide](dashboard-links.md): Network isolation design and administrative tunneling.
-- [Evaluator Walkthrough Guide](demo-guide.md): Historical step-by-step walkthrough of the e-commerce boutique and GitOps workflows.
-- [Manual AIOps Demonstration Guide](manual-aiops-demo.md): Walkthrough of the operator CLI (`list`, `show`, `reject`, `approve`).
-- [Verification Checklist](verification-checklist.md): Itemized audit checklist of verified operational capabilities.
+The original screenshot and terminal files were preserved. Explanatory documents describe only what those files support.

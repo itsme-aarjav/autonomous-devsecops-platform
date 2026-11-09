@@ -1,12 +1,12 @@
-# Terminal Outputs & Live Verification Logs Catalog
+# Terminal Proof Index
 
-This directory contains **38 genuine, sanitized command-line execution transcripts and terminal outputs** organized across **36 numbered proof stages**, captured during live operations on Amazon EKS (`boutique-dev-eks`, `us-east-2`, AWS account `592668326948`).
+This folder preserves **38 terminal text files** organized in **36 numbered stages**. They record historical tests and AWS teardown; the cloud demo is no longer running.
 
-Together with the 28 visual proofs cataloged in [`proof/screenshots/README.md`](../screenshots/README.md) (and located in their respective proof directories across `proof/`), these logs verify the complete 16-step platform lifecycle: from baseline deployment and e-commerce operation, through Prometheus alert triggering and Amazon Bedrock Nova Lite root cause analysis, to human operator review, reviewed GitHub PR creation, GitOps reconciliation, KMS-encrypted S3 database restore, and cost-eliminating cloud decommissioning.
+The [screenshot index](../screenshots/README.md) lists 28 images stored across the relevant proof folders. The table below explains what each log records.
 
 ---
 
-## 16-Step Verification & AIOps Incident Lifecycle
+## Proof stages
 
 | Step | Phase | Log File(s) | Description & Verification Outcome |
 | :---: | :--- | :--- | :--- |
@@ -42,7 +42,7 @@ Together with the 28 visual proofs cataloged in [`proof/screenshots/README.md`](
 | **30** | HMAC Token Approval & PR | `30-aiops-human-approval-pr.txt` | Operator authenticates with HMAC bearer token; CLI opens reviewed GitHub Pull Request. |
 | **31** | Approval Audit Trail | `31-aiops-approval-audit.txt` | Confirms proposal state marked `APPROVED` with operator identity, timestamp, and PR URL. |
 | **32** | GitOps PR Merge | `32-aiops-gitops-pr-merge.txt` | Reviewed Pull Request merged into `main` branch. |
-| **33** | Argo CD Auto-Sync | `33-aiops-gitops-deployment.txt` | Argo CD detects Git change and reconciles canary manifests. *(Note: Log 33 captures the intermediate PR merge verification showing the old canary 64Mi/128Mi configuration; subsequent production overlay records in `devops/gitops/overlays/production/canary.yml` confirm the final remediated 256Mi/512Mi state).* |
+| **33** | Earlier GitOps sync snapshot; it predates the final 256Mi/512Mi canary state. | `33-aiops-gitops-deployment.txt` | Argo CD detects Git change and reconciles canary manifests. *(Note: Log 33 captures the intermediate PR merge verification showing the old canary 64Mi/128Mi configuration; subsequent production overlay records in `devops/gitops/overlays/production/canary.yml` confirm the final remediated 256Mi/512Mi state).* |
 | **34** | Post-Fix CI Verification| `34-aiops-ci-regression-fix.txt` | Clean GitHub Actions CI pipeline execution post-merge. |
 | **35** | KMS S3 DB Restore | `35-isolated-backup-restore-verification.txt` | Isolated restore of KMS-encrypted S3 PostgreSQL SQL dump (`auth_db_backup_20261108_203012Z.sql.gz`) into ephemeral pod (schema, 8 products, customer records verified). *(Distinct from EBS snapshot recovery).* |
 | **36** | Cloud Decommissioning | `36-aws-teardown-and-cost-elimination.txt` | Safe teardown of all project-owned AWS infrastructure (EKS, VPC, ALBs, NAT GW, ECR, DynamoDB, SQS, S3). Estimated project residual cost reduced to < $0.01/month. |

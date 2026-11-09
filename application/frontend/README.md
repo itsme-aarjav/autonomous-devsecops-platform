@@ -1,64 +1,28 @@
-# Boutique Frontend Application
+# Boutique Frontend
 
-This directory contains the user interface for the online boutique store.
+The frontend is a **React** shopping interface for the demo application. It shows products, supports the shopping flow, and calls the backend through the API gateway. It uses Vite to build the browser application.
 
----
+## Run or test locally
 
-## 1. Overview
-
-The frontend is a single-page application (SPA) built with React 19, TypeScript, Vite, and Material-UI. It displays the store catalog, provides a shopping cart, and handles user login and checkout flows.
-
-- **Framework**: React 19 with Vite for fast local building and testing.
-- **UI Components**: Material-UI (MUI) for responsive layout and styling.
-- **Backend Communication**: Sends requests to the API Gateway at `/api`.
-- **Image Assets**: Product images are served statically from `/product-images/`.
-
----
-
-## 2. Configuration
-
-The application uses Vite environment variables:
-
-| Variable | Default | Purpose |
-| :--- | :--- | :--- |
-| `VITE_VERSION` | `production` | Displays the current release version in the header banner. |
-| `VITE_API_URL` | `/api` | Base path for all API Gateway requests. |
-
-In Kubernetes, the frontend container runs behind an Nginx reverse proxy that routes `/api` calls directly to the internal API Gateway service.
-
----
-
-## 3. Container Hardening
-
-The production container uses a multi-stage Docker build:
-
-1. **Build Stage**: Uses `node:24-alpine` to compile TypeScript and build production assets with `npm run build`.
-2. **Runtime Stage**: Copies the built `/app/dist` files into a minimal unprivileged container image.
-3. **Security Invariant**: Runs under dedicated non-root user `appuser` (UID 10001) with `readOnlyRootFilesystem: true`.
-
----
-
-## 4. Local Development
-
-Run the following commands to work on the frontend locally:
+From `application/frontend/`:
 
 ```bash
-# Install dependencies
 npm ci
-
-# Start local development server on http://localhost:3000
 npm run dev
-
-# Run unit tests
 npm test
-
-# Build production bundle
 npm run build
 ```
 
----
+`npm run dev` starts the local development server; it does **not** recreate the deleted AWS demo.
 
-## 5. Related Documentation
+## Configuration and container
 
-- [System Architecture](../../proof/architecture/system-architecture.md): High-level platform topology.
-- [Storefront UI Screenshot](../../proof/architecture/01-storefront-ui-demo.png): Visual proof of the running boutique catalog.
+- `VITE_API_URL` — API gateway URL; the default is `/api`.
+- `VITE_VERSION` — optional version label for the UI.
+- The production container serves the built files and uses non-root user ID `10001`.
+
+## Evidence
+
+- [Storefront screenshot](../../proof/architecture/01-storefront-ui-demo.png)
+- [Historical storefront API check](../../proof/terminal-outputs/05-storefront-api.txt)
+- [Main project overview](../../README.md)

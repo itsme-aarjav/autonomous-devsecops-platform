@@ -1,54 +1,38 @@
-# Terraform Infrastructure as Code
+# AWS Infrastructure with Terraform
 
-This directory contains the Terraform configuration used to provision the platform on AWS in region `us-east-2`.
+Terraform was used to create the cloud resources for this project in **AWS us-east-2**. There was **one operational production environment**. The historical EKS cluster name, `boutique-dev-eks`, was retained from earlier work.
 
----
+## Configuration layout
 
-## 1. Modular Structure & Purpose
+| Root | What it managed |
+| --- | --- |
+| `bootstrap/` | The S3 bucket used for Terraform remote state |
+| `persistent/` | KMS, Secrets Manager, ECR, SQS, DynamoDB and project storage |
+| `environments/production/` | VPC, subnets, NAT Gateway, EKS and related IAM |
+| `environments/production/addons/` | Kubernetes addons, including Argo CD and monitoring |
+| `modules/` | Reusable infrastructure definitions |
 
-To reduce risk, infrastructure is split into separate layers. This separation ensures that destroying or updating compute resources does not delete persistent storage, encryption keys, or databases.
+Keeping state in separate roots helped separate application infrastructure from longer-lived services. Terraform used an **S3 remote backend with native S3 lockfiles** (`use_lockfile = true`). It did **not** rely on a new DynamoDB state-locking table.
 
-| Directory | State Key | Managed Resources |
-| :--- | :--- | :--- |
-| `bootstrap/` | `bootstrap/terraform.tfstate` | S3 remote state bucket and DynamoDB state lock table. |
-| `persistent/` | `persistent/terraform.tfstate` | AWS KMS encryption keys, private ECR repos, DynamoDB tables, SQS FIFO queues, and GitHub OIDC role. |
-| `environments/production/` | `production/terraform.tfstate` | Custom VPC (4 subnets across 2 AZs), NAT Gateway, Route Tables, and EKS Auto Mode cluster (`boutique-dev-eks`). |
-| `environments/production/addons/` | `production/addons/terraform.tfstate` | Kubernetes addons including Argo CD, Argo Rollouts, and kube-prometheus-stack. |
-| `modules/` | Shared | Reusable Terraform modules (`vpc`, `eks`, `ecr`, `argocd`). |
+## Current state
 
----
+The live demo was intentionally torn down after verification. According to the recorded teardown:
 
-## 2. Why Multi-Layer Isolation Matters
+- The production, addons and persistent state roots have no remaining managed resources.
+- The **Terraform state S3 bucket** was retained.
+- Four pre-teardown state snapshots were saved privately on the operator's Mac, **outside Git**.
+- Project-only ongoing storage cost is estimated below `$0.01/month`, subject to AWS billing confirmation.
 
-1. **Blast Radius Control**: If an engineer destroys the Kubernetes cluster (`environments/production/`), the customer databases, S3 backups, and KMS keys in `persistent/` remain completely safe.
-2. **State Locking**: Remote state is stored in S3 with server-side encryption and versioning enabled. DynamoDB prevents concurrent modifications.
-3. **Least Privilege**: Each layer uses only the IAM permissions required for its specific resources.
-
----
-
-## 3. Operational History & Current Status
-
-- **Deployment**: The infrastructure was provisioned in AWS account `592668326948` (region `us-east-2`). The live cluster was named `boutique-dev-eks`.
-- **Decommissioning**: After completing full end-to-end verification, all active cloud resources (EKS, worker nodes, ALBs, NAT Gateway, ECR repos, and DynamoDB tables) were cleanly destroyed to eliminate ongoing AWS costs.
-- **Current Residual Cost**: Estimated at **< $0.01/month** (only the S3 state bucket < 1 MB remains, pending AWS billing confirmation).
-- **Offline State Backups**: Exact state files from the live deployment are archived securely offline at `~/.aws/backups/autonomous-devsecops-platform/tfstate-20261109/` with permissions `600`.
-
----
-
-## 4. Local Validation
-
-To validate the Terraform manifests without connecting to AWS:
+**Do not run `terraform apply` or `terraform destroy` to follow this documentation.** Doing so could recreate or change cloud resources. For offline formatting validation, use:
 
 ```bash
-# Check formatting
-terraform fmt -recursive -check .
+terraform fmt -recursive -check devops/terraform
 ```
 
----
+Run that command from the repository root.
 
-## 5. Related Evidence
+## Evidence
 
-- [VPC Resource Map Screenshot](../../proof/architecture/19-aws-vpc-resource-map.png): Visual map of the 4 subnets, IGW, and NAT Gateway.
-- [EKS Cluster Info Screenshot](../../proof/kubernetes/20-aws-eks-cluster-info.png): Visual proof of the live EKS Auto Mode cluster.
-- [Cloud Teardown Log](../../proof/terminal-outputs/36-aws-teardown-and-cost-elimination.txt): Terminal proof of complete resource decommissioning.
-- [FinOps Cost Model](../../proof/cost/finops-cost-model.md): Detailed analysis of operational run-rates and savings.
+- [AWS VPC screenshot](../../proof/architecture/19-aws-vpc-resource-map.png)
+- [EKS cluster screenshot](../../proof/kubernetes/20-aws-eks-cluster-info.png)
+- [Teardown report](../../proof/terminal-outputs/36-aws-teardown-and-cost-elimination.txt)
