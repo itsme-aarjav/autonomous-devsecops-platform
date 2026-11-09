@@ -116,40 +116,7 @@ Source: [LangGraph StateGraph implementation](aiops/agent/graph.py) and [agent R
 
 This shows the **historical deployed environment** with AIOps at the center.
 
-```mermaid
-flowchart LR
-    subgraph App["Demo application on Amazon EKS"]
-        UI["React frontend"] --> GW["Node.js API gateway"]
-        GW --> AUTH["Auth service"]
-        AUTH --> PG[("PostgreSQL")]
-    end
-
-    subgraph Observe["Detection"]
-        PROM["Prometheus"]
-        AM["Alertmanager"]
-        PROM --> AM
-    end
-
-    subgraph AIOPS["AIOps reasoning and response"]
-        SQS["SQS FIFO"]
-        AGENT["Python / LangGraph agent"]
-        MODEL["Amazon Bedrock Nova Lite"]
-        DDB[("DynamoDB")]
-        POLICY["Policy and human approval"]
-        SQS --> AGENT
-        AGENT --> MODEL
-        AGENT --> DDB
-        DDB --> POLICY
-    end
-
-    subgraph Delivery["Reviewed GitOps change"]
-        PR["GitHub PR"] --> ARGO["Argo CD"] --> K8S["EKS configuration"]
-    end
-
-    App -->|"Telemetry"| PROM
-    AM -->|"Incident"| SQS
-    POLICY -->|"Approved"| PR
-```
+![Production AWS Cloud Architecture](proof/architecture/system-architecture.png)
 
 **Supporting cloud platform:** Terraform created VPC networking, EKS and supporting AWS resources. GitHub Actions validated and built four containers; during the live deployment it also published images to ECR. Argo CD read Kubernetes configuration from Git.
 

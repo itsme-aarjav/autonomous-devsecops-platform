@@ -4,23 +4,7 @@ This document explains how the project was connected during the **live AWS demon
 
 ## Main components
 
-```mermaid
-flowchart TD
-    Browser[User browser] --> ALB[AWS ALB and HTTPS]
-    ALB --> UI[React frontend]
-    ALB --> API[Node.js API gateway]
-    API --> Auth[Authentication service]
-    Auth --> DB[(PostgreSQL)]
-    EKS[EKS workloads] --> PM[Prometheus / Alertmanager]
-    PM --> SQS[SQS FIFO]
-    SQS --> AI[AIOps agent]
-    AI --> Bedrock[Amazon Bedrock Nova Lite]
-    AI --> Dynamo[(DynamoDB)]
-    Dynamo --> Op[Human approval CLI]
-    Op --> Git[GitHub PR]
-    Git --> Argo[Argo CD]
-    Argo --> EKS
-```
+![Production AWS Cloud Architecture](system-architecture.png)
 
 ## Cloud infrastructure
 
