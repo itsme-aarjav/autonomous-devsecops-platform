@@ -66,3 +66,17 @@ To support both legacy path-only strings and modernized numeric identifiers with
   ]
 }
 ```
+
+---
+
+## 4. Visual Evidence Artifacts
+
+The following visual proofs captured from the live production environment validate this CI/CD and GitOps architecture:
+
+1. [`02-argocd-application-overview.png`](02-argocd-application-overview.png): Master Argo CD application status (`Healthy`, `Synced` to commit `11283ea`).
+2. [`03-argocd-network-topology.png`](03-argocd-network-topology.png): Live ALB Ingress-to-Pod topology in Argo CD.
+3. [`15-argocd-workloads-tree.png`](15-argocd-workloads-tree.png): Workload hierarchy of Deployments, ReplicaSets, and Pod instances.
+4. [`16-argocd-auth-canary-gateway.png`](16-argocd-auth-canary-gateway.png): Resource views for `auth`, `gateway`, and `canary-trigger`.
+5. [`17-argocd-postgres-statefulset-pvc.png`](17-argocd-postgres-statefulset-pvc.png): Database persistence tier: `boutique-postgres` StatefulSet, PVC, and Service.
+6. [`18-argocd-cronjob-monitoring-ingress.png`](18-argocd-cronjob-monitoring-ingress.png): Backup CronJob, PrometheusRules, Ingress, and RBAC bindings.
+7. [`24-aws-ecr-repositories.png`](24-aws-ecr-repositories.png): AWS ECR Console: 4 KMS-encrypted private container repositories.

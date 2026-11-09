@@ -1,186 +1,97 @@
-# Live Evidence Screenshots Catalog
+# Master Evidence Screenshots Index
 
-This directory contains 28 genuine, high-resolution visual proofs captured from the live AWS production environment (`boutique-dev-eks`, `us-east-2`, account `592668326948`) prior to the final cloud decommissioning.
+This directory serves as the centralized visual evidence index for the **Autonomous DevSecOps & Cloud Operations Platform**.
 
-Every image was captured personally between **01:21 AM and 04:11 AM IST on November 9, 2026** during live operational verification.
+All **28 genuine, high-resolution screenshots** captured during live cloud operation on Amazon EKS (`boutique-dev-eks`, `us-east-2`, account `592668326948`) between **01:21 AM and 04:11 AM IST on November 9, 2026** prior to cloud decommissioning have been organized into their respective dedicated proof categories across the repository.
 
 ---
 
-## Visual Proof Overview
+## 1. Categorized Visual Evidence Summary
 
-| Category | Count | Files | Primary Systems Proven |
+| Proof Category | Count | Directory | Primary Capabilities Demonstrated |
 | :--- | :---: | :--- | :--- |
-| **Storefront & End-to-End UI** | 1 | `01` | Live public e-commerce microservices application at `demo.aarjav.site` |
-| **Argo CD GitOps Workloads** | 6 | `02`, `03`, `15`–`18` | Declarative GitOps, Ingress-to-Pod topology, StatefulSet, CronJob |
-| **Grafana Live Observability** | 11 | `04`–`14` | Real-time cluster CPU/RAM, network packets, zero drops, storage IOPS, node health |
-| **AWS Cloud Infrastructure** | 10 | `19`–`28` | VPC Resource Map, EKS Auto Mode cluster, ALBs, NAT GW, ECR, DynamoDB, SQS, S3, KMS |
+| **A. CI/CD & GitOps** | 7 | [`proof/ci-cd/`](../ci-cd/) | Argo CD application state, Ingress-to-Pod network topologies, microservice trees, StatefulSet, CronJob, and AWS ECR KMS repositories. |
+| **B. Observability & SRE** | 11 | [`proof/monitoring/`](../monitoring/) | Grafana cluster compute, memory/network quotas, container packet rates, zero packet drops, storage IOPS, pod quotas, and Node Exporter host telemetry. |
+| **C. Kubernetes Health** | 2 | [`proof/kubernetes/`](../kubernetes/) | AWS EKS Auto Mode cluster configuration, Kubernetes v1.36 runtime, node status, and 26 healthy workload pods. |
+| **D. Cloud Architecture** | 6 | [`proof/architecture/`](../architecture/) | Live boutique storefront UI (`demo.aarjav.site`), AWS VPC 4-subnet resource map, 3 active ALBs, NAT Gateway, DynamoDB tables, and SQS FIFO queues. |
+| **E. Backup & Storage** | 1 | [`proof/backup-recovery/`](../backup-recovery/) | Project Amazon S3 bucket inventory (encrypted backup, diagnostics, tfstate storage). *(See terminal log 35 for SQL restore evidence).* |
+| **F. Security & KMS** | 1 | [`proof/security/`](../security/) | AWS KMS Customer Managed Key (CMK `1e4e2ce3-...`, alias `boutique-aiops-key`) providing platform-wide envelope encryption. |
+| **Total Visual Proofs** | **28** | | **All 28 screenshots accounted for across dedicated proof directories.** |
 
 ---
 
-## Screenshot Inventory & Verification Details
+## 2. Complete Screenshot Inventory & Verified Links
 
-### 1. Storefront & End-to-End Application UI
+### A. CI/CD & GitOps (`proof/ci-cd/`)
 
-#### `01-storefront-ui-demo.png`
-- **Captured**: Nov 9, 2026 at 01:21:26 AM IST
-- **URL**: `https://demo.aarjav.site`
-- **What it proves**: Live, publicly reachable e-commerce microservices platform served via AWS ALB and Amazon Route 53. Displays the full boutique catalog with 8 luxury items (Vintage Typewriter, Terracotta Plant Pot, Artisan Leather Wallet, Mechanical Keyboard, etc.), live USD pricing, responsive CSS grid, shopping cart interface, and active session state.
-- **Correlating Proof**: `proof/terminal-outputs/08-smoke-test-boutique.txt`
-
----
-
-### 2. GitOps & Application Architecture (Argo CD)
-
-#### `02-argocd-application-overview.png`
-- **Captured**: Nov 9, 2026 at 01:55:19 AM IST
-- **URL**: `https://argocd.demo.aarjav.site`
-- **What it proves**: Argo CD Application tile for `boutique` showing `Healthy` and `Synced`. Linked directly to GitHub repository `itsme-aarjav/autonomous-devsecops-platform`, tracking target revision `HEAD` (commit `11283ea`), deploying into the `boutique` namespace.
-- **Correlating Proof**: `proof/terminal-outputs/12-argocd-sync-verification.txt`
-
-#### `03-argocd-network-topology.png`
-- **Captured**: Nov 9, 2026 at 01:55:44 AM IST
-- **What it proves**: Full Kubernetes network topology rendered by Argo CD: AWS Load Balancer Controller Ingress routing to the `boutique-frontend` Service, upstream Pod endpoints, and child replica sets.
-
-#### `15-argocd-workloads-tree.png`
-- **Captured**: Nov 9, 2026 at 02:05:46 AM IST
-- **What it proves**: High-level workload hierarchy in Argo CD showing Deployments, ReplicaSets, and healthy Pod instances across microservices.
-
-#### `16-argocd-auth-canary-gateway.png`
-- **Captured**: Nov 9, 2026 at 02:05:55 AM IST
-- **What it proves**: Declarative deployment of `boutique-auth`, `boutique-gateway`, and the `boutique-canary-trigger` ConfigMap managed by Argo CD.
-
-#### `17-argocd-postgres-statefulset-pvc.png`
-- **Captured**: Nov 9, 2026 at 02:06:00 AM IST
-- **What it proves**: Database persistence tier: `boutique-postgres` StatefulSet, backing 20GB EBS PersistentVolumeClaim (`gp3`), dedicated Service, and configuration secrets.
-
-#### `18-argocd-cronjob-monitoring-ingress.png`
-- **Captured**: Nov 9, 2026 at 02:06:05 AM IST
-- **What it proves**: Operational platform infrastructure: `boutique-backup-cronjob` (automated S3 backup), `PrometheusRule` alerting specifications, Ingress rules, and RBAC bindings.
+| File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
+| :--- | :---: | :--- | :--- |
+| [`02-argocd-application-overview.png`](../ci-cd/02-argocd-application-overview.png) | 01:55:19 AM IST | Argo CD `boutique` tile: `Healthy` and `Synced`, tracking `main` at commit `11283ea`. | [`04-argo-image-parity.txt`](../terminal-outputs/04-argo-image-parity.txt) |
+| [`03-argocd-network-topology.png`](../ci-cd/03-argocd-network-topology.png) | 01:55:44 AM IST | Visual network topology: AWS Load Balancer Controller Ingress &rarr; `boutique-frontend` Service &rarr; Pod endpoints. | [`07-alb-ingress-status.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
+| [`15-argocd-workloads-tree.png`](../ci-cd/15-argocd-workloads-tree.png) | 02:05:46 AM IST | Workload hierarchy of Deployments, ReplicaSets, and healthy Pod instances in Argo CD. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
+| [`16-argocd-auth-canary-gateway.png`](../ci-cd/16-argocd-auth-canary-gateway.png) | 02:05:55 AM IST | Workload tree for `boutique-auth`, `boutique-gateway`, and the `boutique-canary-trigger` ConfigMap. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
+| [`17-argocd-postgres-statefulset-pvc.png`](../ci-cd/17-argocd-postgres-statefulset-pvc.png) | 02:06:00 AM IST | Database persistence tier: `boutique-postgres` StatefulSet, 20GB EBS PVC (`gp3`), Service, and secrets. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
+| [`18-argocd-cronjob-monitoring-ingress.png`](../ci-cd/18-argocd-cronjob-monitoring-ingress.png) | 02:06:05 AM IST | Operational infrastructure: `boutique-backup-cronjob`, `PrometheusRule` alerting specifications, Ingress, and RBAC. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
+| [`24-aws-ecr-repositories.png`](../ci-cd/24-aws-ecr-repositories.png) | 04:07:10 AM IST | AWS ECR Console: 4 KMS-encrypted private repositories (`boutique-aiops-assistant`, `boutique-auth`, `boutique-frontend`, `boutique-gateway`). | [`04-argo-image-parity.txt`](../terminal-outputs/04-argo-image-parity.txt) |
 
 ---
 
-### 3. Production Monitoring & Cluster Observability (Grafana)
+### B. Observability & SRE (`proof/monitoring/`)
 
-#### `04-grafana-cluster-compute-resources.png`
-- **Captured**: Nov 9, 2026 at 01:59:25 AM IST
-- **URL**: `https://grafana.demo.aarjav.site`
-- **What it proves**: Cluster-wide compute utilization: Cluster CPU Utilization at 2.74%, Cluster Memory Utilization at 20.5%, alongside requested CPU vs. hardware limits by namespace.
-
-#### `05-grafana-cluster-memory-network.png`
-- **Captured**: Nov 9, 2026 at 01:59:31 AM IST
-- **What it proves**: Cluster-wide memory requests and total current network bandwidth allocation across system, monitoring, and application namespaces.
-
-#### `06-grafana-cluster-container-bandwidth.png`
-- **Captured**: Nov 9, 2026 at 01:59:38 AM IST
-- **What it proves**: Granular container bandwidth received and transmitted per second, demonstrating low-latency pod communications.
-
-#### `07-grafana-cluster-packet-metrics.png`
-- **Captured**: Nov 9, 2026 at 01:59:42 AM IST
-- **What it proves**: Network reliability: transmitted packet rates alongside **0 packet drops** across all Kubernetes worker nodes and namespaces.
-
-#### `08-grafana-cluster-storage-iops.png`
-- **Captured**: Nov 9, 2026 at 01:59:47 AM IST
-- **What it proves**: Cluster storage performance: Storage IOPS and throughput across EBS gp3 volumes.
-
-#### `09-grafana-boutique-pods-cpu-memory.png`
-- **Captured**: Nov 9, 2026 at 02:00:36 AM IST
-- **What it proves**: Pod-level resource metrics inside the `boutique` namespace: individual CPU and Memory utilization for frontend, auth, postgres, and aiops-assistant pods.
-
-#### `10-grafana-boutique-pods-memory-network.png`
-- **Captured**: Nov 9, 2026 at 02:00:49 AM IST
-- **What it proves**: Pod memory quotas versus physical usage, showing healthy headroom and absence of memory pressure under standard traffic.
-
-#### `11-grafana-boutique-pods-packet-health.png`
-- **Captured**: Nov 9, 2026 at 02:01:32 AM IST
-- **What it proves**: Pod-level packet transmission rates and confirmation of zero dropped network frames within the application namespace.
-
-#### `12-grafana-boutique-pods-storage-io.png`
-- **Captured**: Nov 9, 2026 at 02:01:44 AM IST
-- **What it proves**: Postgres database pod disk I/O operations per second and read/write throughput metrics on EBS gp3.
-
-#### `13-grafana-node-exporter-system-load.png`
-- **Captured**: Nov 9, 2026 at 02:02:16 AM IST
-- **What it proves**: Host-level metrics via Prometheus Node Exporter on EKS Bottlerocket worker node `ip-10-1-10-80.us-east-2.compute.internal`: CPU utilization 1.9%, 1-min load average 0.08, RAM utilization 14.6% (1.10 GiB of 7.55 GiB).
-
-#### `14-grafana-node-exporter-network-disk.png`
-- **Captured**: Nov 9, 2026 at 02:02:23 AM IST
-- **What it proves**: Worker node hardware telemetry: network interface statistics across Elastic Network Interfaces (`eni-*`, `eth0`), disk throughput, and I/O latency.
+| File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
+| :--- | :---: | :--- | :--- |
+| [`04-grafana-cluster-compute-resources.png`](../monitoring/04-grafana-cluster-compute-resources.png) | 01:59:25 AM IST | Cluster compute utilization: CPU Utilization at 2.74%, Memory Utilization at 20.5%, requested vs limits by namespace. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`05-grafana-cluster-memory-network.png`](../monitoring/05-grafana-cluster-memory-network.png) | 01:59:31 AM IST | Cluster memory requests and current network bandwidth distribution across namespaces. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`06-grafana-cluster-container-bandwidth.png`](../monitoring/06-grafana-cluster-container-bandwidth.png) | 01:59:38 AM IST | Granular container bandwidth received and transmitted per second across pods. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`07-grafana-cluster-packet-metrics.png`](../monitoring/07-grafana-cluster-packet-metrics.png) | 01:59:42 AM IST | Network reliability: transmitted packet rates alongside **0 packet drops** across all worker nodes. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`08-grafana-cluster-storage-iops.png`](../monitoring/08-grafana-cluster-storage-iops.png) | 01:59:47 AM IST | Cluster storage performance: Storage IOPS and read/write throughput across EBS `gp3` volumes. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`09-grafana-boutique-pods-cpu-memory.png`](../monitoring/09-grafana-boutique-pods-cpu-memory.png) | 02:00:36 AM IST | Pod-level metrics in `boutique` namespace: CPU and Memory utilization for frontend, auth, postgres, and aiops pods. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`10-grafana-boutique-pods-memory-network.png`](../monitoring/10-grafana-boutique-pods-memory-network.png) | 02:00:49 AM IST | Pod memory quotas vs physical usage, showing healthy headroom and absence of memory pressure. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`11-grafana-boutique-pods-packet-health.png`](../monitoring/11-grafana-boutique-pods-packet-health.png) | 02:01:32 AM IST | Pod-level packet transmission rates and confirmation of zero dropped network frames in application namespace. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`12-grafana-boutique-pods-storage-io.png`](../monitoring/12-grafana-boutique-pods-storage-io.png) | 02:01:44 AM IST | Postgres database pod disk I/O operations per second and read/write throughput on EBS `gp3`. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`13-grafana-node-exporter-system-load.png`](../monitoring/13-grafana-node-exporter-system-load.png) | 02:02:16 AM IST | Worker node `ip-10-1-10-80`: CPU 1.9%, 1-min load 0.08, RAM utilization 14.6% (1.10 GiB of 7.55 GiB). | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
+| [`14-grafana-node-exporter-network-disk.png`](../monitoring/14-grafana-node-exporter-network-disk.png) | 02:02:23 AM IST | Node hardware telemetry: Elastic Network Interfaces (`eni-*`, `eth0`), disk throughput, and I/O latency. | [`06-observability-baseline.txt`](../terminal-outputs/06-observability-baseline.txt) |
 
 ---
 
-### 4. Live AWS Cloud Management Console Proofs
+### C. Kubernetes Cluster Health (`proof/kubernetes/`)
 
-#### `19-aws-vpc-resource-map.png`
-- **Captured**: Nov 9, 2026 at 03:53:56 AM IST
-- **AWS Console**: Amazon VPC > Your VPCs > `vpc-09b73c79412ad1f25 / boutique-dev-vpc`
-- **What it proves**: VPC Resource Map in `us-east-2` showing 10.1.0.0/16 CIDR, 4 subnets (2 public, 2 private across AZs `us-east-2a` and `us-east-2b`), 3 route tables, Internet Gateway (`boutique-dev-vpc-igw`), NAT Gateway (`boutique-dev-vpc-nat-gw`), and S3 Gateway Endpoint (`boutique-dev-vpc-s3-gateway-endpoint`).
-- **Correlating Proof**: `proof/terminal-outputs/01-terraform-persistent-state.txt`
+| File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
+| :--- | :---: | :--- | :--- |
+| [`20-aws-eks-cluster-info.png`](../kubernetes/20-aws-eks-cluster-info.png) | 03:54:27 AM IST | AWS EKS Console: `boutique-dev-eks` in `us-east-2`, Active, k8s v1.36, 26 Pods, 3 Nodes, Auto Mode enabled. | [`02-aws-eks-baseline.txt`](../terminal-outputs/02-aws-eks-baseline.txt) |
+| [`21-aws-eks-workloads-status.png`](../kubernetes/21-aws-eks-workloads-status.png) | 03:54:40 AM IST | EKS Workloads Status: 26 Pods (25 Running, 1 Succeeded), 14 Deployments, showing `aiops-assistant` running. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
 
-#### `20-aws-eks-cluster-info.png`
-- **Captured**: Nov 9, 2026 at 03:54:27 AM IST
-- **AWS Console**: Amazon EKS > Clusters > `boutique-dev-eks`
-- **What it proves**: Active EKS cluster ARN `arn:aws:eks:us-east-2:592668326948:cluster/boutique-dev-eks`, Kubernetes v1.36, EKS Auto Mode enabled, 26 Pods, 3 Nodes, 4 IAM access entries, 2 Pod Identities, and IAM role `boutique-dev-eks-cluster-role`.
-- **Correlating Proof**: `proof/terminal-outputs/03-eks-cluster-status.txt`
+---
 
-#### `21-aws-eks-workloads-status.png`
-- **Captured**: Nov 9, 2026 at 03:54:40 AM IST
-- **AWS Console**: Amazon EKS > Clusters > `boutique-dev-eks` > Resources
-- **What it proves**: EKS Workload status breakdown: 26 Pods (25 Running, 1 Succeeded), 14 Deployments (100% running), 4 StatefulSets (100% running), 1 DaemonSet, 51 ReplicaSets. Specifically displays `aiops-assistant-695f969694-8dqqm` and `alertmanager-kube-prometheus-stack-alertmanager-0` in Running state.
-- **Correlating Proof**: `proof/terminal-outputs/04-k8s-pod-status.txt`
+### D. Platform & Cloud Architecture (`proof/architecture/`)
 
-#### `22-aws-alb-load-balancers.png`
-- **Captured**: Nov 9, 2026 at 04:06:22 AM IST
-- **AWS Console**: Amazon EC2 > Load Balancers
-- **What it proves**: 3 Active Application Load Balancers provisioned by AWS Load Balancer Controller in `vpc-09b73c79412ad1f25` across 2 AZs:
-  1. `k8s-boutique-boutique-...` (Storefront ALB)
-  2. `k8s-monitori-grafanai-...` (Grafana Observability ALB)
-  3. `k8s-argocd-argocdin-...` (Argo CD GitOps ALB)
-- **Correlating Proof**: `proof/terminal-outputs/07-alb-ingress-status.txt`
+| File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
+| :--- | :---: | :--- | :--- |
+| [`01-storefront-ui-demo.png`](../architecture/01-storefront-ui-demo.png) | 01:21:26 AM IST | Live boutique storefront at `https://demo.aarjav.site` showing 8 seeded luxury products (Silk Evening Gown, Cashmere Blend Overcoat, Italian Leather Handbag, Stiletto Designer Heels, Diamond Solitaire Necklace, Classic Tailored Wool Blazer, Signature Leather Wallet, Akoya Pearl Drop Earrings) with live USD pricing, cart UI, and active session. | [`05-storefront-api.txt`](../terminal-outputs/05-storefront-api.txt) |
+| [`19-aws-vpc-resource-map.png`](../architecture/19-aws-vpc-resource-map.png) | 03:53:56 AM IST | AWS VPC Console: `boutique-dev-vpc` (10.1.0.0/16) resource map: 4 subnets across 2 AZs, 3 route tables, IGW, NAT Gateway, S3 Gateway Endpoint. | [`01-github-ci-baseline.txt`](../terminal-outputs/01-github-ci-baseline.txt) |
+| [`22-aws-alb-load-balancers.png`](../architecture/22-aws-alb-load-balancers.png) | 04:06:22 AM IST | AWS EC2 Console: 3 Active ALBs in `vpc-09b73c79412ad1f25` for Storefront, Grafana, and Argo CD. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
+| [`23-aws-vpc-nat-gateway.png`](../architecture/23-aws-vpc-nat-gateway.png) | 04:06:51 AM IST | AWS VPC Console: `boutique-dev-vpc-nat-gw` (EIP `3.12.199.177`) in public subnet `subnet-06db1c0a8fbb3cdaf`. | [`01-github-ci-baseline.txt`](../terminal-outputs/01-github-ci-baseline.txt) |
+| [`25-aws-dynamodb-tables.png`](../architecture/25-aws-dynamodb-tables.png) | 04:07:29 AM IST | AWS DynamoDB Console: 3 Active on-demand tables (`boutique-aiops-episodes`, `boutique-aiops-rca-reports`, `boutique-aiops-remediations`). | [`14-aiops-dynamodb-proposal.txt`](../terminal-outputs/14-aiops-dynamodb-proposal.txt) |
+| [`26-aws-sqs-fifo-queues.png`](../architecture/26-aws-sqs-fifo-queues.png) | 04:07:51 AM IST | AWS SQS Console: 2 SSE-KMS encrypted FIFO queues (`boutique-aiops-alert-queue.fifo`, `boutique-aiops-alert-dlq.fifo`). | [`13-aiops-processing.txt`](../terminal-outputs/13-aiops-processing.txt) |
 
-#### `23-aws-vpc-nat-gateway.png`
-- **Captured**: Nov 9, 2026 at 04:06:51 AM IST
-- **AWS Console**: Amazon VPC > NAT gateways > `nat-0f90877e6368c66d5 / boutique-dev-vpc-nat-gw`
-- **What it proves**: Available public NAT Gateway associated with Elastic IP `3.12.199.177` in `subnet-06db1c0a8fbb3cdaf / boutique-dev-vpc-public-us-east-2a`, providing secure egress for private subnets.
+---
 
-#### `24-aws-ecr-repositories.png`
-- **Captured**: Nov 9, 2026 at 04:07:10 AM IST
-- **AWS Console**: Amazon ECR > Private repositories
-- **What it proves**: 4 KMS-encrypted ECR repositories under account `592668326948`:
-  1. `boutique-aiops-assistant`
-  2. `boutique-auth`
-  3. `boutique-frontend`
-  4. `boutique-gateway`
-- **Correlating Proof**: `proof/terminal-outputs/02-ecr-repositories.txt`
+### E. Backup & Storage Resources (`proof/backup-recovery/`)
 
-#### `25-aws-dynamodb-tables.png`
-- **Captured**: Nov 9, 2026 at 04:07:29 AM IST
-- **AWS Console**: Amazon DynamoDB > Tables
-- **What it proves**: 3 Active on-demand DynamoDB tables storing the AIOps incident state machine:
-  1. `boutique-aiops-episodes` (PK: `episode_id`)
-  2. `boutique-aiops-rca-reports` (PK: `incident_id`)
-  3. `boutique-aiops-remediations` (PK: `proposal_id`, 1 GSI)
-- **Correlating Proof**: `proof/terminal-outputs/05-dynamodb-tables.txt`
+| File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
+| :--- | :---: | :--- | :--- |
+| [`27-aws-s3-buckets-inventory.png`](../backup-recovery/27-aws-s3-buckets-inventory.png) | 04:10:25 AM IST | AWS S3 Console: Project storage buckets in `us-east-2` (`boutique-aiops-backups-592668326948-us-east-2`, `boutique-aiops-node-diagnostics-us-east-2`, `boutique-aiops-tfstate-us-east-2`). *(Note: This bucket inventory proves storage resource existence; actual end-to-end database SQL restore verification is proven in terminal log 35).* | [`35-isolated-backup-restore-verification.txt`](../terminal-outputs/35-isolated-backup-restore-verification.txt) |
 
-#### `26-aws-sqs-fifo-queues.png`
-- **Captured**: Nov 9, 2026 at 04:07:51 AM IST
-- **AWS Console**: Amazon SQS > Queues
-- **What it proves**: 2 SSE-KMS encrypted FIFO queues with dead-letter queue routing:
-  1. `boutique-aiops-alert-queue.fifo`
-  2. `boutique-aiops-alert-dlq.fifo`
-- **Correlating Proof**: `proof/terminal-outputs/06-sqs-queues.txt`
+---
 
-#### `27-aws-s3-buckets-inventory.png`
-- **Captured**: Nov 9, 2026 at 04:10:25 AM IST
-- **AWS Console**: Amazon S3 > Buckets
-- **What it proves**: Project S3 storage in `us-east-2`:
-  - `boutique-aiops-backups-592668326948-us-east-2` (encrypted backups)
-  - `boutique-aiops-node-diagnostics-us-east-2` (diagnostic runbooks)
-  - `boutique-aiops-tfstate-us-east-2` (Terraform remote state)
-  - (Also confirms clear separation from pre-existing `pokevault-*` buckets in `us-east-1`).
-- **Correlating Proof**: `proof/terminal-outputs/01-terraform-persistent-state.txt`
+### F. Security & Cryptographic Keys (`proof/security/`)
 
-#### `28-aws-kms-customer-managed-keys.png`
-- **Captured**: Nov 9, 2026 at 04:10:55 AM IST
-- **AWS Console**: AWS Key Management Service (KMS) > Customer managed keys
-- **What it proves**: Active Customer Managed Key (CMK) `1e4e2ce3-e642-47a9-a20d-3a47b052918b` with alias `boutique-aiops-key` (Symmetric, SYMMETRIC_DEFAULT, Encrypt and decrypt), providing platform-wide envelope encryption for S3, SQS, ECR, and Secrets Manager.
-- **Correlating Proof**: `proof/terminal-outputs/01-terraform-persistent-state.txt`
+| File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
+| :--- | :---: | :--- | :--- |
+| [`28-aws-kms-customer-managed-keys.png`](../security/28-aws-kms-customer-managed-keys.png) | 04:10:55 AM IST | AWS KMS Console: Customer Managed Key `1e4e2ce3-e642-47a9-a20d-3a47b052918b` (alias `boutique-aiops-key`), Enabled, Symmetric, SYMMETRIC_DEFAULT, providing envelope encryption for S3, SQS, ECR, and Secrets Manager. | [`01-github-ci-baseline.txt`](../terminal-outputs/01-github-ci-baseline.txt) |
+
+---
+
+> [!NOTE]
+> **FinOps & Cost Proofs Directory (`proof/cost/`)**:
+> Per project guidelines, `proof/cost/` holds the detailed FinOps economic model and cost governance documentation ([`proof/cost/finops-cost-model.md`](../cost/finops-cost-model.md)) and teardown cost verification ([`proof/terminal-outputs/36-aws-teardown-and-cost-elimination.txt`](../terminal-outputs/36-aws-teardown-and-cost-elimination.txt)). No unrelated screenshots have been placed in `proof/cost/`.

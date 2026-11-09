@@ -124,3 +124,9 @@ The trust policy is now strictly pinned to the exact repository claims and accep
   2. **Operator Access**: The human operator manages and verifies the cluster from dynamic ISP IP addresses without a corporate VPN gateway.
   Restricting public CIDRs in DEV would immediately sever GitHub Actions deployment verification and operator kubectl access.
 - **Defense in Depth**: The Kubernetes API server never allows anonymous requests. Every API call is authenticated and authorized via AWS IAM OIDC web identity tokens, EKS Access Entries, and Kubernetes RBAC, with GitHub Actions restricted strictly to read-only `AmazonEKSAdminViewPolicy`.
+
+---
+
+## 6. Visual Cryptographic Proof
+
+1. [`28-aws-kms-customer-managed-keys.png`](28-aws-kms-customer-managed-keys.png): AWS KMS Console showing Customer Managed Key `1e4e2ce3-e642-47a9-a20d-3a47b052918b` (alias `boutique-aiops-key`), Enabled, Symmetric, providing envelope encryption for S3 backups, SQS FIFO queues, and ECR repositories.

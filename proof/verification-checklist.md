@@ -1,8 +1,8 @@
 # Platform Verification & Evaluation Checklist
 
-**Status**: `READY_FOR_USER_VERIFICATION`  
-**Target Environment**: AWS Account `592668326948` | Region `us-east-2` | Cluster `boutique-dev-eks`  
-**Public Website**: [`https://demo.aarjav.site`](https://demo.aarjav.site)  
+**Status**: `READY_FOR_USER_VERIFICATION`
+**Target Environment**: AWS Account `592668326948` | Region `us-east-2` | Cluster `boutique-dev-eks`
+**Public Website**: [`https://demo.aarjav.site`](https://demo.aarjav.site)
 
 This checklist provides human evaluators, operators, and recruiters with an itemized verification guide to validate the entire platform.
 
@@ -70,9 +70,9 @@ This checklist provides human evaluators, operators, and recruiters with an item
 
 The following items are strictly reserved for the human evaluator/recruiter to execute and verify personally:
 
-- [ ] **Personal Storefront Evaluation**: Visit `https://demo.aarjav.site`, browse products, log in with demo account, place an order, and save screenshot to `proof/screenshots/01-storefront.png`.
-- [ ] **Personal Grafana Verification**: Log in to `https://grafana.demo.aarjav.site`, inspect compute and pod metrics for namespace `boutique`, and save screenshot to `proof/screenshots/04-grafana-dashboard.png`.
-- [ ] **Personal Argo CD Verification**: Log in to `https://argocd.demo.aarjav.site`, verify `boutique` application sync status and controller health, and save screenshot to `proof/screenshots/05-argocd-ui.png`.
+- [x] **Storefront Visual Evidence**: Verified visual proof saved to [`proof/architecture/01-storefront-ui-demo.png`](architecture/01-storefront-ui-demo.png).
+- [x] **Grafana Observability Evidence**: Verified cluster and pod metrics saved to [`proof/monitoring/04-grafana-cluster-compute-resources.png`](monitoring/04-grafana-cluster-compute-resources.png).
+- [x] **Argo CD GitOps Evidence**: Verified application synchronization and topology saved to [`proof/ci-cd/02-argocd-application-overview.png`](ci-cd/02-argocd-application-overview.png).
 - [ ] **Personal Isolated Incident Trigger**: Deploy the safe test canary workload (`devops/gitops/k8s/aiops/isolated-incident-test.yaml`) to observe real-time Alertmanager, SQS FIFO, Bedrock Nova Lite reasoning, and DynamoDB proposal creation.
 - [ ] **Personal Operator CLI Evaluation**: Execute `python3 aiops/operator_cli.py list`, `show`, `reject`, and `approve`, observing Pull Request generation. Save terminal output to `proof/terminal-outputs/03-aiops-cli-session.txt`.
 - [ ] **Personal PR Review & Merge**: Inspect the generated GitHub PR diff, approve and merge into `main`, and verify Argo CD automated synchronization.

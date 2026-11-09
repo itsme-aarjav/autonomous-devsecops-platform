@@ -180,7 +180,7 @@ https://grafana.demo.aarjav.site
 - **Recommended Dashboards**:
   - Navigate to **Dashboards** &rarr; **Kubernetes / Compute Resources / Namespace (Pods)**.
   - Select namespace `boutique` to view CPU, memory, and network throughput across all active microservices.
-- **Evidence Tip**: Capture a screenshot of the live Grafana dashboard and save to `proof/screenshots/04-grafana-dashboard.png`.
+- **Evidence Tip**: View verified visual proofs in [`proof/monitoring/04-grafana-cluster-compute-resources.png`](monitoring/04-grafana-cluster-compute-resources.png).
 
 ### B. Argo CD GitOps Continuous Delivery
 Navigate to the remote Argo CD interface:
@@ -194,7 +194,7 @@ https://argocd.demo.aarjav.site
     kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
     ```
 - **Live Status**: Inspect the `boutique-dev` application and healthy Argo Rollouts canary controllers.
-- **Evidence Tip**: Capture a screenshot of the Argo CD application topology and save to `proof/screenshots/05-argocd-ui.png`.
+- **Evidence Tip**: View verified visual proofs in [`proof/ci-cd/02-argocd-application-overview.png`](ci-cd/02-argocd-application-overview.png).
 
 ### C. Internal Telemetry Engine (Prometheus & Alertmanager)
 Prometheus and Alertmanager do not feature native user authentication. In compliance with network isolation standards, they are intentionally kept internal on Kubernetes `ClusterIP` to prevent exposing unauthenticated administrative endpoints:

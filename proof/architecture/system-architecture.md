@@ -105,3 +105,16 @@ flowchart TD
 | **boutique-auth** | Node.js / TypeScript | 3002 | Node 20 Slim | `runAsNonRoot: true`, drop capabilities |
 | **boutique-postgres** | PostgreSQL 15 | 5432 | Postgres 15 Alpine (v15.19) | StatefulSet with 20Gi encrypted persistent storage |
 | **aiops-assistant** | Python 3.11 / FastAPI | 8080 | Python 3.11 Slim | `runAsUser: 10001`, `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, `dropCaps: ["ALL"]` |
+
+---
+
+## 4. Visual Architecture Evidence
+
+The following visual proofs captured during live cloud operation validate the platform architecture:
+
+1. [`01-storefront-ui-demo.png`](01-storefront-ui-demo.png): Live boutique e-commerce storefront UI at `https://demo.aarjav.site` with 8 seeded luxury products and active cart.
+2. [`19-aws-vpc-resource-map.png`](19-aws-vpc-resource-map.png): AWS VPC Resource Map showing 4 subnets across 2 AZs, route tables, IGW, NAT GW, and S3 Gateway Endpoint.
+3. [`22-aws-alb-load-balancers.png`](22-aws-alb-load-balancers.png): AWS EC2 Console showing 3 active Application Load Balancers for Storefront, Grafana, and Argo CD.
+4. [`23-aws-vpc-nat-gateway.png`](23-aws-vpc-nat-gateway.png): AWS VPC NAT Gateway (`nat-0f90877e6368c66d5`) with Elastic IP `3.12.199.177`.
+5. [`25-aws-dynamodb-tables.png`](25-aws-dynamodb-tables.png): AWS DynamoDB Console showing the 3 on-demand AIOps tables (`episodes`, `rca-reports`, `remediations`).
+6. [`26-aws-sqs-fifo-queues.png`](26-aws-sqs-fifo-queues.png): AWS SQS Console showing the 2 SSE-KMS encrypted FIFO incident queues (`alert-queue.fifo`, `alert-dlq.fifo`).

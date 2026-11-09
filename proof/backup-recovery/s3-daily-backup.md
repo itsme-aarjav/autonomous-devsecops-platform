@@ -1,9 +1,9 @@
 # Real Daily PostgreSQL S3 Backup Architecture
 
-> **Target Environment**: AWS Account `592668326948` | Region `us-east-2` | Cluster `boutique-dev-eks`  
-> **S3 Backup Destination**: `s3://boutique-aiops-backups-592668326948-us-east-2/backups/`  
-> **AWS KMS Key ID**: `1e4e2ce3-e642-47a9-a20d-3a47b052918b`  
-> **Kubernetes CronJob**: `postgres-backup-daily` in namespace `boutique`  
+> **Target Environment**: AWS Account `592668326948` | Region `us-east-2` | Cluster `boutique-dev-eks`
+> **S3 Backup Destination**: `s3://boutique-aiops-backups-592668326948-us-east-2/backups/`
+> **AWS KMS Key ID**: `1e4e2ce3-e642-47a9-a20d-3a47b052918b`
+> **Kubernetes CronJob**: `postgres-backup-daily` in namespace `boutique`
 > **Schedule**: Daily at 02:00 AM IST (`schedule: "0 2 * * *"`, `timeZone: "Asia/Kolkata"`)
 
 ---
@@ -114,3 +114,10 @@ kubectl delete job manual-s3-backup-verify -n boutique
   - `ServerSideEncryption: aws:kms`
   - `SSEKMSKeyId: arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b`
   - `BucketKeyEnabled: true`
+
+---
+
+## 5. Visual Storage Evidence & Restore Distinction
+
+1. [`27-aws-s3-buckets-inventory.png`](27-aws-s3-buckets-inventory.png): AWS S3 Console showing project buckets including `boutique-aiops-backups-592668326948-us-east-2` alongside diagnostic and tfstate buckets.
+2. **Restore Evidence**: Note that the S3 bucket listing confirms storage resource availability. Actual completed point-in-time SQL restore verification is documented with full terminal logs in [`proof/terminal-outputs/35-isolated-backup-restore-verification.txt`](../terminal-outputs/35-isolated-backup-restore-verification.txt).

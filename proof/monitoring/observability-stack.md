@@ -50,3 +50,21 @@ route:
 ```
 
 When an incident fires (such as `PodOOMKilled` or `KubePodCrashLooping`), Alertmanager immediately bundles the telemetry labels and POSTs to the AIOps agent, initiating autonomous diagnosis.
+
+---
+
+## 4. Visual Observability Dashboards
+
+The following Grafana visual proofs captured during live operational monitoring are cataloged in this directory:
+
+1. [`04-grafana-cluster-compute-resources.png`](04-grafana-cluster-compute-resources.png): Cluster CPU Utilization (2.74%) & RAM Utilization (20.5%).
+2. [`05-grafana-cluster-memory-network.png`](05-grafana-cluster-memory-network.png): Memory requests/limits and live network bandwidth by namespace.
+3. [`06-grafana-cluster-container-bandwidth.png`](06-grafana-cluster-container-bandwidth.png): Container bandwidth received and transmitted per second.
+4. [`07-grafana-cluster-packet-metrics.png`](07-grafana-cluster-packet-metrics.png): Transmitted packet rates and confirmation of zero packet drops.
+5. [`08-grafana-cluster-storage-iops.png`](08-grafana-cluster-storage-iops.png): EBS gp3 storage IOPS and read/write throughput.
+6. [`09-grafana-boutique-pods-cpu-memory.png`](09-grafana-boutique-pods-cpu-memory.png): Namespace pod CPU and memory utilization breakdown.
+7. [`10-grafana-boutique-pods-memory-network.png`](10-grafana-boutique-pods-memory-network.png): Pod memory quotas vs physical usage.
+8. [`11-grafana-boutique-pods-packet-health.png`](11-grafana-boutique-pods-packet-health.png): Pod-level packet transmission rates and zero drops.
+9. [`12-grafana-boutique-pods-storage-io.png`](12-grafana-boutique-pods-storage-io.png): Postgres database pod disk I/O and throughput.
+10. [`13-grafana-node-exporter-system-load.png`](13-grafana-node-exporter-system-load.png): Bottlerocket node system load, CPU (1.9%), and RAM (14.6%).
+11. [`14-grafana-node-exporter-network-disk.png`](14-grafana-node-exporter-network-disk.png): Worker node hardware telemetry (ENIs, disk throughput, latency).

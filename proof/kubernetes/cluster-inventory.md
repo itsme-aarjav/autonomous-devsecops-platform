@@ -100,3 +100,12 @@ boutique    persistentvolumeclaim/postgres-data-boutique-postgres-0   Bound    p
 - **Underlying AWS Volume**: `vol-01f1ce50d718b4e69` (gp3, 20Gi, KMS Encrypted with `arn:aws:kms:us-east-2:592668326948:key/bbeb7c58-6210-4ebe-8181-ce9e30b9ac7c`)
 - **Automated Backup Snapshot**: `snap-05a3b0ffe3463e280` (Completed, 100%, KMS Encrypted)
 - **Restore Verification Test**: Validated on test volume `vol-09c9dcd255219cd44` with isolated verifier; verified and safely cleaned up.
+
+---
+
+## 6. Visual Cluster Evidence
+
+The following visual proofs captured from the AWS Console validate the cluster configuration and workload health:
+
+1. [`20-aws-eks-cluster-info.png`](20-aws-eks-cluster-info.png): AWS EKS Console showing cluster `boutique-dev-eks` info (v1.36, EKS Auto Mode, 26 Pods, 3 Nodes).
+2. [`21-aws-eks-workloads-status.png`](21-aws-eks-workloads-status.png): AWS EKS Workloads Status dashboard (26 Pods, 14 Deployments, 4 StatefulSets, `aiops-assistant` running).
