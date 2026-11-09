@@ -339,6 +339,16 @@ The pipeline uses Trivy for security scans and GitHub OIDC for short-lived AWS c
 
 [Current GitHub Actions](https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions) · [Successful historical deployment](https://github.com/itsme-aarjav/autonomous-devsecops-platform/actions/runs/42529170045) · [CI/CD explanation](proof/ci-cd/ci-cd-architecture.md)
 
+### Where Ansible is used
+
+**Ansible is used for PostgreSQL backup operations, not AI incident remediation.** Its [backup playbook](devops/ansible/playbooks/backup_postgres.yml) checks the database pod, runs `pg_dump`, compresses and validates the SQL file, uploads it to Amazon S3 with KMS encryption, verifies the upload, and includes a seven-day retention cleanup step.
+
+```bash
+ansible-playbook -i devops/ansible/inventory.ini devops/ansible/playbooks/backup_postgres.yml
+```
+
+**Scheduling vs. Ansible:** The separate [Kubernetes CronJob](devops/gitops/overlays/production/backup-cronjob.yml) schedules the actual daily backup at **2:00 AM IST**; Ansible's playbook is a backup runbook without its own scheduler. GitHub Actions runs an **Ansible syntax check**, not a live backup. The [saved SQL restore proof](proof/terminal-outputs/35-isolated-backup-restore-verification.txt) verifies a Kubernetes CronJob backup, not a separate Ansible execution.
+
 ## AIOps safety, backups & recovery
 
 | Area | Implementation |
