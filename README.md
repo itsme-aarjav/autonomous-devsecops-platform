@@ -194,6 +194,124 @@ The key achievement was a **real OOMKilled (exit code 137)** failure on AWS EKS,
 
 The frontend's Argo Rollouts manifest is a **different canary feature** with **50% → 100%** steps. See [frontend rollout configuration](devops/gitops/overlays/production/frontend.yml).
 
+## AIOps commands and outputs
+
+These are the main **operator commands used to review and act on AIOps proposals**. Run them from the repository root with an authorized AWS identity, the correct region, and required approval/GitHub credentials. **The AWS demo has been deleted, so the live commands below are historical instructions, not working commands for the current environment.** The outputs are shortened from saved proof files; where a standalone command output was not recorded, the example is labeled.
+
+### 1. Check the proposal in DynamoDB
+
+The agent stored the diagnosis in `boutique-aiops-rca-reports` and the suggested fix in `boutique-aiops-remediations`.
+
+```bash
+export AWS_DEFAULT_REGION=us-east-2
+aws sts get-caller-identity
+
+aws dynamodb scan \
+  --table-name boutique-aiops-remediations \
+  --projection-expression "proposal_id,incident_id,proposal_status,workload"
+```
+
+**Recorded DynamoDB proposal** ([proof 14](proof/terminal-outputs/14-aiops-dynamodb-proposal.txt), reformatted here; not the exact `aws dynamodb scan` stdout):
+
+```text
+ProposalID: 597a71c7dbb432d2
+Status:     PENDING_HUMAN_APPROVAL
+Workload:   canary
+Category:   Pod OOMKilled
+```
+
+To read the complete diagnosis, open the **RCA reports table** in AWS DynamoDB Console or look up its item by `incident_id`. The saved [RCA processing log](proof/terminal-outputs/13-aiops-processing.txt) also confirms that Bedrock succeeded and the report was stored.
+
+### 2. List proposals awaiting approval
+
+```bash
+python3 aiops/operator_cli.py list --status pending
+```
+
+**Example CLI output** based on the real saved proposal (no separate `list` terminal capture was retained):
+
+```text
+597a71c7dbb432d2  PENDING_HUMAN_APPROVAL  canary  Pod OOMKilled  confidence=95%
+```
+
+Copy the proposal ID from the list. **`PENDING_HUMAN_APPROVAL` means the AI has proposed a fix, but no operator has approved it yet.**
+
+### 3. Inspect the diagnosis and exact YAML change
+
+```bash
+python3 aiops/operator_cli.py show 0abe485a55e34e73
+```
+
+**Recorded human review output** ([proof 29](proof/terminal-outputs/29-aiops-approval-review.txt), shortened):
+
+```diff
+Proposal ID : 0abe485a55e34e73
+Status      : PENDING_HUMAN_APPROVAL
+Category    : Pod OOMKilled
+Action Type : SET_MEMORY_RESOURCES
+Confidence  : 95%
+Policy      : APPROVED
+- memory: 64Mi
++ memory: 256Mi
+- memory: 128Mi
++ memory: 512Mi
+```
+
+**`Policy: APPROVED` is not human approval.** It means the suggested change passed the project's safety rules.
+
+### 4. Reject a proposal when its diff is unsafe
+
+```bash
+python3 aiops/operator_cli.py reject 597a71c7dbb432d2 \
+  --reason "Excessive YAML reformatting; change only memory values"
+```
+
+The CLI requires operator authentication and manually typing `REJECT`. **Recorded output** ([proof 17](proof/terminal-outputs/17-aiops-human-rejection.txt), shortened):
+
+```text
+[OK] Proposal '597a71c7dbb432d2' successfully rejected
+Reason: Human review rejected excessive YAML reformatting.
+```
+
+A rejected proposal does **not** open a remediation PR. [DynamoDB rejection audit](proof/terminal-outputs/18-aiops-rejection-audit.txt).
+
+### 5. Approve a safe proposal and create a PR
+
+```bash
+python3 aiops/operator_cli.py approve 0abe485a55e34e73
+```
+
+The CLI shows the diff, checks the operator's authorization and asks the human to type `APPROVE`. **Recorded output** ([proof 30](proof/terminal-outputs/30-aiops-human-approval-pr.txt), shortened):
+
+```text
+[SUCCESS] Remediation Pull Request created successfully for human review!
+Mode      : AUTHENTICATED
+PR Number : #2
+PR URL    : https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2
+```
+
+Approval **creates a pull request; it does not directly patch the cluster**.
+
+### 6. Check status, review the PR, and verify delivery
+
+```bash
+python3 aiops/operator_cli.py status 0abe485a55e34e73
+
+gh pr view 2
+gh pr diff 2
+```
+
+**Expected `status` format**, derived from the CLI code and recorded [DynamoDB approval audit](proof/terminal-outputs/31-aiops-approval-audit.txt); a standalone `status` command capture was not retained:
+
+```text
+Proposal '0abe485a55e34e73': status=PR_CREATED
+  Pull Request  : https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2
+```
+
+An operator then **reviews and merges the PR in GitHub**. In the real demo, [PR #2](https://github.com/itsme-aarjav/autonomous-devsecops-platform/pull/2) was merged, and Argo CD synchronized the GitOps change. The final canary manifest records `256Mi` request and `512Mi` limit. See [merge log](proof/terminal-outputs/32-aiops-gitops-pr-merge.txt) and [final manifest](devops/gitops/overlays/production/canary.yml).
+
+**No AWS available now?** You can still explore the CLI's **offline sample proposals** with `python3 aiops/operator_cli.py list --simulate` and `python3 aiops/operator_cli.py show sim-prop-001 --simulate`. These use in-memory fixtures, **not real Bedrock, DynamoDB, or GitHub**.
+
 ## CI/CD and deployment
 
 The delivery pipeline supported the AIOps assistant and demo workloads. The historical release process was:
