@@ -1,6 +1,6 @@
 # Terminal Outputs & Live Verification Logs Catalog
 
-This directory contains **38 genuine, sanitized command-line execution transcripts and terminal outputs** organized across **36 numbered proof stages**, captured during live AWS operations on Amazon EKS (`boutique-dev-eks`, `us-east-2`, AWS account `592668326948`).
+This directory contains **38 genuine, sanitized command-line execution transcripts and terminal outputs** organized across **36 numbered proof stages**, captured during live operations on Amazon EKS (`boutique-dev-eks`, `us-east-2`, AWS account `592668326948`).
 
 Together with the 28 visual proofs cataloged in [`proof/screenshots/README.md`](../screenshots/README.md) (and located in their respective proof directories across `proof/`), these logs verify the complete 16-step platform lifecycle: from baseline deployment and e-commerce operation, through Prometheus alert triggering and Amazon Bedrock Nova Lite root cause analysis, to human operator review, reviewed GitHub PR creation, GitOps reconciliation, KMS-encrypted S3 database restore, and cost-eliminating cloud decommissioning.
 
@@ -25,11 +25,11 @@ Together with the 28 visual proofs cataloged in [`proof/screenshots/README.md`](
 | **13** | SQS & LangGraph Ingestion| `13-aiops-processing.txt` | AIOps Assistant dequeues message, normalizes incident, and gathers cluster logs. |
 | **14** | Bedrock RCA & DynamoDB | `14-aiops-dynamodb-proposal.txt`<br/>`14-aiops-live-proposals.txt` | Amazon Bedrock Nova Lite computes RCA; proposals persisted to `boutique-aiops-remediations`. *(2 files for stage 14)*. |
 | **15** | Proposal Inspection | `15-aiops-proposal-details.txt` | Complete proposal payload showing incident ID, root cause diagnosis, and manifest diff. |
-| **16** | Operator CLI Review | `16-aiops-human-review.txt` | Cloud Operator inspects pending proposal in CloudShell CLI (`aiops/operator_cli.py list`). |
+| **16** | Operator CLI Review | `16-aiops-human-review.txt` | Cloud Operator inspects pending proposal in CLI (`aiops/operator_cli.py list`). |
 | **17** | Human Rejection Flow | `17-aiops-human-rejection.txt` | Operator exercises rejection path: `--status rejected` with human audit reasoning. |
 | **18** | Rejection Audit | `18-aiops-rejection-audit.txt` | Confirms proposal state marked `REJECTED` in DynamoDB with audit trail. |
 | **19** | Renderer Preflight | `19-renderer-preflight.txt` | Diagnostic preflight for declarative manifest patching engine. |
-| **20** | Unified Manifest Diff | `20-renderer-minimal-diff-local.txt` | Surgical YAML diff calculated for canary memory limit bump (`128Mi` &rarr; `256Mi`). |
+| **20** | Unified Manifest Diff | `20-renderer-minimal-diff-local.txt` | Surgical YAML diff calculated for canary memory limit bump (`128Mi` → `256Mi`). |
 | **21** | Regression Test Suite | `21-aiops-regression-tests.txt` | 27/27 unit & security regression tests passing (22 approval gate tests + 5 patch tests). |
 | **22** | Git Branch Promotion | `22-renderer-github-push.txt` | Safe promotion of tested patching engine to repository. |
 | **23** | CI Pipeline Run | `23-renderer-production-pipeline.txt` | GitHub Actions pipeline validates updated codebase without deployment errors. |

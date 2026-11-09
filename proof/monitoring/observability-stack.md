@@ -1,15 +1,15 @@
 # Observability & Monitoring Infrastructure
 
-## 1. Monitoring Architecture (kube-prometheus-stack 92.22.0)
+## 1. Monitoring Architecture (kube-prometheus-stack)
 
-The observability subsystem is orchestrated using the CoreOS Prometheus Operator, providing cloud-native CRDs to manage Prometheus instances, Alertmanager clusters, ServiceMonitors, and PodMonitors declaratively.
+The observability subsystem is orchestrated using the CoreOS Prometheus Operator, providing declarative Kubernetes Custom Resource Definitions (CRDs) to manage Prometheus instances, Alertmanager clusters, ServiceMonitors, and PodMonitors.
 
-### Core Components Deployed:
-1. **Prometheus Server**: Statefully scrapes targets defined by Kubernetes `ServiceMonitor` CRDs every 30 seconds. Configured with 10-day retention and persistent TSDB storage.
+### Core Components:
+1. **Prometheus Server**: Scrapes metrics defined by Kubernetes `ServiceMonitor` CRDs every 30 seconds. Configured with 10-day retention and persistent TSDB storage.
 2. **Alertmanager**: Deduplicates, groups, and routes active Prometheus alerts based on severity and namespace labels.
-3. **Node Exporter**: DaemonSet running on every Bottlerocket node (`9fwrn`, `fhwbw`, `mzj5c`) exposing hardware and OS metrics.
-4. **kube-state-metrics**: Listens to the Kubernetes API server and generates metrics about the health of deployments, replica sets, pods, and persistent volumes.
-5. **Grafana**: Visualizes metrics through pre-provisioned dashboards for cluster health, namespace capacity, and application latency.
+3. **Node Exporter**: DaemonSet running on every Bottlerocket node (`9fwrn`, `fhwbw`, `mzj5c`) exposing hardware and Linux OS metrics.
+4. **kube-state-metrics**: Listens to the Kubernetes API server and generates metrics on the health of deployments, replica sets, pods, and persistent volumes.
+5. **Grafana**: Visualizes metrics through preconfigured dashboards for cluster health, namespace capacity, container networking, and application latency.
 
 ---
 
@@ -49,7 +49,7 @@ route:
   repeat_interval: 1h
 ```
 
-When an incident fires (such as `PodOOMKilled` or `KubePodCrashLooping`), Alertmanager immediately bundles the telemetry labels and POSTs to the AIOps agent, initiating autonomous diagnosis.
+When an incident fires (such as `PodOOMKilled` or `KubePodCrashLooping`), Alertmanager bundles the alert labels and sends a webhook to the AIOps agent, initiating automated diagnosis.
 
 ---
 

@@ -2,7 +2,7 @@
 
 This directory serves as the centralized visual evidence index for the **Autonomous DevSecOps & Cloud Operations Platform**.
 
-All **28 genuine, high-resolution screenshots** captured during live cloud operation on Amazon EKS (`boutique-dev-eks`, `us-east-2`, account `592668326948`) between **01:21 AM and 04:11 AM IST on November 9, 2026** prior to cloud decommissioning have been organized into their respective dedicated proof categories across the repository.
+All **28 genuine, high-resolution screenshots** captured during live cloud operation on Amazon EKS (`boutique-dev-eks`, `us-east-2`, account `592668326948`) on November 9, 2026, prior to cloud decommissioning, are organized into their respective dedicated proof categories across the repository.
 
 ---
 
@@ -27,7 +27,7 @@ All **28 genuine, high-resolution screenshots** captured during live cloud opera
 | File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
 | :--- | :---: | :--- | :--- |
 | [`02-argocd-application-overview.png`](../ci-cd/02-argocd-application-overview.png) | 01:55:19 AM IST | Argo CD `boutique` tile: `Healthy` and `Synced`, tracking `main` at commit `11283ea`. | [`04-argo-image-parity.txt`](../terminal-outputs/04-argo-image-parity.txt) |
-| [`03-argocd-network-topology.png`](../ci-cd/03-argocd-network-topology.png) | 01:55:44 AM IST | Visual network topology: AWS Load Balancer Controller Ingress &rarr; `boutique-frontend` Service &rarr; Pod endpoints. | [`07-alb-ingress-status.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
+| [`03-argocd-network-topology.png`](../ci-cd/03-argocd-network-topology.png) | 01:55:44 AM IST | Visual network topology: AWS Load Balancer Controller Ingress → `boutique-frontend` Service → Pod endpoints. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
 | [`15-argocd-workloads-tree.png`](../ci-cd/15-argocd-workloads-tree.png) | 02:05:46 AM IST | Workload hierarchy of Deployments, ReplicaSets, and healthy Pod instances in Argo CD. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
 | [`16-argocd-auth-canary-gateway.png`](../ci-cd/16-argocd-auth-canary-gateway.png) | 02:05:55 AM IST | Workload tree for `boutique-auth`, `boutique-gateway`, and the `boutique-canary-trigger` ConfigMap. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
 | [`17-argocd-postgres-statefulset-pvc.png`](../ci-cd/17-argocd-postgres-statefulset-pvc.png) | 02:06:00 AM IST | Database persistence tier: `boutique-postgres` StatefulSet, 20GB EBS PVC (`gp3`), Service, and secrets. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
@@ -68,7 +68,7 @@ All **28 genuine, high-resolution screenshots** captured during live cloud opera
 | File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
 | :--- | :---: | :--- | :--- |
 | [`01-storefront-ui-demo.png`](../architecture/01-storefront-ui-demo.png) | 01:21:26 AM IST | Live boutique storefront at `https://demo.aarjav.site` showing 8 seeded luxury products (Silk Evening Gown, Cashmere Blend Overcoat, Italian Leather Handbag, Stiletto Designer Heels, Diamond Solitaire Necklace, Classic Tailored Wool Blazer, Signature Leather Wallet, Akoya Pearl Drop Earrings) with live USD pricing, cart UI, and active session. | [`05-storefront-api.txt`](../terminal-outputs/05-storefront-api.txt) |
-| [`19-aws-vpc-resource-map.png`](../architecture/19-aws-vpc-resource-map.png) | 03:53:56 AM IST | AWS VPC Console: `boutique-dev-vpc` (10.1.0.0/16) resource map: 4 subnets across 2 AZs, 3 route tables, IGW, NAT Gateway, S3 Gateway Endpoint. | [`01-github-ci-baseline.txt`](../terminal-outputs/01-github-ci-baseline.txt) |
+| [`19-aws-vpc-resource-map.png`](../architecture/19-aws-vpc-resource-map.png) | 03:53:56 AM IST | AWS VPC Console: `boutique-dev-vpc` (10.1.0.0/16) resource map: subnets across 2 AZs, route tables, IGW, NAT Gateway, S3 Gateway Endpoint. | [`01-github-ci-baseline.txt`](../terminal-outputs/01-github-ci-baseline.txt) |
 | [`22-aws-alb-load-balancers.png`](../architecture/22-aws-alb-load-balancers.png) | 04:06:22 AM IST | AWS EC2 Console: 3 Active ALBs in `vpc-09b73c79412ad1f25` for Storefront, Grafana, and Argo CD. | [`03-kubernetes-workloads.txt`](../terminal-outputs/03-kubernetes-workloads.txt) |
 | [`23-aws-vpc-nat-gateway.png`](../architecture/23-aws-vpc-nat-gateway.png) | 04:06:51 AM IST | AWS VPC Console: `boutique-dev-vpc-nat-gw` (EIP `3.12.199.177`) in public subnet `subnet-06db1c0a8fbb3cdaf`. | [`01-github-ci-baseline.txt`](../terminal-outputs/01-github-ci-baseline.txt) |
 | [`25-aws-dynamodb-tables.png`](../architecture/25-aws-dynamodb-tables.png) | 04:07:29 AM IST | AWS DynamoDB Console: 3 Active on-demand tables (`boutique-aiops-episodes`, `boutique-aiops-rca-reports`, `boutique-aiops-remediations`). | [`14-aiops-dynamodb-proposal.txt`](../terminal-outputs/14-aiops-dynamodb-proposal.txt) |
@@ -88,7 +88,7 @@ All **28 genuine, high-resolution screenshots** captured during live cloud opera
 
 | File & Valid Link | Capture Timestamp | Operational Evidence Demonstrated | Correlating Terminal Log |
 | :--- | :---: | :--- | :--- |
-| [`28-aws-kms-customer-managed-keys.png`](../security/28-aws-kms-customer-managed-keys.png) | 04:10:55 AM IST | AWS KMS Console: Customer Managed Key `1e4e2ce3-e642-47a9-a20d-3a47b052918b` (alias `boutique-aiops-key`), Enabled, Symmetric, SYMMETRIC_DEFAULT, providing envelope encryption for S3, SQS, ECR, and Secrets Manager. | [`01-github-ci-baseline.txt`](../terminal-outputs/01-github-ci-baseline.txt) |
+| [`28-aws-kms-customer-managed-keys.png`](../security/28-aws-kms-customer-managed-keys.png) | 04:10:55 AM IST | AWS KMS Console: Customer Managed Key `1e4e2ce3-e642-47a9-a20d-3a47b052918b` (alias `boutique-aiops-key`), Enabled, Symmetric, providing envelope encryption for S3, SQS, ECR, and Secrets Manager. | [`01-github-ci-baseline.txt`](../terminal-outputs/01-github-ci-baseline.txt) |
 
 ---
 

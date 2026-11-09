@@ -1,14 +1,21 @@
 # Kubernetes Cluster Topology & Workload Inventory
 
+This document details the cluster configuration, worker nodes, and workload inventory captured during live operational verification of the **Autonomous DevSecOps Platform**.
+
+> [!NOTE]
+> **Operational Context**: This topology reflects the verified live state of Amazon EKS cluster `boutique-dev-eks` prior to scheduled decommissioning.
+
+---
+
 ## 1. Cluster Information
 
 - **Cluster Name**: `boutique-dev-eks`
-- **Region**: `us-east-2` (Ohio)
+- **AWS Region**: `us-east-2` (Ohio)
 - **Kubernetes Version**: `v1.36.4-eks-cfb47f5`
 - **Node Operating System**: Bottlerocket OS (EKS Auto, Standard) 2026.10.31
 - **Kernel Version**: `6.18.56 (amd64)`
 - **Container Runtime**: `containerd://2.2.9+bottlerocket`
-- **EC2 Instance Type**: `m7i-flex.large` (2 vCPU, 8 GiB Memory)
+- **Worker Node Sizing**: 3x `m7i-flex.large` (2 vCPU, 8 GiB Memory)
 
 ---
 
@@ -16,18 +23,20 @@
 
 ```
 NAME                  STATUS   ROLES    INSTANCE-TYPE    ZONE         INTERNAL-IP   OS-IMAGE
-i-0132f13b215aa4b96   Ready    <none>   m7i-flex.large   us-east-2a   10.1.10.163   Bottlerocket (EKS Auto, Standard) 2026.10.31
-i-0cb22dbe12516c08e   Ready    <none>   m7i-flex.large   us-east-2a   10.1.10.204   Bottlerocket (EKS Auto, Standard) 2026.10.31
-i-0ed85ce505ebc5d28   Ready    <none>   m7i-flex.large   us-east-2a   10.1.10.165   Bottlerocket (EKS Auto, Standard) 2026.10.31
+i-0132f13b215aa4b96   Ready    <none>   m7i-flex.large   us-east-2a   10.1.10.163   Bottlerocket (EKS Auto, Standard)
+i-0cb22dbe12516c08e   Ready    <none>   m7i-flex.large   us-east-2a   10.1.10.204   Bottlerocket (EKS Auto, Standard)
+i-0ed85ce505ebc5d28   Ready    <none>   m7i-flex.large   us-east-2a   10.1.10.165   Bottlerocket (EKS Auto, Standard)
 ```
+
+EKS Auto Mode dynamically provisions and scales Bottlerocket EC2 instances without requiring manual node group or Karpenter provisioner maintenance.
 
 ---
 
 ## 3. Workload Pod Inventory Across Namespaces
 
-Total active pods: **24 pods** across 4 namespaces, 100% Running.
+Total active pods: **26 pods** across 4 namespaces, 100% healthy.
 
-### Namespace: `boutique` (Microservices & SRE Agent)
+### A. Namespace: `boutique` (Microservices & AIOps SRE Agent)
 ```
 NAME                               READY   STATUS    RESTARTS   WORKLOAD-IMAGE
 aiops-assistant-7786d9886c-k7hkr   1/1     Running   0          boutique-aiops-assistant@sha256:a5138d28...
@@ -39,7 +48,7 @@ gateway-6d5b6dd4f9-kxn5z           1/1     Running   0          boutique-gateway
 gateway-6d5b6dd4f9-p9cf6           1/1     Running   0          boutique-gateway@sha256:5aa9422e...
 ```
 
-### Namespace: `monitoring` (Observability & Telemetry)
+### B. Namespace: `monitoring` (Observability & Telemetry)
 ```
 NAME                                                       READY   STATUS    RESTARTS
 alertmanager-kube-prometheus-stack-alertmanager-0          2/2     Running   0
@@ -52,7 +61,7 @@ kube-prometheus-stack-prometheus-node-exporter-mzj5c       1/1     Running   0
 prometheus-kube-prometheus-stack-prometheus-0              2/2     Running   0
 ```
 
-### Namespace: `argocd` (GitOps Continuous Delivery)
+### C. Namespace: `argocd` (GitOps Continuous Delivery)
 ```
 NAME                                               READY   STATUS    RESTARTS
 argocd-application-controller-0                    1/1     Running   0
@@ -64,7 +73,7 @@ argocd-repo-server-69d4598d7c-dss46                1/1     Running   0
 argocd-server-57c9f4bff5-gvc8x                     1/1     Running   0
 ```
 
-### Namespace: `argo-rollouts` (Progressive Delivery Engine)
+### D. Namespace: `argo-rollouts` (Progressive Delivery Engine)
 ```
 NAME                             READY   STATUS    RESTARTS
 argo-rollouts-5847b8c58f-txlj9   1/1     Running   0
@@ -73,7 +82,7 @@ argo-rollouts-5847b8c58f-vrkm9   1/1     Running   0
 
 ---
 
-## 4. Ingress & Remote Service Entry Points
+## 4. Ingress & Remote Service Routing
 
 ```
 NAMESPACE    NAME               CLASS   HOSTS                      ADDRESS                                                                   PORTS
@@ -82,7 +91,7 @@ monitoring   grafana-ingress    alb     grafana.demo.aarjav.site   k8s-monitori-
 argocd       argocd-ingress     alb     argocd.demo.aarjav.site    k8s-argocd-argocdin-26faf85580-789615604.us-east-2.elb.amazonaws.com      80, 443
 ```
 
-All 3 entry points enforce TLS termination via AWS Certificate Manager (ACM `*.demo.aarjav.site` & `demo.aarjav.site`), with HTTP &rarr; HTTPS 301 automatic redirection.
+All 3 entry points enforce TLS termination via AWS Certificate Manager (ACM `*.demo.aarjav.site` & `demo.aarjav.site`) with automatic HTTP to HTTPS 301 redirection.
 
 ---
 
@@ -97,15 +106,15 @@ PersistentVolumeClaim:
 NAMESPACE   NAME                                                      STATUS   VOLUME                                     CAPACITY   STORAGECLASS
 boutique    persistentvolumeclaim/postgres-data-boutique-postgres-0   Bound    pvc-6fa38b95-1d67-4fa2-acbc-34ac6e482c6e   20Gi       auto-ebs-sc
 ```
-- **Underlying AWS Volume**: `vol-01f1ce50d718b4e69` (gp3, 20Gi, KMS Encrypted with `arn:aws:kms:us-east-2:592668326948:key/bbeb7c58-6210-4ebe-8181-ce9e30b9ac7c`)
-- **Automated Backup Snapshot**: `snap-05a3b0ffe3463e280` (Completed, 100%, KMS Encrypted)
-- **Restore Verification Test**: Validated on test volume `vol-09c9dcd255219cd44` with isolated verifier; verified and safely cleaned up.
+- **Underlying AWS Volume**: `vol-01f1ce50d718b4e69` (gp3, 20Gi, KMS Encrypted).
+- **Automated Backup Snapshot**: `snap-05a3b0ffe3463e280` (Completed, 100%, KMS Encrypted).
+- **Restore Verification**: Proven on isolated test volume with clean verification and teardown.
 
 ---
 
 ## 6. Visual Cluster Evidence
 
-The following visual proofs captured from the AWS Console validate the cluster configuration and workload health:
+The following visual proofs captured from the AWS Console validate cluster configuration and workload health:
 
-1. [`20-aws-eks-cluster-info.png`](20-aws-eks-cluster-info.png): AWS EKS Console showing cluster `boutique-dev-eks` info (v1.36, EKS Auto Mode, 26 Pods, 3 Nodes).
+1. [`20-aws-eks-cluster-info.png`](20-aws-eks-cluster-info.png): AWS EKS Console showing cluster `boutique-dev-eks` details (v1.36, EKS Auto Mode, 26 Pods, 3 Nodes).
 2. [`21-aws-eks-workloads-status.png`](21-aws-eks-workloads-status.png): AWS EKS Workloads Status dashboard (26 Pods, 14 Deployments, 4 StatefulSets, `aiops-assistant` running).

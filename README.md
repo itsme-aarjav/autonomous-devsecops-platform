@@ -115,7 +115,7 @@ The platform's live cloud operation was captured across 28 high-resolution visua
 | Storefront UI (`demo.aarjav.site`) | Argo CD GitOps Application Topology |
 | :---: | :---: |
 | [![Storefront UI](proof/architecture/01-storefront-ui-demo.png)](proof/architecture/01-storefront-ui-demo.png) | [![Argo CD Topology](proof/ci-cd/03-argocd-network-topology.png)](proof/ci-cd/03-argocd-network-topology.png) |
-| *8 seeded luxury products with real USD pricing & cart* | *Declarative ALB Ingress &rarr; Service &rarr; Pod tree* |
+| *8 seeded luxury products with real USD pricing & cart* | *Declarative ALB Ingress → Service → Pod tree* |
 
 | Grafana Cluster Compute Metrics | AWS EKS Cluster Console |
 | :---: | :---: |
@@ -163,7 +163,7 @@ validate_input → normalize_incident → collect_evidence → sanitize_evidence
 Incident Detected (Pod OOMKilled)
        │
        ▼
-Prometheus Alert &rarr; Alertmanager &rarr; SQS FIFO Queue
+Prometheus Alert → Alertmanager → SQS FIFO Queue
        │
        ▼
 AIOps LangGraph Agent (Amazon Bedrock Nova Lite RCA)
@@ -228,7 +228,7 @@ The platform was verified on live cloud infrastructure across 16 sequential oper
 Copy-paste ready bullet points optimized for Applicant Tracking Systems (ATS) and tech recruiters:
 
 - **Architected and deployed a cloud-native DevSecOps platform on AWS EKS (Kubernetes 1.36)** using 3-layer modular Terraform, provisioning VPC networking, ALB ingress, Bottlerocket nodes, and AWS KMS envelope encryption.
-- **Implemented declarative GitOps and progressive delivery using Argo CD and Argo Rollouts**, enabling zero-downtime canary deployments (50% &rarr; 100% traffic shifting) with automated rollback safeguards.
+- **Implemented declarative GitOps and progressive delivery using Argo CD and Argo Rollouts**, enabling zero-downtime canary deployments (50% → 100% traffic shifting) with automated rollback safeguards.
 - **Engineered an event-driven AIOps self-healing pipeline** using Prometheus, Alertmanager, SQS FIFO, and an 8-node LangGraph DAG integrated with Amazon Bedrock Nova Lite (`amazon.nova-lite-v1:0`) for automated root cause analysis.
 - **Built a secure Human-in-the-Loop GitOps remediation engine** with constant-time HMAC token authentication (`hmac.compare_digest`), generating reviewed GitHub Pull Requests for operator-approved declarative manifest patching.
 - **Configured full-stack observability and automated disaster recovery**, deploying Prometheus Operator, Grafana dashboards, and daily KMS-encrypted PostgreSQL S3 backups with verified point-in-time restoration.
@@ -246,7 +246,7 @@ Copy-paste ready bullet points optimized for Applicant Tracking Systems (ATS) an
 
 ### The 2-Minute Architecture Walkthrough
 1. **Infrastructure Foundation**: Provisioned via Terraform across 3 modular layers (Bootstrap S3 state, Persistent KMS/ECR/DynamoDB/SQS, and Production VPC/EKS). Runs on EKS Auto Mode with Bottlerocket worker nodes across 2 Availability Zones.
-2. **Application & Progressive Delivery**: 3-tier microservices (React 19, Express Gateway, Auth JWT service, PostgreSQL 15 StatefulSet). Traffic enters through AWS ALB with ACM TLS. Argo Rollouts manages canary traffic shifting (50% &rarr; 100%).
+2. **Application & Progressive Delivery**: 3-tier microservices (React 19, Express Gateway, Auth JWT service, PostgreSQL 15 StatefulSet). Traffic enters through AWS ALB with ACM TLS. Argo Rollouts manages canary traffic shifting (50% → 100%).
 3. **Observability**: Prometheus Operator scrapes cgroup metrics and custom ServiceMonitors. Preconfigured Alertmanager rules detect memory saturation, CrashLoopBackOff, and HTTP 5xx spikes.
 4. **Autonomous AIOps Engine**: Alertmanager sends alerts to an encrypted AWS SQS FIFO queue for deduplication. A FastAPI agent executes an 8-node LangGraph DAG that collects read-only telemetry, sanitizes secrets, and invokes Amazon Bedrock Nova Lite.
 5. **Remediation & Governance**: Proposals are bounded by a deterministic policy engine and persisted to DynamoDB. Operators use the `operator_cli.py` to inspect diffs and approve fixes via HMAC bearer tokens, opening a reviewed Pull Request that Argo CD reconciles. Post-verification, cloud resources were cleanly decommissioned to ensure an estimated project-only residual cost < $0.01/month.

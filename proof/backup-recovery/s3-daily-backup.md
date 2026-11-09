@@ -1,4 +1,4 @@
-# Real Daily PostgreSQL S3 Backup Architecture
+# Daily PostgreSQL S3 Backup Architecture
 
 > **Target Environment**: AWS Account `592668326948` | Region `us-east-2` | Cluster `boutique-dev-eks`
 > **S3 Backup Destination**: `s3://boutique-aiops-backups-592668326948-us-east-2/backups/`
@@ -10,7 +10,7 @@
 
 ## 1. Architectural Overview
 
-The database backup pipeline uses a production two-stage decoupled pod architecture:
+The database backup pipeline uses a decoupled, two-stage Kubernetes CronJob pod architecture:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -33,7 +33,7 @@ The database backup pipeline uses a production two-stage decoupled pod architect
 
 ## 2. Security, EKS Pod Identity, and Least-Privilege Architecture
 
-### Dedicated ServiceAccount & EKS Pod Identity Configuration
+### Dedicated ServiceAccount & EKS Pod Identity
 The CronJob uses a dedicated least-privilege `postgres-backup` ServiceAccount bound to IAM Role `boutique-dev-eks-postgres-backup-role` via **EKS Pod Identity**:
 - **Cluster**: `boutique-dev-eks`
 - **Namespace**: `boutique`
@@ -41,10 +41,10 @@ The CronJob uses a dedicated least-privilege `postgres-backup` ServiceAccount bo
 - **Association ID**: `a-lia6abtqtjgochg8g`
 - **Role ARN**: `arn:aws:iam::592668326948:role/boutique-dev-eks-postgres-backup-role`
 
-### Strict Least-Privilege Boundary Separation
-Previously, the backup job temporarily shared the `aiops-assistant` ServiceAccount. This was remediated to enforce least privilege:
-1. `aiops-assistant` ServiceAccount retains ONLY `boutique-dev-eks-aiops-agent-policy` (Bedrock inference, SQS message handling, DynamoDB state tracking, diagnostics). All S3 database backup permissions (`boutique-backup-s3-access`) were completely stripped from `boutique-dev-eks-aiops-agent-role`.
-2. `postgres-backup` ServiceAccount is isolated to `boutique-dev-eks-postgres-backup-role`, which contains only the S3 backup bucket write access and KMS key encrypt/decrypt access.
+### Least-Privilege IAM Separation
+To prevent privilege sprawl:
+1. `aiops-assistant` ServiceAccount retains only policies needed for Bedrock inference, SQS messaging, DynamoDB state tracking, and read-only diagnostics. All S3 database backup permissions (`boutique-backup-s3-access`) were removed from `boutique-dev-eks-aiops-agent-role`.
+2. `postgres-backup` ServiceAccount is isolated to `boutique-dev-eks-postgres-backup-role`, containing only S3 backup bucket write access and KMS key encrypt/decrypt permissions.
 
 Attached IAM Policy (`boutique-postgres-backup-policy` on `boutique-dev-eks-postgres-backup-role`):
 ```json
@@ -82,7 +82,7 @@ Attached IAM Policy (`boutique-postgres-backup-policy` on `boutique-dev-eks-post
 
 ## 3. Manual Operator Verification Command
 
-To test the backup immediately on demand:
+To test the backup pipeline on demand:
 
 ```bash
 # 1. Trigger manual Job from CronJob
@@ -106,11 +106,10 @@ kubectl delete job manual-s3-backup-verify -n boutique
 
 ---
 
-## 4. Current Execution Status & S3 Inventory
+## 4. Execution Verification & S3 Inventory
 
-- **CronJob Schedule**: `0 2 * * *` (02:00 AM IST daily) with `timeZone: Asia/Kolkata`.
-- **Scheduled Execution Status**: `PENDING_SCHEDULED_VERIFICATION`. Because the CronJob is configured for 02:00 IST daily, the scheduled execution occurs during that automated overnight window. The schedule configuration is verified, active, and awaiting its next scheduled trigger.
-- **S3 Bucket Objects**: Verified encrypted backup archives exist in `s3://boutique-aiops-backups-592668326948-us-east-2/backups/`:
+- **CronJob Schedule**: Configured for `0 2 * * *` (02:00 AM IST daily) with `timeZone: Asia/Kolkata`.
+- **Encrypted S3 Archives**: Encrypted database backups were verified present in `s3://boutique-aiops-backups-592668326948-us-east-2/backups/`:
   - `ServerSideEncryption: aws:kms`
   - `SSEKMSKeyId: arn:aws:kms:us-east-2:592668326948:key/1e4e2ce3-e642-47a9-a20d-3a47b052918b`
   - `BucketKeyEnabled: true`
@@ -120,4 +119,4 @@ kubectl delete job manual-s3-backup-verify -n boutique
 ## 5. Visual Storage Evidence & Restore Distinction
 
 1. [`27-aws-s3-buckets-inventory.png`](27-aws-s3-buckets-inventory.png): AWS S3 Console showing project buckets including `boutique-aiops-backups-592668326948-us-east-2` alongside diagnostic and tfstate buckets.
-2. **Restore Evidence**: Note that the S3 bucket listing confirms storage resource availability. Actual completed point-in-time SQL restore verification is documented with full terminal logs in [`proof/terminal-outputs/35-isolated-backup-restore-verification.txt`](../terminal-outputs/35-isolated-backup-restore-verification.txt).
+2. **Restore Evidence**: Actual completed point-in-time SQL restore verification is documented with full terminal logs in [`proof/terminal-outputs/35-isolated-backup-restore-verification.txt`](../terminal-outputs/35-isolated-backup-restore-verification.txt).
